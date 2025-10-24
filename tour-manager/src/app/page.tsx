@@ -55,11 +55,32 @@ export default function Home() {
 
   const initializeApp = async () => {
     try {
-      // Check if user has sheet IDs stored
-      const storedProductsSheetId = localStorage.getItem("productsSheetId");
-      const storedSalesSheetId = localStorage.getItem("salesSheetId");
+      // Check if user has sheet IDs stored locally
+      let storedProductsSheetId = localStorage.getItem("productsSheetId");
+      let storedSalesSheetId = localStorage.getItem("salesSheetId");
 
-      // If no sheet IDs, initialize them
+      // If no local IDs, search for existing spreadsheet in Google Drive
+      if (!storedProductsSheetId || !storedSalesSheetId) {
+        try {
+          const findResponse = await fetch("/api/sheets/find");
+          if (findResponse.ok) {
+            const findData = await findResponse.json();
+            
+            if (findData.found) {
+              // Found existing spreadsheet - use it
+              localStorage.setItem("productsSheetId", findData.spreadsheetId);
+              localStorage.setItem("salesSheetId", findData.spreadsheetId);
+              storedProductsSheetId = findData.spreadsheetId;
+              storedSalesSheetId = findData.spreadsheetId;
+              console.log("✅ Found existing Merch Table spreadsheet!");
+            }
+          }
+        } catch (error) {
+          console.error("Error searching for existing spreadsheet:", error);
+        }
+      }
+
+      // If still no sheet IDs, create new spreadsheet
       if (!storedProductsSheetId || !storedSalesSheetId) {
         setIsInitializingSheets(true);
         try {
