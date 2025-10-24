@@ -11,10 +11,7 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session?.accessToken) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     const auth = new google.auth.OAuth2();
@@ -32,7 +29,7 @@ export async function GET() {
 
     if (response.data.files && response.data.files.length > 0) {
       const spreadsheetId = response.data.files[0].id;
-      
+
       return NextResponse.json({
         found: true,
         spreadsheetId,

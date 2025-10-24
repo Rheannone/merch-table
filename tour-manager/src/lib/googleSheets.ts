@@ -221,7 +221,9 @@ export async function initializeUserSheets(
     range: "Sales!A1:F1",
     valueInputOption: "RAW",
     requestBody: {
-      values: [["ID", "Timestamp", "Items", "Total", "Payment Method", "Synced"]],
+      values: [
+        ["ID", "Timestamp", "Items", "Total", "Payment Method", "Synced"],
+      ],
     },
   });
 

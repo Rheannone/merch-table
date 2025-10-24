@@ -61,46 +61,59 @@ export default function Home() {
 
       // If no local IDs, search for existing spreadsheet in Google Drive
       if (!storedProductsSheetId || !storedSalesSheetId) {
+        console.log("🔍 No local sheet IDs found, searching Google Drive...");
         try {
           const findResponse = await fetch("/api/sheets/find");
+          console.log("📡 Search response status:", findResponse.status);
+          
           if (findResponse.ok) {
             const findData = await findResponse.json();
-            
+            console.log("📄 Search result:", findData);
+
             if (findData.found) {
               // Found existing spreadsheet - use it
               localStorage.setItem("productsSheetId", findData.spreadsheetId);
               localStorage.setItem("salesSheetId", findData.spreadsheetId);
               storedProductsSheetId = findData.spreadsheetId;
               storedSalesSheetId = findData.spreadsheetId;
-              console.log("✅ Found existing Merch Table spreadsheet!");
+              console.log("✅ Found existing Merch Table spreadsheet!", findData.spreadsheetId);
+            } else {
+              console.log("ℹ️ No existing spreadsheet found, will create new one");
             }
+          } else {
+            const errorText = await findResponse.text();
+            console.error("❌ Search request failed:", errorText);
           }
         } catch (error) {
-          console.error("Error searching for existing spreadsheet:", error);
+          console.error("❌ Error searching for existing spreadsheet:", error);
         }
+      } else {
+        console.log("✅ Using cached sheet IDs:", { storedProductsSheetId, storedSalesSheetId });
       }
 
       // If still no sheet IDs, create new spreadsheet
       if (!storedProductsSheetId || !storedSalesSheetId) {
+        console.log("📝 Creating new spreadsheet...");
         setIsInitializingSheets(true);
         try {
           const response = await fetch("/api/sheets/initialize", {
             method: "POST",
           });
 
+          console.log("📡 Create response status:", response.status);
+
           if (response.ok) {
             const data = await response.json();
+            console.log("📄 Create result:", data);
             localStorage.setItem("productsSheetId", data.productsSheetId);
             localStorage.setItem("salesSheetId", data.salesSheetId);
-            console.log("✅ Google Sheets created successfully!");
+            console.log("✅ Google Sheets created successfully!", data.productsSheetId);
           } else {
-            console.error(
-              "Failed to initialize sheets:",
-              await response.text()
-            );
+            const errorText = await response.text();
+            console.error("❌ Failed to initialize sheets:", errorText);
           }
         } catch (error) {
-          console.error("Error initializing sheets:", error);
+          console.error("❌ Error initializing sheets:", error);
         } finally {
           setIsInitializingSheets(false);
         }
