@@ -8,7 +8,7 @@ export default function SignIn() {
       <div className="max-w-md w-full space-y-8 bg-zinc-800 p-8 rounded-lg border border-zinc-700">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white mb-2">
-            🎸 Band Merch POS
+            🎸 Merch Table
           </h1>
           <p className="text-zinc-400">
             Sign in with Google to manage your merch sales

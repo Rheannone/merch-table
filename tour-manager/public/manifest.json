@@ -1,6 +1,6 @@
 {
-  "name": "Band Merch POS",
-  "short_name": "Merch POS",
+  "name": "Merch Table",
+  "short_name": "Merch Table",
   "description": "Point of Sale system for band merchandise on tour",
   "start_url": "/",
   "display": "standalone",

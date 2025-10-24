@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Band Merch POS",
+  title: "Merch Table",
   description: "Point of Sale system for band merchandise on tour",
   manifest: "/manifest.json",
   viewport: {
