@@ -18,8 +18,8 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
   };
 
   return (
-    <div className="bg-zinc-800 border-b border-zinc-700 px-4 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-3">
+    <div className="bg-zinc-800 border-b border-zinc-700 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <div className="flex items-center gap-3 flex-wrap">
         {status.isSyncing ? (
           <div className="flex items-center gap-2 text-blue-400">
             <CloudArrowUpIcon className="w-5 h-5 animate-pulse" />
@@ -39,6 +39,10 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
             <span className="text-sm font-medium">All synced</span>
           </div>
         )}
+
+        <span className="text-xs text-zinc-400 border-l border-zinc-700 pl-3">
+          Total: {status.totalSales} sale{status.totalSales === 1 ? "" : "s"}
+        </span>
 
         {status.lastSyncTime && (
           <span className="text-xs text-zinc-500">

@@ -10,6 +10,7 @@ import {
   addProduct as addProductToDB,
   deleteProduct as deleteProductFromDB,
   saveSale,
+  getSales,
   getUnsyncedSales,
   markSaleAsSynced,
 } from "@/lib/db";
@@ -17,6 +18,7 @@ import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import SyncStatusBar from "@/components/SyncStatusBar";
+import OfflineIndicator from "@/components/OfflineIndicator";
 import { Cog6ToothIcon, ShoppingBagIcon } from "@heroicons/react/24/outline";
 
 export default function Home() {
@@ -27,6 +29,7 @@ export default function Home() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     lastSyncTime: null,
     pendingSales: 0,
+    totalSales: 0,
     isSyncing: false,
   });
   const [isInitialized, setIsInitialized] = useState(false);
@@ -52,6 +55,24 @@ export default function Home() {
       return () => clearInterval(interval);
     }
   }, [isInitialized]);
+
+  // Auto-sync when coming back online
+  useEffect(() => {
+    const handleOnline = async () => {
+      console.log("📶 Network connection restored - auto-syncing...");
+      const unsyncedSales = await getUnsyncedSales();
+      if (unsyncedSales.length > 0) {
+        // Wait a moment for network to stabilize, then sync
+        setTimeout(() => {
+          syncSales();
+        }, 1000);
+      }
+    };
+
+    globalThis.addEventListener("online", handleOnline);
+    return () => globalThis.removeEventListener("online", handleOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const initializeApp = async () => {
     try {
@@ -186,9 +207,11 @@ export default function Home() {
 
   const updateSyncStatus = async () => {
     const unsyncedSales = await getUnsyncedSales();
+    const allSales = await getSales();
     setSyncStatus((prev) => ({
       ...prev,
       pendingSales: unsyncedSales.length,
+      totalSales: allSales.length,
     }));
   };
 
@@ -243,9 +266,11 @@ export default function Home() {
             await markSaleAsSynced(sale.id);
           }
 
+          const allSales = await getSales();
           setSyncStatus({
             lastSyncTime: new Date().toISOString(),
             pendingSales: 0,
+            totalSales: allSales.length,
             isSyncing: false,
           });
         }
@@ -409,6 +434,8 @@ export default function Home() {
           />
         )}
       </main>
+
+      <OfflineIndicator />
     </div>
   );
 }

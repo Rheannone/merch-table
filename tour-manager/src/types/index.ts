@@ -36,5 +36,6 @@ export interface Sale {
 export interface SyncStatus {
   lastSyncTime: string | null;
   pendingSales: number;
+  totalSales: number; // Total number of sales (synced + unsynced) for verification
   isSyncing: boolean;
 }
