@@ -1,7 +1,7 @@
 "use client";
 
 import { Product, CartItem, PaymentMethod } from "@/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ShoppingCartIcon,
   TrashIcon,
@@ -31,9 +31,20 @@ export default function POSInterface({
   const [isHookup, setIsHookup] = useState(false);
   const [sizeSelectionProduct, setSizeSelectionProduct] =
     useState<Product | null>(null);
+  const [showJumpButton, setShowJumpButton] = useState(false);
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
+
+  // Track scroll position to show/hide jump button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowJumpButton(window.scrollY > 100);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleProductClick = (product: Product) => {
     // If product has sizes, show size selection
@@ -157,9 +168,10 @@ export default function POSInterface({
   };
 
   const scrollToPayment = () => {
-    const paymentSection = document.getElementById("payment-section");
-    if (paymentSection) {
-      paymentSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Always scroll to cart section, even if empty
+    const cartSection = document.getElementById("cart-section");
+    if (cartSection) {
+      cartSection.scrollIntoView({ behavior: "auto", block: "start" });
     }
   };
 
@@ -169,18 +181,20 @@ export default function POSInterface({
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-zinc-900">
-      {/* Sticky Jump to Payment Header - Mobile Only */}
-      <div className="fixed top-0 left-0 right-0 z-50 lg:hidden">
-        <button
-          onClick={scrollToPayment}
-          className="w-full bg-red-600 text-white py-3 px-4 font-bold text-center shadow-lg hover:bg-red-700 transition-all"
-        >
-          ↓ Jump to Payment
-        </button>
-      </div>
+      {/* Sticky Jump to Payment Header - Mobile Only - Shows when scrolled down */}
+      {showJumpButton && (
+        <div className="fixed top-0 left-0 right-0 z-50 lg:hidden">
+          <button
+            onClick={scrollToPayment}
+            className="w-full bg-red-600 text-white py-3 px-4 font-bold text-center shadow-lg hover:bg-red-700 transition-all"
+          >
+            ↓ Jump to Payment
+          </button>
+        </div>
+      )}
 
       {/* Products Grid */}
-      <div className="flex-1 p-4 lg:p-6 pt-16 lg:pt-6">
+      <div className={`flex-1 p-4 lg:p-6 ${showJumpButton ? "pt-16" : "pt-4"} lg:pt-6`}>
         <h2 className="text-2xl font-bold mb-6 text-white">Products</h2>
 
         {categories.map((category) => (
@@ -227,7 +241,7 @@ export default function POSInterface({
       </div>
 
       {/* Cart */}
-      <div className="w-full lg:w-96 bg-zinc-800 border-t lg:border-t-0 lg:border-l border-zinc-700 flex flex-col">
+      <div id="cart-section" className="w-full lg:w-96 bg-zinc-800 border-t lg:border-t-0 lg:border-l border-zinc-700 flex flex-col">
         <div className="p-4 lg:p-6 border-b border-zinc-700 flex-shrink-0">
           <div className="flex items-center gap-2">
             <ShoppingCartIcon className="w-6 h-6 text-zinc-400" />
