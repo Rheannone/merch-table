@@ -194,7 +194,11 @@ export default function POSInterface({
       )}
 
       {/* Products Grid */}
-      <div className={`flex-1 p-4 lg:p-6 ${showJumpButton ? "pt-16" : "pt-4"} lg:pt-6`}>
+      <div
+        className={`flex-1 p-4 lg:p-6 ${
+          showJumpButton ? "pt-16" : "pt-4"
+        } lg:pt-6`}
+      >
         <h2 className="text-2xl font-bold mb-6 text-white">Products</h2>
 
         {categories.map((category) => (
@@ -241,7 +245,10 @@ export default function POSInterface({
       </div>
 
       {/* Cart */}
-      <div id="cart-section" className="w-full lg:w-96 bg-zinc-800 border-t lg:border-t-0 lg:border-l border-zinc-700 flex flex-col">
+      <div
+        id="cart-section"
+        className="w-full lg:w-96 bg-zinc-800 border-t lg:border-t-0 lg:border-l border-zinc-700 flex flex-col"
+      >
         <div className="p-4 lg:p-6 border-b border-zinc-700 flex-shrink-0">
           <div className="flex items-center gap-2">
             <ShoppingCartIcon className="w-6 h-6 text-zinc-400" />

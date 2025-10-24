@@ -15,7 +15,7 @@ export default function SignIn() {
             Point of Sale for DIY Tours
           </p>
           <p className="text-zinc-400 text-lg max-w-xl mx-auto">
-            No Amazon. No Meta. No corporate BS.
+            No big music corporations. No data exploitation.
             <br />
             Just you, your band, and your data.
           </p>
@@ -27,18 +27,21 @@ export default function SignIn() {
             <div className="text-3xl mb-2">🔒</div>
             <h3 className="font-bold text-white mb-2">Your Data</h3>
             <p className="text-sm text-zinc-400">
-              All sales stored in <span className="text-red-400">your own Google Drive</span>. Complete custody and control.
+              All sales stored in{" "}
+              <span className="text-red-400">your own Google Drive</span>.
+              Complete custody and control.
             </p>
           </div>
-          
+
           <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 text-center">
             <div className="text-3xl mb-2">📱</div>
             <h3 className="font-bold text-white mb-2">Offline First</h3>
             <p className="text-sm text-zinc-400">
-              Works without internet. Syncs when you can. Perfect for basements and dive bars.
+              Works without internet. Syncs when you can. Perfect for basements
+              and dive bars.
             </p>
           </div>
-          
+
           <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 text-center">
             <div className="text-3xl mb-2">🤝</div>
             <h3 className="font-bold text-white mb-2">Hook Ups</h3>
@@ -74,10 +77,12 @@ export default function SignIn() {
             </svg>
             Sign in with Google
           </button>
-          
+
           <div className="text-center text-sm text-zinc-500 space-y-2">
             <p>
-              We only use Google for authentication and storing <span className="text-zinc-400">your</span> data in <span className="text-zinc-400">your</span> Drive.
+              We only use Google for authentication and storing{" "}
+              <span className="text-zinc-400">your</span> data in{" "}
+              <span className="text-zinc-400">your</span> Drive.
             </p>
             <p className="text-xs">
               No tracking. No selling your info. No algorithmic manipulation.
@@ -88,10 +93,12 @@ export default function SignIn() {
         {/* Footer */}
         <div className="text-center text-sm text-zinc-500">
           <p>
-            Made with ❤️ in <span className="text-red-400 font-semibold">Philadelphia</span>
+            Made with ❤️ in{" "}
+            <span className="text-red-400 font-semibold">Philadelphia</span>
           </p>
           <p className="text-xs mt-1">
-            The city of DIY music, basement shows, and keeping it real since forever
+            The city of DIY music, basement shows, and keeping it real since
+            forever
           </p>
         </div>
       </div>
