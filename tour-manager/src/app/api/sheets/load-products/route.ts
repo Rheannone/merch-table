@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     });
 
     const rows = response.data.values || [];
-    
+
     // Convert rows to Product objects
     const products: Product[] = rows.map((row) => ({
       id: row[0] || "",

@@ -65,7 +65,7 @@ export default function Home() {
         try {
           const findResponse = await fetch("/api/sheets/find");
           console.log("📡 Search response status:", findResponse.status);
-          
+
           if (findResponse.ok) {
             const findData = await findResponse.json();
             console.log("📄 Search result:", findData);
@@ -76,9 +76,14 @@ export default function Home() {
               localStorage.setItem("salesSheetId", findData.spreadsheetId);
               storedProductsSheetId = findData.spreadsheetId;
               storedSalesSheetId = findData.spreadsheetId;
-              console.log("✅ Found existing Merch Table spreadsheet!", findData.spreadsheetId);
+              console.log(
+                "✅ Found existing Merch Table spreadsheet!",
+                findData.spreadsheetId
+              );
             } else {
-              console.log("ℹ️ No existing spreadsheet found, will create new one");
+              console.log(
+                "ℹ️ No existing spreadsheet found, will create new one"
+              );
             }
           } else {
             const errorText = await findResponse.text();
@@ -88,7 +93,10 @@ export default function Home() {
           console.error("❌ Error searching for existing spreadsheet:", error);
         }
       } else {
-        console.log("✅ Using cached sheet IDs:", { storedProductsSheetId, storedSalesSheetId });
+        console.log("✅ Using cached sheet IDs:", {
+          storedProductsSheetId,
+          storedSalesSheetId,
+        });
       }
 
       // If still no sheet IDs, create new spreadsheet
@@ -107,7 +115,10 @@ export default function Home() {
             console.log("📄 Create result:", data);
             localStorage.setItem("productsSheetId", data.productsSheetId);
             localStorage.setItem("salesSheetId", data.salesSheetId);
-            console.log("✅ Google Sheets created successfully!", data.productsSheetId);
+            console.log(
+              "✅ Google Sheets created successfully!",
+              data.productsSheetId
+            );
           } else {
             const errorText = await response.text();
             console.error("❌ Failed to initialize sheets:", errorText);
@@ -137,7 +148,11 @@ export default function Home() {
             if (data.products && data.products.length > 0) {
               loadedProducts = data.products;
               await saveProducts(loadedProducts); // Save to IndexedDB
-              console.log("✅ Loaded", loadedProducts.length, "products from Google Sheets");
+              console.log(
+                "✅ Loaded",
+                loadedProducts.length,
+                "products from Google Sheets"
+              );
             }
           }
         } catch (error) {
@@ -148,7 +163,11 @@ export default function Home() {
       // If no products from sheets, try IndexedDB
       if (loadedProducts.length === 0) {
         loadedProducts = await getProducts();
-        console.log("📦 Loaded", loadedProducts.length, "products from IndexedDB");
+        console.log(
+          "📦 Loaded",
+          loadedProducts.length,
+          "products from IndexedDB"
+        );
       }
 
       // If still no products, use defaults
@@ -279,6 +298,17 @@ export default function Home() {
     }
   };
 
+  const handleResetCache = () => {
+    if (
+      confirm(
+        "This will clear all local data and reload from Google Sheets. Continue?"
+      )
+    ) {
+      localStorage.clear();
+      globalThis.location.reload();
+    }
+  };
+
   if (isInitializingSheets) {
     return (
       <div className="flex items-center justify-center h-screen bg-zinc-900">
@@ -325,7 +355,14 @@ export default function Home() {
       <header className="bg-black border-b border-zinc-700 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">🎸 Merch Table</h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleResetCache}
+              className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded border border-zinc-700 text-xs transition-all"
+              title="Clear cache and reload from Google Sheets"
+            >
+              🔄 Reset
+            </button>
             <div className="text-right hidden sm:block">
               <p className="text-sm text-zinc-400">Signed in as</p>
               <p className="text-sm font-medium text-white">
