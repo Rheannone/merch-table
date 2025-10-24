@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Product, CartItem, PaymentMethod, Sale, SyncStatus } from "@/types";
 import {
   getProducts,
@@ -20,6 +21,7 @@ import { Cog6ToothIcon, ShoppingBagIcon } from "@heroicons/react/24/outline";
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<"pos" | "setup">("pos");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
@@ -246,7 +248,7 @@ export default function Home() {
 
   // Redirect to sign-in if not authenticated
   if (status === "unauthenticated") {
-    signIn();
+    router.push("/auth/signin");
     return (
       <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
         <div className="text-center">
