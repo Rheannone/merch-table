@@ -119,12 +119,43 @@ export default function Home() {
         }
       }
 
-      // Load products from IndexedDB
-      let loadedProducts = await getProducts();
+      // Load products - try from Google Sheets first, then IndexedDB, then defaults
+      let loadedProducts: Product[] = [];
 
+      // If we have a sheet ID, try loading products from Google Sheets
+      if (storedProductsSheetId) {
+        try {
+          console.log("📥 Loading products from Google Sheets...");
+          const response = await fetch("/api/sheets/load-products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productsSheetId: storedProductsSheetId }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.products && data.products.length > 0) {
+              loadedProducts = data.products;
+              await saveProducts(loadedProducts); // Save to IndexedDB
+              console.log("✅ Loaded", loadedProducts.length, "products from Google Sheets");
+            }
+          }
+        } catch (error) {
+          console.error("❌ Failed to load from Google Sheets:", error);
+        }
+      }
+
+      // If no products from sheets, try IndexedDB
+      if (loadedProducts.length === 0) {
+        loadedProducts = await getProducts();
+        console.log("📦 Loaded", loadedProducts.length, "products from IndexedDB");
+      }
+
+      // If still no products, use defaults
       if (loadedProducts.length === 0) {
         await saveProducts(DEFAULT_PRODUCTS);
         loadedProducts = DEFAULT_PRODUCTS;
+        console.log("🎯 Using default products");
       }
 
       setProducts(loadedProducts);

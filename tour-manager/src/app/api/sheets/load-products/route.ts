@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import { google } from "googleapis";
+import { Product } from "@/types";
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.accessToken) {
+      return NextResponse.json(
+        { error: "Unauthorized - Please sign in" },
+        { status: 401 }
+      );
+    }
+
+    const { productsSheetId } = await req.json();
+
+    if (!productsSheetId) {
+      return NextResponse.json(
+        { error: "Products sheet ID not provided" },
+        { status: 400 }
+      );
+    }
+
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: session.accessToken });
+
+    const sheets = google.sheets({ version: "v4", auth });
+
+    // Read products from the sheet
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: productsSheetId,
+      range: "Products!A2:D", // Skip header row
+    });
+
+    const rows = response.data.values || [];
+    
+    // Convert rows to Product objects
+    const products: Product[] = rows.map((row) => ({
+      id: row[0] || "",
+      name: row[1] || "",
+      price: parseFloat(row[2]) || 0,
+      category: row[3] || "Other",
+    }));
+
+    return NextResponse.json({
+      success: true,
+      products,
+    });
+  } catch (error) {
+    console.error("Failed to load products:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to load products from Google Sheets",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
