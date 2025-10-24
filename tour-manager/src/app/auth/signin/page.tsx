@@ -8,14 +8,16 @@ export default function SignIn() {
       <div className="max-w-2xl w-full space-y-8">
         {/* Hero Section */}
         <div className="text-center space-y-4">
-          <h1 className="text-5xl md:text-6xl font-black text-white mb-2">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-2 leading-tight">
             🎸 Merch Table
           </h1>
-          <p className="text-xl md:text-2xl text-red-400 font-bold">
+          <p className="text-lg sm:text-xl md:text-2xl text-red-400 font-bold">
             Point of Sale for DIY Tours
           </p>
-          <p className="text-zinc-400 text-lg max-w-xl mx-auto">
-            No big music corporations. No data exploitation.
+          <p className="text-base sm:text-lg text-zinc-400 max-w-xl mx-auto leading-relaxed">
+            No big music corporations.
+            <br />
+            No data exploitation.
             <br />
             Just you, your band, and your data.
           </p>
@@ -46,7 +48,7 @@ export default function SignIn() {
             <div className="text-3xl mb-2">🤝</div>
             <h3 className="font-bold text-white mb-2">Hook Ups</h3>
             <p className="text-sm text-zinc-400">
-              Track discounts and freebies for your crew. Keep it real.
+              Track discounts and freebies for your crew.
             </p>
           </div>
         </div>
@@ -95,10 +97,6 @@ export default function SignIn() {
           <p>
             Made with ❤️ in{" "}
             <span className="text-red-400 font-semibold">Philadelphia</span>
-          </p>
-          <p className="text-xs mt-1">
-            The city of DIY music, basement shows, and keeping it real since
-            forever
           </p>
         </div>
       </div>
