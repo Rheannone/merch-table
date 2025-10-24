@@ -156,14 +156,31 @@ export default function POSInterface({
     }
   };
 
+  const scrollToPayment = () => {
+    const paymentSection = document.getElementById("payment-section");
+    if (paymentSection) {
+      paymentSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   const categories = Array.from(new Set(products.map((p) => p.category)));
   const total = calculateTotal();
   const change = calculateChange();
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-zinc-900">
+      {/* Sticky Jump to Payment Header - Mobile Only */}
+      <div className="fixed top-0 left-0 right-0 z-50 lg:hidden">
+        <button
+          onClick={scrollToPayment}
+          className="w-full bg-red-600 text-white py-3 px-4 font-bold text-center shadow-lg hover:bg-red-700 transition-all"
+        >
+          ↓ Jump to Payment
+        </button>
+      </div>
+
       {/* Products Grid */}
-      <div className="flex-1 p-4 lg:p-6">
+      <div className="flex-1 p-4 lg:p-6 pt-16 lg:pt-6">
         <h2 className="text-2xl font-bold mb-6 text-white">Products</h2>
 
         {categories.map((category) => (
@@ -281,7 +298,10 @@ export default function POSInterface({
         </div>
 
         {cart.length > 0 && (
-          <div className="border-t border-zinc-700 p-4 lg:p-6 space-y-4 mb-4">
+          <div
+            id="payment-section"
+            className="border-t border-zinc-700 p-4 lg:p-6 space-y-4 mb-4"
+          >
             <div className="flex justify-between text-xl font-bold">
               <span className="text-white">Total:</span>
               <span className="text-red-400">${total.toFixed(2)}</span>

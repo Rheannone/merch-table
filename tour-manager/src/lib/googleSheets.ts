@@ -228,19 +228,11 @@ export async function initializeUserSheets(
   // Set up Sales sheet headers
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sales!A1:G1",
+    range: "Sales!A1:F1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        [
-          "ID",
-          "Timestamp",
-          "Items",
-          "Total",
-          "Payment Method",
-          "Hookup",
-          "Synced",
-        ],
+        ["ID", "Timestamp", "Items", "Total", "Payment Method", "Hookup"],
       ],
     },
   });

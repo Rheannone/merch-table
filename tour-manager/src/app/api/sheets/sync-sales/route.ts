@@ -41,8 +41,7 @@ export async function POST(req: NextRequest) {
         .join(", "),
       sale.total.toFixed(2),
       sale.paymentMethod,
-      sale.isHookup ? "Yes" : "No",
-      sale.synced ? "Yes" : "No",
+      sale.isHookup ? "Hookup" : "",
     ]);
 
     if (values.length > 0) {
