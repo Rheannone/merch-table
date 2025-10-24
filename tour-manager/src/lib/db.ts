@@ -9,7 +9,6 @@ interface MerchPOSDB extends DBSchema {
   sales: {
     key: string;
     value: Sale;
-    indexes: { "by-synced": boolean };
   };
 }
 
@@ -28,8 +27,7 @@ export function getDB() {
 
       // Sales store
       if (!db.objectStoreNames.contains("sales")) {
-        const salesStore = db.createObjectStore("sales", { keyPath: "id" });
-        salesStore.createIndex("by-synced", "synced");
+        db.createObjectStore("sales", { keyPath: "id" });
       }
     },
   });
