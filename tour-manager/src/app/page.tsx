@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { Product, CartItem, PaymentMethod, Sale, SyncStatus } from "@/types";
 import {
   getProducts,
@@ -18,6 +19,7 @@ import SyncStatusBar from "@/components/SyncStatusBar";
 import { Cog6ToothIcon, ShoppingBagIcon } from "@heroicons/react/24/outline";
 
 export default function Home() {
+  const { data: session, status } = useSession();
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<"pos" | "setup">("pos");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
@@ -167,10 +169,51 @@ export default function Home() {
     );
   }
 
+  // Show loading state while checking authentication
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-zinc-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to sign-in if not authenticated
+  if (status === "unauthenticated") {
+    signIn();
+    return (
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-zinc-400">Redirecting to sign in...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-zinc-900">
       <header className="bg-black border-b border-zinc-700 p-4">
-        <h1 className="text-2xl font-bold text-white">🎸 Band Merch POS</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white">🎸 Band Merch POS</h1>
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm text-zinc-400">Signed in as</p>
+              <p className="text-sm font-medium text-white">
+                {session?.user?.email}
+              </p>
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded border border-zinc-700 text-sm transition-all"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
       </header>
 
       <SyncStatusBar status={syncStatus} onSync={syncSales} />
