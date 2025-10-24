@@ -3,6 +3,7 @@
 This guide will walk you through setting up Google OAuth for the Band Merch POS app.
 
 ## Prerequisites
+
 - A Google Cloud project (you already have "Tour Manager")
 - Access to Google Cloud Console
 
@@ -51,11 +52,13 @@ This guide will walk you through setting up Google OAuth for the Band Merch POS 
 ## Step 4: Configure Environment Variables
 
 1. In your project directory, create a `.env.local` file:
+
    ```bash
    cp .env.example .env.local
    ```
 
 2. Edit `.env.local` and add your credentials:
+
    ```bash
    NEXTAUTH_URL=http://localhost:3000
    NEXTAUTH_SECRET=your-random-secret
@@ -72,6 +75,7 @@ This guide will walk you through setting up Google OAuth for the Band Merch POS 
 ## Step 5: Test Authentication
 
 1. Start your development server:
+
    ```bash
    npm run dev
    ```
@@ -83,6 +87,7 @@ This guide will walk you through setting up Google OAuth for the Band Merch POS 
 4. Click **Sign in with Google**
 
 5. You'll be asked to:
+
    - Choose your Google account
    - Grant permission to access Google Sheets and Drive
    - Click **Allow**
@@ -92,14 +97,17 @@ This guide will walk you through setting up Google OAuth for the Band Merch POS 
 ## Troubleshooting
 
 ### "Redirect URI mismatch" error
+
 - Make sure your redirect URI in Google Cloud Console exactly matches: `http://localhost:3000/api/auth/callback/google`
 - Check for typos, extra slashes, or http vs https
 
 ### "Access blocked: This app's request is invalid"
+
 - Make sure you've configured the OAuth consent screen
 - Check that you've added the correct scopes
 
 ### "This app isn't verified" warning
+
 - This is normal during development
 - Click "Advanced" > "Go to Band Merch POS (unsafe)" to continue
 - For production, you'll need to verify your app with Google
@@ -107,6 +115,7 @@ This guide will walk you through setting up Google OAuth for the Band Merch POS 
 ## Next Steps
 
 Once authentication is working:
+
 - The app will automatically create Google Sheets for your products and sales
 - All data syncs to your personal Google Drive
 - You can access the app offline, syncing when you're back online
@@ -114,6 +123,7 @@ Once authentication is working:
 ## Production Deployment (Vercel)
 
 When deploying to Vercel:
+
 1. Add production redirect URI to Google Cloud Console
 2. Add environment variables in Vercel dashboard
 3. Update `NEXTAUTH_URL` to your production URL

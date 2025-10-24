@@ -28,10 +28,13 @@ export default function Home() {
     isSyncing: false,
   });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitializingSheets, setIsInitializingSheets] = useState(false);
 
   useEffect(() => {
-    initializeApp();
-  }, []);
+    if (session) {
+      initializeApp();
+    }
+  }, [session]);
 
   useEffect(() => {
     if (isInitialized) {
@@ -43,6 +46,34 @@ export default function Home() {
 
   const initializeApp = async () => {
     try {
+      // Check if user has sheet IDs stored
+      const storedProductsSheetId = localStorage.getItem("productsSheetId");
+      const storedSalesSheetId = localStorage.getItem("salesSheetId");
+
+      // If no sheet IDs, initialize them
+      if (!storedProductsSheetId || !storedSalesSheetId) {
+        setIsInitializingSheets(true);
+        try {
+          const response = await fetch("/api/sheets/initialize", {
+            method: "POST",
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem("productsSheetId", data.productsSheetId);
+            localStorage.setItem("salesSheetId", data.salesSheetId);
+            console.log("✅ Google Sheets created successfully!");
+          } else {
+            console.error("Failed to initialize sheets:", await response.text());
+          }
+        } catch (error) {
+          console.error("Error initializing sheets:", error);
+        } finally {
+          setIsInitializingSheets(false);
+        }
+      }
+
+      // Load products from IndexedDB
       let loadedProducts = await getProducts();
 
       if (loadedProducts.length === 0) {
@@ -99,12 +130,13 @@ export default function Home() {
 
     try {
       const unsyncedSales = await getUnsyncedSales();
+      const salesSheetId = localStorage.getItem("salesSheetId");
 
-      if (unsyncedSales.length > 0) {
-        const response = await fetch("/api/sync-sales", {
+      if (unsyncedSales.length > 0 && salesSheetId) {
+        const response = await fetch("/api/sheets/sync-sales", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sales: unsyncedSales }),
+          body: JSON.stringify({ sales: unsyncedSales, salesSheetId }),
         });
 
         if (response.ok) {
@@ -143,20 +175,41 @@ export default function Home() {
 
   const handleSyncProducts = async () => {
     try {
-      const response = await fetch("/api/sync-products", {
+      const productsSheetId = localStorage.getItem("productsSheetId");
+      
+      if (!productsSheetId) {
+        throw new Error("Products sheet not initialized");
+      }
+
+      const response = await fetch("/api/sheets/sync-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products }),
+        body: JSON.stringify({ products, productsSheetId }),
       });
 
       if (!response.ok) {
         throw new Error("Failed to sync");
       }
+
+      alert("Products synced to Google Sheets successfully!");
     } catch (error) {
       console.error("Failed to sync products:", error);
+      alert("Failed to sync products: " + (error instanceof Error ? error.message : "Unknown error"));
       throw error;
     }
   };
+
+  if (isInitializingSheets) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-zinc-900">
+        <div className="text-center max-w-md">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-white text-lg font-semibold mb-2">Setting up your Google Sheets...</p>
+          <p className="text-zinc-400 text-sm">Creating Products and Sales sheets in your Google Drive</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isInitialized) {
     return (
