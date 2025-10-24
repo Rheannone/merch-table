@@ -32,6 +32,13 @@ export default function Home() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
 
+  // Handle authentication redirect
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin");
+    }
+  }, [status, router]);
+
   useEffect(() => {
     if (session) {
       initializeApp();
@@ -235,25 +242,14 @@ export default function Home() {
   }
 
   // Show loading state while checking authentication
-  if (status === "loading") {
+  if (status === "loading" || status === "unauthenticated") {
     return (
       <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-          <p className="text-zinc-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Redirect to sign-in if not authenticated
-  if (status === "unauthenticated") {
-    router.push("/auth/signin");
-    return (
-      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-          <p className="text-zinc-400">Redirecting to sign in...</p>
+          <p className="text-zinc-400">
+            {status === "loading" ? "Loading..." : "Redirecting to sign in..."}
+          </p>
         </div>
       </div>
     );
