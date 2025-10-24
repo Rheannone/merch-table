@@ -195,7 +195,8 @@ export default function Home() {
   const handleCompleteSale = async (
     items: CartItem[],
     total: number,
-    paymentMethod: PaymentMethod
+    paymentMethod: PaymentMethod,
+    isHookup: boolean = false
   ) => {
     const sale: Sale = {
       id: `sale-${Date.now()}`,
@@ -205,10 +206,12 @@ export default function Home() {
         productName: item.product.name,
         quantity: item.quantity,
         price: item.product.price,
+        size: item.size,
       })),
       total,
       paymentMethod,
       synced: false,
+      isHookup,
     };
 
     await saveSale(sale);

@@ -14,7 +14,8 @@ interface POSInterfaceProps {
   onCompleteSale: (
     items: CartItem[],
     total: number,
-    paymentMethod: PaymentMethod
+    paymentMethod: PaymentMethod,
+    isHookup?: boolean
   ) => Promise<void>;
 }
 
@@ -27,29 +28,53 @@ export default function POSInterface({
     useState<PaymentMethod>("cash");
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
+  const [isHookup, setIsHookup] = useState(false);
+  const [sizeSelectionProduct, setSizeSelectionProduct] = useState<Product | null>(null);
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
 
-  const addToCart = (product: Product) => {
+  const handleProductClick = (product: Product) => {
+    // If product has sizes, show size selection
+    if (product.sizes && product.sizes.length > 0) {
+      setSizeSelectionProduct(product);
+    } else {
+      addToCart(product);
+    }
+  };
+
+  const handleSizeSelect = (size: string) => {
+    if (sizeSelectionProduct) {
+      addToCart(sizeSelectionProduct, size);
+      setSizeSelectionProduct(null);
+    }
+  };
+
+  const addToCart = (product: Product, size?: string) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      // For products with sizes, treat each size as a separate cart item
+      const existing = prev.find(
+        (item) =>
+          item.product.id === product.id &&
+          (!size || item.size === size)
+      );
+
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.product.id === product.id && (!size || item.size === size)
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: 1, size }];
     });
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (productId: string, delta: number, size?: string) => {
     setCart((prev) => {
       return prev
         .map((item) =>
-          item.product.id === productId
+          item.product.id === productId && (!size || item.size === size)
             ? { ...item, quantity: Math.max(0, item.quantity + delta) }
             : item
         )
@@ -57,8 +82,12 @@ export default function POSInterface({
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const removeFromCart = (productId: string, size?: string) => {
+    setCart((prev) =>
+      prev.filter(
+        (item) => !(item.product.id === productId && (!size || item.size === size))
+      )
+    );
   };
 
   const calculateTotal = () => {
@@ -83,21 +112,22 @@ export default function POSInterface({
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
 
-    // For cash payments, ensure enough money was received
-    if (selectedPaymentMethod === "cash" && cashReceived < calculateTotal()) {
+    // For cash payments (unless hookup), ensure enough money was received
+    if (selectedPaymentMethod === "cash" && !isHookup && cashReceived < calculateTotal()) {
       alert("Not enough cash received!");
       return;
     }
 
     setIsProcessing(true);
     try {
-      await onCompleteSale(cart, calculateTotal(), selectedPaymentMethod);
+      await onCompleteSale(cart, calculateTotal(), selectedPaymentMethod, isHookup);
       setCart([]);
       setSelectedPaymentMethod("cash");
       setCashReceived(0);
+      setIsHookup(false);
 
       // Show success message
-      alert("✅ Sale completed successfully!");
+      alert(isHookup ? "✨ Hook up completed!" : "✅ Sale completed successfully!");
     } catch (error) {
       console.error("Failed to complete sale:", error);
       alert("Failed to complete sale. Please try again.");
@@ -135,16 +165,30 @@ export default function POSInterface({
                 .map((product) => (
                   <button
                     key={product.id}
-                    onClick={() => addToCart(product)}
-                    className="bg-zinc-800 border border-zinc-700 p-4 rounded-lg shadow-lg hover:shadow-red-900/20 hover:border-red-500/50 transition-all active:scale-95 touch-manipulation"
+                    onClick={() => handleProductClick(product)}
+                    className="relative bg-zinc-800 border border-zinc-700 p-4 rounded-lg shadow-lg hover:shadow-red-900/20 hover:border-red-500/50 transition-all active:scale-95 touch-manipulation overflow-hidden min-h-[100px]"
+                    style={
+                      product.imageUrl
+                        ? {
+                            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.7)), url(${product.imageUrl})`,
+                            backgroundSize: "cover",
+                            backgroundPosition: "center",
+                          }
+                        : undefined
+                    }
                   >
-                    <div className="text-left">
-                      <h4 className="font-semibold text-zinc-100 mb-1 text-sm lg:text-base">
+                    <div className="text-left relative z-10">
+                      <h4 className="font-semibold text-zinc-100 mb-1 text-sm lg:text-base drop-shadow-lg">
                         {product.name}
                       </h4>
-                      <p className="text-2xl font-bold text-red-400">
+                      <p className="text-2xl font-bold text-red-400 drop-shadow-lg">
                         ${product.price}
                       </p>
+                      {product.sizes && product.sizes.length > 0 && (
+                        <p className="text-xs text-zinc-300 mt-1">
+                          {product.sizes.join(", ")}
+                        </p>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -170,14 +214,19 @@ export default function POSInterface({
             <p className="text-center text-zinc-500 mt-8">Cart is empty</p>
           ) : (
             <div className="space-y-3">
-              {cart.map((item) => (
+              {cart.map((item, index) => (
                 <div
-                  key={item.product.id}
+                  key={`${item.product.id}-${item.size || "no-size"}-${index}`}
                   className="flex items-center gap-3 p-3 bg-zinc-900 border border-zinc-700 rounded-lg"
                 >
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-zinc-100 text-sm truncate">
                       {item.product.name}
+                      {item.size && (
+                        <span className="ml-2 text-xs bg-red-600 px-2 py-0.5 rounded">
+                          {item.size}
+                        </span>
+                      )}
                     </h4>
                     <p className="text-sm text-zinc-400">
                       ${item.product.price} × {item.quantity}
@@ -185,7 +234,7 @@ export default function POSInterface({
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={() => updateQuantity(item.product.id, -1)}
+                      onClick={() => updateQuantity(item.product.id, -1, item.size)}
                       className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
                     >
                       <MinusIcon className="w-4 h-4 text-white" />
@@ -194,7 +243,7 @@ export default function POSInterface({
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.product.id, 1)}
+                      onClick={() => updateQuantity(item.product.id, 1, item.size)}
                       className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
                     >
                       <PlusIcon className="w-4 h-4 text-white" />
@@ -308,11 +357,26 @@ export default function POSInterface({
               </div>
             )}
 
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsHookup(!isHookup)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${
+                  isHookup
+                    ? "bg-yellow-600 text-white"
+                    : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                }`}
+              >
+                {isHookup ? "✨ Hook Up Active" : "🤝 Hook It Up"}
+              </button>
+            </div>
+
             <button
               onClick={handleCompleteSale}
               disabled={
                 isProcessing ||
-                (selectedPaymentMethod === "cash" && cashReceived < total)
+                (selectedPaymentMethod === "cash" &&
+                  !isHookup &&
+                  cashReceived < total)
               }
               className="w-full bg-red-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-red-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all touch-manipulation shadow-lg shadow-red-900/50"
             >
@@ -321,6 +385,34 @@ export default function POSInterface({
           </div>
         )}
       </div>
+
+      {/* Size Selection Modal */}
+      {sizeSelectionProduct && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-white mb-4">
+              Select Size for {sizeSelectionProduct.name}
+            </h3>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {sizeSelectionProduct.sizes?.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => handleSizeSelect(size)}
+                  className="bg-zinc-700 hover:bg-zinc-600 text-white py-4 px-6 rounded-lg font-bold text-lg transition-all active:scale-95 touch-manipulation"
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setSizeSelectionProduct(null)}
+              className="w-full bg-zinc-700 text-zinc-300 py-2 rounded-lg hover:bg-zinc-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
