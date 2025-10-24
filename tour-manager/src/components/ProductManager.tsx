@@ -25,10 +25,17 @@ export default function ProductManager({
     category: "Apparel",
     description: "",
   });
+  const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) return;
+
+    // Parse sizes from input
+    const sizesArray = sizesInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
 
     const product: Product = {
       id: `${newProduct.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`,
@@ -36,10 +43,13 @@ export default function ProductManager({
       price: newProduct.price,
       category: newProduct.category || "Merch",
       description: newProduct.description,
+      imageUrl: newProduct.imageUrl,
+      sizes: sizesArray.length > 0 ? sizesArray : undefined,
     };
 
     await onAddProduct(product);
     setNewProduct({ name: "", price: 0, category: "Apparel", description: "" });
+    setSizesInput("");
     setIsAdding(false);
   };
 
@@ -60,7 +70,9 @@ export default function ProductManager({
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto bg-zinc-900 min-h-screen">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white">Product Management</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-white">
+          Product Management
+        </h2>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <button
             onClick={handleSync}
@@ -166,7 +178,9 @@ export default function ProductManager({
                 placeholder="https://example.com/image.jpg"
                 className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
-              <p className="text-xs text-zinc-500 mt-1">Optional - will be used as button background in POS</p>
+              <p className="text-xs text-zinc-500 mt-1">
+                Optional - will be used as button background in POS
+              </p>
             </div>
 
             <div className="md:col-span-2">
@@ -175,17 +189,8 @@ export default function ProductManager({
               </label>
               <input
                 type="text"
-                value={newProduct.sizes?.join(", ") || ""}
-                onChange={(e) => {
-                  const sizesArray = e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter((s) => s.length > 0);
-                  setNewProduct({
-                    ...newProduct,
-                    sizes: sizesArray.length > 0 ? sizesArray : undefined,
-                  });
-                }}
+                value={sizesInput}
+                onChange={(e) => setSizesInput(e.target.value)}
                 placeholder="S, M, L, XL (comma separated)"
                 className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />

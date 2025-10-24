@@ -29,7 +29,8 @@ export default function POSInterface({
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
   const [isHookup, setIsHookup] = useState(false);
-  const [sizeSelectionProduct, setSizeSelectionProduct] = useState<Product | null>(null);
+  const [sizeSelectionProduct, setSizeSelectionProduct] =
+    useState<Product | null>(null);
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
@@ -55,8 +56,7 @@ export default function POSInterface({
       // For products with sizes, treat each size as a separate cart item
       const existing = prev.find(
         (item) =>
-          item.product.id === product.id &&
-          (!size || item.size === size)
+          item.product.id === product.id && (!size || item.size === size)
       );
 
       if (existing) {
@@ -85,7 +85,8 @@ export default function POSInterface({
   const removeFromCart = (productId: string, size?: string) => {
     setCart((prev) =>
       prev.filter(
-        (item) => !(item.product.id === productId && (!size || item.size === size))
+        (item) =>
+          !(item.product.id === productId && (!size || item.size === size))
       )
     );
   };
@@ -113,21 +114,32 @@ export default function POSInterface({
     if (cart.length === 0) return;
 
     // For cash payments (unless hookup), ensure enough money was received
-    if (selectedPaymentMethod === "cash" && !isHookup && cashReceived < calculateTotal()) {
+    if (
+      selectedPaymentMethod === "cash" &&
+      !isHookup &&
+      cashReceived < calculateTotal()
+    ) {
       alert("Not enough cash received!");
       return;
     }
 
     setIsProcessing(true);
     try {
-      await onCompleteSale(cart, calculateTotal(), selectedPaymentMethod, isHookup);
+      await onCompleteSale(
+        cart,
+        calculateTotal(),
+        selectedPaymentMethod,
+        isHookup
+      );
       setCart([]);
       setSelectedPaymentMethod("cash");
       setCashReceived(0);
       setIsHookup(false);
 
       // Show success message
-      alert(isHookup ? "✨ Hook up completed!" : "✅ Sale completed successfully!");
+      alert(
+        isHookup ? "✨ Hook up completed!" : "✅ Sale completed successfully!"
+      );
     } catch (error) {
       console.error("Failed to complete sale:", error);
       alert("Failed to complete sale. Please try again.");
@@ -234,7 +246,9 @@ export default function POSInterface({
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={() => updateQuantity(item.product.id, -1, item.size)}
+                      onClick={() =>
+                        updateQuantity(item.product.id, -1, item.size)
+                      }
                       className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
                     >
                       <MinusIcon className="w-4 h-4 text-white" />
@@ -243,7 +257,9 @@ export default function POSInterface({
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.product.id, 1, item.size)}
+                      onClick={() =>
+                        updateQuantity(item.product.id, 1, item.size)
+                      }
                       className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
                     >
                       <PlusIcon className="w-4 h-4 text-white" />

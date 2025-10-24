@@ -211,7 +211,17 @@ export async function initializeUserSheets(
     range: "Products!A1:G1",
     valueInputOption: "RAW",
     requestBody: {
-      values: [["ID", "Name", "Price", "Category", "Sizes", "Image URL", "Description"]],
+      values: [
+        [
+          "ID",
+          "Name",
+          "Price",
+          "Category",
+          "Sizes",
+          "Image URL",
+          "Description",
+        ],
+      ],
     },
   });
 
@@ -222,7 +232,15 @@ export async function initializeUserSheets(
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        ["ID", "Timestamp", "Items", "Total", "Payment Method", "Hookup", "Synced"],
+        [
+          "ID",
+          "Timestamp",
+          "Items",
+          "Total",
+          "Payment Method",
+          "Hookup",
+          "Synced",
+        ],
       ],
     },
   });
