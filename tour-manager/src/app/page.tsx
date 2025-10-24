@@ -298,17 +298,6 @@ export default function Home() {
     }
   };
 
-  const handleResetCache = () => {
-    if (
-      confirm(
-        "This will clear all local data and reload from Google Sheets. Continue?"
-      )
-    ) {
-      localStorage.clear();
-      globalThis.location.reload();
-    }
-  };
-
   if (isInitializingSheets) {
     return (
       <div className="flex items-center justify-center h-screen bg-zinc-900">
@@ -355,14 +344,7 @@ export default function Home() {
       <header className="bg-black border-b border-zinc-700 p-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">🎸 Merch Table</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleResetCache}
-              className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded border border-zinc-700 text-xs transition-all"
-              title="Clear cache and reload from Google Sheets"
-            >
-              🔄 Reset
-            </button>
+          <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm text-zinc-400">Signed in as</p>
               <p className="text-sm font-medium text-white">

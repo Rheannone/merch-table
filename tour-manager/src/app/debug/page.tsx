@@ -5,9 +5,32 @@ import { useSession } from "next-auth/react";
 export default function DebugPage() {
   const { data: session, status } = useSession();
 
+  const handleResetCache = () => {
+    if (
+      confirm(
+        "This will clear all local data and reload from Google Sheets. Continue?"
+      )
+    ) {
+      localStorage.clear();
+      globalThis.location.reload();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-zinc-900 text-white p-8">
-      <h1 className="text-2xl font-bold mb-4">Debug Info</h1>
+      <h1 className="text-2xl font-bold mb-6">Debug Info</h1>
+
+      <div className="mb-6">
+        <button
+          onClick={handleResetCache}
+          className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded transition-all"
+        >
+          🔄 Reset Cache & Reload from Sheets
+        </button>
+        <p className="text-zinc-400 text-sm mt-2">
+          Clears localStorage and reloads products from Google Sheets
+        </p>
+      </div>
 
       <div className="space-y-4">
         <div>
