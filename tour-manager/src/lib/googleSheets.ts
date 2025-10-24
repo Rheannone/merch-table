@@ -114,14 +114,7 @@ export async function setupSalesSheet(
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        [
-          "Sale ID",
-          "Date",
-          "Items",
-          "Total",
-          "Payment Method",
-          "Synced",
-        ],
+        ["Sale ID", "Date", "Items", "Total", "Payment Method", "Synced"],
       ],
     },
   });

@@ -72,8 +72,8 @@ export async function getSales(): Promise<Sale[]> {
 
 export async function getUnsyncedSales(): Promise<Sale[]> {
   const db = await getDB();
-  const index = db.transaction("sales").store.index("by-synced");
-  return index.getAll(false);
+  const allSales = await db.getAll("sales");
+  return allSales.filter((sale) => !sale.synced);
 }
 
 export async function markSaleAsSynced(saleId: string) {

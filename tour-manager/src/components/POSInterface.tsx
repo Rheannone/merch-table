@@ -95,6 +95,9 @@ export default function POSInterface({
       setCart([]);
       setSelectedPaymentMethod("cash");
       setCashReceived(0);
+
+      // Show success message
+      alert("✅ Sale completed successfully!");
     } catch (error) {
       console.error("Failed to complete sale:", error);
       alert("Failed to complete sale. Please try again.");

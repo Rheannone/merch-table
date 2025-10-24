@@ -64,7 +64,10 @@ export default function Home() {
             localStorage.setItem("salesSheetId", data.salesSheetId);
             console.log("✅ Google Sheets created successfully!");
           } else {
-            console.error("Failed to initialize sheets:", await response.text());
+            console.error(
+              "Failed to initialize sheets:",
+              await response.text()
+            );
           }
         } catch (error) {
           console.error("Error initializing sheets:", error);
@@ -176,7 +179,7 @@ export default function Home() {
   const handleSyncProducts = async () => {
     try {
       const productsSheetId = localStorage.getItem("productsSheetId");
-      
+
       if (!productsSheetId) {
         throw new Error("Products sheet not initialized");
       }
@@ -194,7 +197,10 @@ export default function Home() {
       alert("Products synced to Google Sheets successfully!");
     } catch (error) {
       console.error("Failed to sync products:", error);
-      alert("Failed to sync products: " + (error instanceof Error ? error.message : "Unknown error"));
+      alert(
+        "Failed to sync products: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
       throw error;
     }
   };
@@ -204,8 +210,12 @@ export default function Home() {
       <div className="flex items-center justify-center h-screen bg-zinc-900">
         <div className="text-center max-w-md">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-          <p className="text-white text-lg font-semibold mb-2">Setting up your Google Sheets...</p>
-          <p className="text-zinc-400 text-sm">Creating Products and Sales sheets in your Google Drive</p>
+          <p className="text-white text-lg font-semibold mb-2">
+            Setting up your Google Sheets...
+          </p>
+          <p className="text-zinc-400 text-sm">
+            Creating Products and Sales sheets in your Google Drive
+          </p>
         </div>
       </div>
     );
