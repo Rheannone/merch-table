@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     // Read products from the sheet
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:D", // Skip header row
+      range: "Products!A2:G", // Updated to include all new columns
     });
 
     const rows = response.data.values || [];
@@ -43,6 +43,9 @@ export async function POST(req: NextRequest) {
       name: row[1] || "",
       price: parseFloat(row[2]) || 0,
       category: row[3] || "Other",
+      sizes: row[4] ? row[4].split(",").map((s: string) => s.trim()).filter((s: string) => s.length > 0) : undefined,
+      imageUrl: row[5] || undefined,
+      description: row[6] || undefined,
     }));
 
     return NextResponse.json({

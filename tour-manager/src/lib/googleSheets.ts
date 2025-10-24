@@ -208,21 +208,21 @@ export async function initializeUserSheets(
   // Set up Products sheet headers
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Products!A1:D1",
+    range: "Products!A1:G1",
     valueInputOption: "RAW",
     requestBody: {
-      values: [["ID", "Name", "Price", "Category"]],
+      values: [["ID", "Name", "Price", "Category", "Sizes", "Image URL", "Description"]],
     },
   });
 
   // Set up Sales sheet headers
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sales!A1:F1",
+    range: "Sales!A1:G1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        ["ID", "Timestamp", "Items", "Total", "Payment Method", "Synced"],
+        ["ID", "Timestamp", "Items", "Total", "Payment Method", "Hookup", "Synced"],
       ],
     },
   });

@@ -34,10 +34,14 @@ export async function POST(req: NextRequest) {
       sale.id,
       new Date(sale.timestamp).toLocaleString(),
       sale.items
-        .map((item) => `${item.productName} x${item.quantity}`)
+        .map((item) => {
+          const sizeInfo = item.size ? ` (${item.size})` : "";
+          return `${item.productName}${sizeInfo} x${item.quantity}`;
+        })
         .join(", "),
       sale.total.toFixed(2),
       sale.paymentMethod,
+      sale.isHookup ? "Yes" : "No",
       sale.synced ? "Yes" : "No",
     ]);
 

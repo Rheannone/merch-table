@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     // Clear existing data (except header)
     await sheets.spreadsheets.values.clear({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:D",
+      range: "Products!A2:G",
     });
 
     // Prepare data
@@ -42,6 +42,9 @@ export async function POST(req: NextRequest) {
       p.name,
       p.price,
       p.category,
+      p.sizes?.join(", ") || "",
+      p.imageUrl || "",
+      p.description || "",
     ]);
 
     if (values.length > 0) {
