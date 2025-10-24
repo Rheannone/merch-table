@@ -13,6 +13,7 @@ import {
   getSales,
   getUnsyncedSales,
   markSaleAsSynced,
+  deleteSyncedSales,
 } from "@/lib/db";
 import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import POSInterface from "@/components/POSInterface";
@@ -265,6 +266,10 @@ export default function Home() {
           for (const sale of unsyncedSales) {
             await markSaleAsSynced(sale.id);
           }
+
+          // Delete synced sales to keep local storage clean
+          const deletedCount = await deleteSyncedSales();
+          console.log(`🗑️ Cleaned up ${deletedCount} synced sales from local storage`);
 
           const allSales = await getSales();
           setSyncStatus({

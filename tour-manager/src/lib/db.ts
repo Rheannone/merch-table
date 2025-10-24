@@ -83,6 +83,18 @@ export async function markSaleAsSynced(saleId: string) {
   }
 }
 
+export async function deleteSyncedSales() {
+  const db = await getDB();
+  const allSales = await db.getAll("sales");
+  const syncedSales = allSales.filter((sale) => sale.synced);
+  
+  for (const sale of syncedSales) {
+    await db.delete("sales", sale.id);
+  }
+  
+  return syncedSales.length;
+}
+
 export async function clearAllData() {
   const db = await getDB();
   await db.clear("products");
