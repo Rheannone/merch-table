@@ -33,10 +33,10 @@ export async function POST(req: NextRequest) {
     // Clear existing data (except header)
     await sheets.spreadsheets.values.clear({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:H",
+      range: "Products!A2:I",
     });
 
-    // Prepare data - now including inventory as JSON string
+    // Prepare data - including inventory and showTextOnButton
     const values = (products as Product[]).map((p) => [
       p.id,
       p.name,
@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
       p.sizes?.join(", ") || "",
       p.imageUrl || "",
       p.description || "",
-      p.inventory ? JSON.stringify(p.inventory) : "", // Add inventory as JSON
+      p.inventory ? JSON.stringify(p.inventory) : "",
+      p.showTextOnButton !== false ? "TRUE" : "FALSE", // Column I: Show text on button
     ]);
 
     if (values.length > 0) {

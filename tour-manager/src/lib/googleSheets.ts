@@ -43,7 +43,7 @@ export async function setupProductsSheet(
   // Add headers
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sheet1!A1:H1",
+    range: "Sheet1!A1:I1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -56,6 +56,7 @@ export async function setupProductsSheet(
           "Image URL",
           "Description",
           "Inventory",
+          "Show Text",
         ],
       ],
     },

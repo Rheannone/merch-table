@@ -31,7 +31,8 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
             <div className="flex flex-col sm:flex-row sm:gap-2">
               {status.pendingSales > 0 && (
                 <span className="text-sm font-medium">
-                  {status.pendingSales} sale{status.pendingSales === 1 ? "" : "s"} pending
+                  {status.pendingSales} sale
+                  {status.pendingSales === 1 ? "" : "s"} pending
                 </span>
               )}
               {status.pendingProductSync && (
@@ -59,14 +60,15 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
         )}
       </div>
 
-      {(status.pendingSales > 0 || status.pendingProductSync) && !status.isSyncing && (
-        <button
-          onClick={handleSync}
-          className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 active:scale-95 touch-manipulation"
-        >
-          Sync Now
-        </button>
-      )}
+      {(status.pendingSales > 0 || status.pendingProductSync) &&
+        !status.isSyncing && (
+          <button
+            onClick={handleSync}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 active:scale-95 touch-manipulation"
+          >
+            Sync Now
+          </button>
+        )}
     </div>
   );
 }

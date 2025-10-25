@@ -62,7 +62,7 @@ export default function Home() {
   useEffect(() => {
     const handleOnline = async () => {
       console.log("📶 Network connection restored - auto-syncing...");
-      
+
       // Sync sales if needed
       const unsyncedSales = await getUnsyncedSales();
       if (unsyncedSales.length > 0) {
@@ -70,7 +70,7 @@ export default function Home() {
           syncSales();
         }, 1000);
       }
-      
+
       // Sync products if needed
       if (syncStatus.pendingProductSync) {
         setTimeout(() => {
@@ -304,7 +304,7 @@ export default function Home() {
     await addProductToDB(product);
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
-    
+
     // Mark products as needing sync and try to sync immediately
     setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     await syncProductsToSheet();
@@ -314,7 +314,7 @@ export default function Home() {
     await addProductToDB(product); // addProductToDB uses put() which updates if ID exists
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
-    
+
     // Mark products as needing sync and try to sync immediately
     setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     await syncProductsToSheet();
@@ -325,7 +325,7 @@ export default function Home() {
       await deleteProductFromDB(id);
       const updatedProducts = await getProducts();
       setProducts(updatedProducts);
-      
+
       // Mark products as needing sync and try to sync immediately
       setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
       await syncProductsToSheet();
@@ -337,7 +337,9 @@ export default function Home() {
       const productsSheetId = localStorage.getItem("productsSheetId");
 
       if (!productsSheetId) {
-        console.warn("Products sheet not initialized - will sync when available");
+        console.warn(
+          "Products sheet not initialized - will sync when available"
+        );
         return;
       }
 

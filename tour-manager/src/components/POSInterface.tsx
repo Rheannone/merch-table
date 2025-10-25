@@ -252,53 +252,79 @@ export default function POSInterface({
                 .filter((p) => p.category === category)
                 .map((product) => {
                   const inStock = hasStock(product);
+                  const hasImage = product.imageUrl && product.imageUrl.trim().length > 0;
+                  const showText = product.showTextOnButton !== false; // default true
+                  
                   return (
                     <button
                       key={product.id}
                       onClick={() => inStock && handleProductClick(product)}
                       disabled={!inStock}
-                      className={`relative bg-zinc-800 border border-zinc-700 p-4 rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden min-h-[100px] ${
+                      className={`relative border border-zinc-700 rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden ${
+                        hasImage ? 'p-0 h-48' : 'p-4 bg-zinc-800 min-h-[100px]'
+                      } ${
                         inStock
                           ? "hover:shadow-red-900/20 hover:border-red-500/50 active:scale-95"
                           : "opacity-50 cursor-not-allowed"
                       }`}
-                      style={
-                        product.imageUrl && inStock
-                          ? {
-                              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.7)), url(${product.imageUrl})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                            }
-                          : product.imageUrl
-                          ? {
-                              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${product.imageUrl})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                            }
-                          : undefined
-                      }
                     >
-                      <div className="text-left relative z-10">
-                        <h4 className="font-semibold text-zinc-100 mb-1 text-sm lg:text-base drop-shadow-lg">
-                          {product.name}
-                        </h4>
-                        {inStock ? (
-                          <>
-                            <p className="text-2xl font-bold text-red-400 drop-shadow-lg">
-                              ${product.price}
-                            </p>
-                            {product.sizes && product.sizes.length > 0 && (
-                              <p className="text-xs text-zinc-300 mt-1">
-                                {product.sizes.join(", ")}
+                      {/* Full Image Display */}
+                      {hasImage ? (
+                        <div className="relative w-full h-full">
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className={`w-full h-full object-cover ${!inStock ? 'opacity-40' : ''}`}
+                          />
+                          {/* Text overlay with gradient background */}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
+                            {showText && (
+                              <h4 className="font-semibold text-white mb-1 text-sm lg:text-base drop-shadow-lg">
+                                {product.name}
+                              </h4>
+                            )}
+                            {inStock ? (
+                              <>
+                                <p className="text-xl font-bold text-red-400 drop-shadow-lg">
+                                  ${product.price}
+                                </p>
+                                {product.sizes && product.sizes.length > 0 && (
+                                  <p className="text-xs text-zinc-300 mt-1">
+                                    {product.sizes.join(", ")}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-lg font-bold text-zinc-400">
+                                Out of Stock
                               </p>
                             )}
-                          </>
-                        ) : (
-                          <p className="text-lg font-bold text-zinc-400 mt-2">
-                            Out of Stock
-                          </p>
-                        )}
-                      </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // No image - text only display
+                        <div className="text-left relative z-10">
+                          <h4 className="font-semibold text-zinc-100 mb-1 text-sm lg:text-base">
+                            {product.name}
+                          </h4>
+                          {inStock ? (
+                            <>
+                              <p className="text-2xl font-bold text-red-400">
+                                ${product.price}
+                              </p>
+                              {product.sizes && product.sizes.length > 0 && (
+                                <p className="text-xs text-zinc-300 mt-1">
+                                  {product.sizes.join(", ")}
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-lg font-bold text-zinc-400 mt-2">
+                              Out of Stock
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </button>
                   );
                 })}

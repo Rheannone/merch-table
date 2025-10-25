@@ -5,6 +5,7 @@ export interface Product {
   category: string;
   description?: string;
   imageUrl?: string;
+  showTextOnButton?: boolean; // Whether to show product name on POS button (default: true)
   sizes?: string[]; // e.g., ['S', 'M', 'L', 'XL'] for apparel
   // Inventory tracking
   inventory?: {

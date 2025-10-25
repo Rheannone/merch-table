@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     // Read products from the sheet
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:H", // Updated to include inventory column
+      range: "Products!A2:I", // Updated to include showTextOnButton column
     });
 
     const rows = response.data.values || [];
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
         imageUrl: row[5] || undefined,
         description: row[6] || undefined,
         inventory,
+        showTextOnButton: row[8] !== "FALSE", // Column I: defaults to true
       };
     });
 
