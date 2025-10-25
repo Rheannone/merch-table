@@ -252,16 +252,17 @@ export default function POSInterface({
                 .filter((p) => p.category === category)
                 .map((product) => {
                   const inStock = hasStock(product);
-                  const hasImage = product.imageUrl && product.imageUrl.trim().length > 0;
+                  const hasImage =
+                    product.imageUrl && product.imageUrl.trim().length > 0;
                   const showText = product.showTextOnButton !== false; // default true
-                  
+
                   return (
                     <button
                       key={product.id}
                       onClick={() => inStock && handleProductClick(product)}
                       disabled={!inStock}
-                      className={`relative border border-zinc-700 rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden ${
-                        hasImage ? 'p-0 h-48' : 'p-4 bg-zinc-800 min-h-[100px]'
+                      className={`relative border border-zinc-700 rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden aspect-square ${
+                        hasImage ? "p-0" : "p-4 bg-zinc-800"
                       } ${
                         inStock
                           ? "hover:shadow-red-900/20 hover:border-red-500/50 active:scale-95"
@@ -274,32 +275,52 @@ export default function POSInterface({
                           <img
                             src={product.imageUrl}
                             alt={product.name}
-                            className={`w-full h-full object-cover ${!inStock ? 'opacity-40' : ''}`}
+                            className={`w-full h-full object-contain ${
+                              inStock ? "" : "opacity-40"
+                            }`}
                           />
-                          {/* Text overlay with gradient background */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
-                            {showText && (
+                          
+                          {/* Text overlay - only show gradient if text is on */}
+                          {showText ? (
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
                               <h4 className="font-semibold text-white mb-1 text-sm lg:text-base drop-shadow-lg">
                                 {product.name}
                               </h4>
-                            )}
-                            {inStock ? (
-                              <>
-                                <p className="text-xl font-bold text-red-400 drop-shadow-lg">
-                                  ${product.price}
-                                </p>
-                                {product.sizes && product.sizes.length > 0 && (
-                                  <p className="text-xs text-zinc-300 mt-1">
-                                    {product.sizes.join(", ")}
+                              {inStock ? (
+                                <>
+                                  <p className="text-xl font-bold text-red-400 drop-shadow-lg">
+                                    ${product.price}
                                   </p>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-lg font-bold text-zinc-400">
-                                Out of Stock
-                              </p>
-                            )}
-                          </div>
+                                  {product.sizes && product.sizes.length > 0 && (
+                                    <p className="text-xs text-zinc-300 mt-1">
+                                      {product.sizes.join(", ")}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-lg font-bold text-zinc-400">
+                                  Out of Stock
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            /* Minimal price badge when text is off - doesn't block image */
+                            <div className="absolute top-2 right-2">
+                              {inStock ? (
+                                <div className="bg-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                                  <p className="text-lg font-bold text-red-400">
+                                    ${product.price}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="bg-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                                  <p className="text-sm font-bold text-zinc-400">
+                                    Out of Stock
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         // No image - text only display

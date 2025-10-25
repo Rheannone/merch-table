@@ -249,7 +249,7 @@ export default function ProductManager({
               <p className="text-xs text-zinc-500 mt-1">
                 Optional - will be displayed as full image in POS button
               </p>
-              
+
               {/* Show text on button checkbox - only if image URL exists */}
               {newProduct.imageUrl && newProduct.imageUrl.trim().length > 0 && (
                 <div className="flex items-center gap-2 mt-3">
@@ -258,11 +258,17 @@ export default function ProductManager({
                     id="showTextOnButton"
                     checked={newProduct.showTextOnButton !== false} // default true
                     onChange={(e) =>
-                      setNewProduct({ ...newProduct, showTextOnButton: e.target.checked })
+                      setNewProduct({
+                        ...newProduct,
+                        showTextOnButton: e.target.checked,
+                      })
                     }
                     className="w-4 h-4 text-red-600 bg-zinc-900 border-zinc-700 rounded focus:ring-2 focus:ring-red-500"
                   />
-                  <label htmlFor="showTextOnButton" className="text-sm text-zinc-300 cursor-pointer">
+                  <label
+                    htmlFor="showTextOnButton"
+                    className="text-sm text-zinc-300 cursor-pointer"
+                  >
                     Show text title on POS button
                   </label>
                 </div>
