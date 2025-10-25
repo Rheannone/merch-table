@@ -25,13 +25,21 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
             <CloudArrowUpIcon className="w-5 h-5 animate-pulse" />
             <span className="text-sm font-medium">Syncing...</span>
           </div>
-        ) : status.pendingSales > 0 ? (
+        ) : status.pendingSales > 0 || status.pendingProductSync ? (
           <div className="flex items-center gap-2 text-amber-400">
             <ExclamationTriangleIcon className="w-5 h-5" />
-            <span className="text-sm font-medium">
-              {status.pendingSales} sale{status.pendingSales === 1 ? "" : "s"}{" "}
-              pending sync
-            </span>
+            <div className="flex flex-col sm:flex-row sm:gap-2">
+              {status.pendingSales > 0 && (
+                <span className="text-sm font-medium">
+                  {status.pendingSales} sale{status.pendingSales === 1 ? "" : "s"} pending
+                </span>
+              )}
+              {status.pendingProductSync && (
+                <span className="text-sm font-medium">
+                  {status.pendingSales > 0 && "• "}Products pending sync
+                </span>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2 text-green-400">
@@ -51,7 +59,7 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
         )}
       </div>
 
-      {status.pendingSales > 0 && !status.isSyncing && (
+      {(status.pendingSales > 0 || status.pendingProductSync) && !status.isSyncing && (
         <button
           onClick={handleSync}
           className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 active:scale-95 touch-manipulation"

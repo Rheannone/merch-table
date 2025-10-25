@@ -10,7 +10,6 @@ interface ProductManagerProps {
   onAddProduct: (product: Product) => Promise<void>;
   onUpdateProduct: (product: Product) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
-  onSyncToSheet: () => Promise<void>;
 }
 
 interface ToastState {
@@ -23,11 +22,9 @@ export default function ProductManager({
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
-  onSyncToSheet,
 }: ProductManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: "",
     price: 0,
@@ -35,7 +32,9 @@ export default function ProductManager({
     description: "",
   });
   const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
-  const [sizeQuantities, setSizeQuantities] = useState<{ [size: string]: number }>({}); // Per-size quantities
+  const [sizeQuantities, setSizeQuantities] = useState<{
+    [size: string]: number;
+  }>({}); // Per-size quantities
   const [defaultQuantity, setDefaultQuantity] = useState("3"); // For non-sized products
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -101,7 +100,7 @@ export default function ProductManager({
       imageUrl: product.imageUrl,
     });
     setSizesInput(product.sizes?.join(", ") || "");
-    
+
     // Load inventory quantities
     if (product.inventory) {
       if (product.sizes && product.sizes.length > 0) {
@@ -112,7 +111,7 @@ export default function ProductManager({
         setDefaultQuantity((product.inventory.default || 0).toString());
       }
     }
-    
+
     setIsAdding(true);
   };
 
@@ -132,32 +131,13 @@ export default function ProductManager({
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    
+
     // Initialize quantities for any new sizes
     const newQuantities: { [size: string]: number } = {};
     sizesArray.forEach((size) => {
       newQuantities[size] = sizeQuantities[size] || 3; // Keep existing or default to 3
     });
     setSizeQuantities(newQuantities);
-  };
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      await onSyncToSheet();
-      setToast({
-        message: "Products synced to Google Sheets!",
-        type: "success",
-      });
-    } catch (error) {
-      console.error("Sync failed:", error);
-      setToast({
-        message: "Failed to sync products",
-        type: "error",
-      });
-    } finally {
-      setIsSyncing(false);
-    }
   };
 
   const categories = ["Apparel", "Music", "Merch"];
@@ -168,22 +148,13 @@ export default function ProductManager({
         <h2 className="text-2xl sm:text-3xl font-bold text-white">
           Product Management
         </h2>
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="px-4 py-3 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 touch-manipulation font-medium"
-          >
-            {isSyncing ? "Syncing..." : "Sync to Sheet"}
-          </button>
-          <button
-            onClick={() => setIsAdding(!isAdding)}
-            className="px-4 py-3 sm:py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 flex items-center justify-center gap-2 touch-manipulation font-medium"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Add Product
-          </button>
-        </div>
+        <button
+          onClick={() => setIsAdding(!isAdding)}
+          className="px-4 py-3 sm:py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 flex items-center justify-center gap-2 touch-manipulation font-medium"
+        >
+          <PlusIcon className="w-5 h-5" />
+          Add Product
+        </button>
       </div>
 
       {isAdding && (

@@ -41,4 +41,5 @@ export interface SyncStatus {
   pendingSales: number;
   totalSales: number; // Total number of sales (synced + unsynced) for verification
   isSyncing: boolean;
+  pendingProductSync: boolean; // True if products need to be synced
 }

@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     // Convert rows to Product objects
     const products: Product[] = rows.map((row) => {
       let inventory: { [key: string]: number } | undefined;
-      
+
       // Parse inventory JSON if it exists
       if (row[7]) {
         try {

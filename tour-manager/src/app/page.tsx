@@ -32,6 +32,7 @@ export default function Home() {
     pendingSales: 0,
     totalSales: 0,
     isSyncing: false,
+    pendingProductSync: false,
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
@@ -61,12 +62,20 @@ export default function Home() {
   useEffect(() => {
     const handleOnline = async () => {
       console.log("📶 Network connection restored - auto-syncing...");
+      
+      // Sync sales if needed
       const unsyncedSales = await getUnsyncedSales();
       if (unsyncedSales.length > 0) {
-        // Wait a moment for network to stabilize, then sync
         setTimeout(() => {
           syncSales();
         }, 1000);
+      }
+      
+      // Sync products if needed
+      if (syncStatus.pendingProductSync) {
+        setTimeout(() => {
+          syncProductsToSheet();
+        }, 1500);
       }
     };
 
@@ -279,6 +288,7 @@ export default function Home() {
             pendingSales: 0,
             totalSales: allSales.length,
             isSyncing: false,
+            pendingProductSync: false,
           });
         }
       } else {
@@ -294,12 +304,20 @@ export default function Home() {
     await addProductToDB(product);
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
+    
+    // Mark products as needing sync and try to sync immediately
+    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
+    await syncProductsToSheet();
   };
 
   const handleUpdateProduct = async (product: Product) => {
     await addProductToDB(product); // addProductToDB uses put() which updates if ID exists
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
+    
+    // Mark products as needing sync and try to sync immediately
+    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
+    await syncProductsToSheet();
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -307,35 +325,41 @@ export default function Home() {
       await deleteProductFromDB(id);
       const updatedProducts = await getProducts();
       setProducts(updatedProducts);
+      
+      // Mark products as needing sync and try to sync immediately
+      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
+      await syncProductsToSheet();
     }
   };
 
-  const handleSyncProducts = async () => {
+  const syncProductsToSheet = async () => {
     try {
       const productsSheetId = localStorage.getItem("productsSheetId");
 
       if (!productsSheetId) {
-        throw new Error("Products sheet not initialized");
+        console.warn("Products sheet not initialized - will sync when available");
+        return;
       }
+
+      // Get latest products from IndexedDB
+      const currentProducts = await getProducts();
 
       const response = await fetch("/api/sheets/sync-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products, productsSheetId }),
+        body: JSON.stringify({ products: currentProducts, productsSheetId }),
       });
 
       if (!response.ok) {
         throw new Error("Failed to sync");
       }
 
-      alert("Products synced to Google Sheets successfully!");
+      console.log("✅ Products synced to Google Sheets");
+      setSyncStatus((prev) => ({ ...prev, pendingProductSync: false }));
     } catch (error) {
       console.error("Failed to sync products:", error);
-      alert(
-        "Failed to sync products: " +
-          (error instanceof Error ? error.message : "Unknown error")
-      );
-      throw error;
+      // Keep pendingProductSync true so it retries when online
+      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     }
   };
 
@@ -445,7 +469,6 @@ export default function Home() {
             onAddProduct={handleAddProduct}
             onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
-            onSyncToSheet={handleSyncProducts}
           />
         )}
       </main>

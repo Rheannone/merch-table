@@ -46,7 +46,18 @@ export async function setupProductsSheet(
     range: "Sheet1!A1:H1",
     valueInputOption: "RAW",
     requestBody: {
-      values: [["ID", "Name", "Price", "Category", "Sizes", "Image URL", "Description", "Inventory"]],
+      values: [
+        [
+          "ID",
+          "Name",
+          "Price",
+          "Category",
+          "Sizes",
+          "Image URL",
+          "Description",
+          "Inventory",
+        ],
+      ],
     },
   });
 
