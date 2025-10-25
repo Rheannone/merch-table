@@ -3,10 +3,13 @@ export interface Product {
   name: string;
   price: number;
   category: string;
-  stock?: number;
   description?: string;
   imageUrl?: string;
   sizes?: string[]; // e.g., ['S', 'M', 'L', 'XL'] for apparel
+  // Inventory tracking
+  inventory?: {
+    [sizeOrDefault: string]: number; // e.g., { "M": 5, "L": 3 } or { "default": 10 }
+  };
 }
 
 export interface CartItem {

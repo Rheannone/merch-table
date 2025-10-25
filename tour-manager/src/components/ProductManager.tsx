@@ -2,12 +2,13 @@
 
 import { Product } from "@/types";
 import { useState } from "react";
-import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
 interface ProductManagerProps {
   products: Product[];
   onAddProduct: (product: Product) => Promise<void>;
+  onUpdateProduct: (product: Product) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
   onSyncToSheet: () => Promise<void>;
 }
@@ -20,10 +21,12 @@ interface ToastState {
 export default function ProductManager({
   products,
   onAddProduct,
+  onUpdateProduct,
   onDeleteProduct,
   onSyncToSheet,
 }: ProductManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: "",
@@ -32,6 +35,7 @@ export default function ProductManager({
     description: "",
   });
   const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
+  const [quantityInput, setQuantityInput] = useState("3"); // Default quantity
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,19 +48,71 @@ export default function ProductManager({
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
+    // Build inventory based on sizes
+    const quantity = parseInt(quantityInput) || 0;
+    const inventory: { [key: string]: number } = {};
+
+    if (sizesArray.length > 0) {
+      // If has sizes, set quantity for each size
+      sizesArray.forEach((size) => {
+        inventory[size] = quantity;
+      });
+    } else {
+      // No sizes, use "default" key
+      inventory.default = quantity;
+    }
+
     const product: Product = {
-      id: `${newProduct.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`,
+      id:
+        editingProduct?.id ||
+        `${newProduct.name
+          .toLowerCase()
+          .replaceAll(/\s+/g, "-")}-${Date.now()}`,
       name: newProduct.name,
       price: newProduct.price,
       category: newProduct.category || "Merch",
       description: newProduct.description,
       imageUrl: newProduct.imageUrl,
       sizes: sizesArray.length > 0 ? sizesArray : undefined,
+      inventory,
     };
 
-    await onAddProduct(product);
+    if (editingProduct) {
+      await onUpdateProduct(product);
+      setEditingProduct(null);
+    } else {
+      await onAddProduct(product);
+    }
+
     setNewProduct({ name: "", price: 0, category: "Apparel", description: "" });
     setSizesInput("");
+    setQuantityInput("3");
+    setIsAdding(false);
+  };
+
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setNewProduct({
+      name: product.name,
+      price: product.price,
+      category: product.category,
+      description: product.description,
+      imageUrl: product.imageUrl,
+    });
+    setSizesInput(product.sizes?.join(", ") || "");
+    // Get quantity from first inventory entry
+    const firstQty = product.inventory
+      ? Object.values(product.inventory)[0] || 0
+      : 0;
+    setQuantityInput(firstQty.toString());
+    setIsAdding(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProduct(null);
+    setNewProduct({ name: "", price: 0, category: "Apparel", description: "" });
+    setSizesInput("");
+    setQuantityInput("3");
     setIsAdding(false);
   };
 
@@ -212,14 +268,41 @@ export default function ProductManager({
                 For apparel - customer will choose size when adding to cart
               </p>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">
+                Quantity *
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={quantityInput}
+                onChange={(e) => setQuantityInput(e.target.value)}
+                placeholder="3"
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                required
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                For products with sizes, this quantity applies to each size
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3 mt-4">
+            {editingProduct && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="px-6 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 touch-manipulation"
+              >
+                Cancel
+              </button>
+            )}
             <button
               type="submit"
               className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 touch-manipulation"
             >
-              Save Product
+              {editingProduct ? 'Update Product' : 'Save Product'}
             </button>
             <button
               type="button"
@@ -280,12 +363,22 @@ export default function ProductManager({
                   {product.sizes?.join(", ") || "-"}
                 </td>
                 <td className="px-4 sm:px-6 py-4 text-right text-sm">
-                  <button
-                    onClick={() => onDeleteProduct(product.id)}
-                    className="text-red-500 hover:text-red-400 p-2 touch-manipulation"
-                  >
-                    <TrashIcon className="w-5 h-5" />
-                  </button>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => handleEdit(product)}
+                      className="text-blue-500 hover:text-blue-400 p-2 touch-manipulation"
+                      aria-label="Edit product"
+                    >
+                      <PencilIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => onDeleteProduct(product.id)}
+                      className="text-red-500 hover:text-red-400 p-2 touch-manipulation"
+                      aria-label="Delete product"
+                    >
+                      <TrashIcon className="w-5 h-5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

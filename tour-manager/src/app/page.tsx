@@ -296,6 +296,12 @@ export default function Home() {
     setProducts(updatedProducts);
   };
 
+  const handleUpdateProduct = async (product: Product) => {
+    await addProductToDB(product); // addProductToDB uses put() which updates if ID exists
+    const updatedProducts = await getProducts();
+    setProducts(updatedProducts);
+  };
+
   const handleDeleteProduct = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
       await deleteProductFromDB(id);
@@ -430,12 +436,14 @@ export default function Home() {
           <POSInterface
             products={products}
             onCompleteSale={handleCompleteSale}
+            onUpdateProduct={handleUpdateProduct}
           />
         )}
         {activeTab === "setup" && (
           <ProductManager
             products={products}
             onAddProduct={handleAddProduct}
+            onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
             onSyncToSheet={handleSyncProducts}
           />

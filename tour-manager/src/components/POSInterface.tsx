@@ -18,6 +18,7 @@ interface POSInterfaceProps {
     paymentMethod: PaymentMethod,
     isHookup?: boolean
   ) => Promise<void>;
+  onUpdateProduct: (product: Product) => Promise<void>;
 }
 
 interface ToastState {
@@ -28,6 +29,7 @@ interface ToastState {
 export default function POSInterface({
   products,
   onCompleteSale,
+  onUpdateProduct,
 }: POSInterfaceProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
@@ -116,6 +118,12 @@ export default function POSInterface({
     );
   };
 
+  const hasStock = (product: Product): boolean => {
+    if (!product.inventory) return true; // No inventory tracking, assume available
+    const quantities = Object.values(product.inventory);
+    return quantities.some((qty) => qty > 0);
+  };
+
   const addCash = (amount: number) => {
     setCashReceived((prev) => prev + amount);
   };
@@ -146,6 +154,23 @@ export default function POSInterface({
 
     setIsProcessing(true);
     try {
+      // Deduct inventory for each item sold
+      for (const cartItem of cart) {
+        const product = cartItem.product;
+        if (product && product.inventory) {
+          const sizeKey = cartItem.size || "default";
+          const currentQty = product.inventory[sizeKey] || 0;
+          const updatedInventory = {
+            ...product.inventory,
+            [sizeKey]: Math.max(0, currentQty - cartItem.quantity),
+          };
+          await onUpdateProduct({
+            ...product,
+            inventory: updatedInventory,
+          });
+        }
+      }
+
       await onCompleteSale(
         cart,
         calculateTotal(),
@@ -225,36 +250,58 @@ export default function POSInterface({
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {products
                 .filter((p) => p.category === category)
-                .map((product) => (
-                  <button
-                    key={product.id}
-                    onClick={() => handleProductClick(product)}
-                    className="relative bg-zinc-800 border border-zinc-700 p-4 rounded-lg shadow-lg hover:shadow-red-900/20 hover:border-red-500/50 transition-all active:scale-95 touch-manipulation overflow-hidden min-h-[100px]"
-                    style={
-                      product.imageUrl
-                        ? {
-                            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.7)), url(${product.imageUrl})`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                          }
-                        : undefined
-                    }
-                  >
-                    <div className="text-left relative z-10">
-                      <h4 className="font-semibold text-zinc-100 mb-1 text-sm lg:text-base drop-shadow-lg">
-                        {product.name}
-                      </h4>
-                      <p className="text-2xl font-bold text-red-400 drop-shadow-lg">
-                        ${product.price}
-                      </p>
-                      {product.sizes && product.sizes.length > 0 && (
-                        <p className="text-xs text-zinc-300 mt-1">
-                          {product.sizes.join(", ")}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                .map((product) => {
+                  const inStock = hasStock(product);
+                  return (
+                    <button
+                      key={product.id}
+                      onClick={() => inStock && handleProductClick(product)}
+                      disabled={!inStock}
+                      className={`relative bg-zinc-800 border border-zinc-700 p-4 rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden min-h-[100px] ${
+                        inStock
+                          ? "hover:shadow-red-900/20 hover:border-red-500/50 active:scale-95"
+                          : "opacity-50 cursor-not-allowed"
+                      }`}
+                      style={
+                        product.imageUrl && inStock
+                          ? {
+                              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.7)), url(${product.imageUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }
+                          : product.imageUrl
+                          ? {
+                              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${product.imageUrl})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }
+                          : undefined
+                      }
+                    >
+                      <div className="text-left relative z-10">
+                        <h4 className="font-semibold text-zinc-100 mb-1 text-sm lg:text-base drop-shadow-lg">
+                          {product.name}
+                        </h4>
+                        {inStock ? (
+                          <>
+                            <p className="text-2xl font-bold text-red-400 drop-shadow-lg">
+                              ${product.price}
+                            </p>
+                            {product.sizes && product.sizes.length > 0 && (
+                              <p className="text-xs text-zinc-300 mt-1">
+                                {product.sizes.join(", ")}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-lg font-bold text-zinc-400 mt-2">
+                            Out of Stock
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           </div>
         ))}
@@ -467,15 +514,31 @@ export default function POSInterface({
               Select Size for {sizeSelectionProduct.name}
             </h3>
             <div className="grid grid-cols-2 gap-3 mb-4">
-              {sizeSelectionProduct.sizes?.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => handleSizeSelect(size)}
-                  className="bg-zinc-700 hover:bg-zinc-600 text-white py-4 px-6 rounded-lg font-bold text-lg transition-all active:scale-95 touch-manipulation"
-                >
-                  {size}
-                </button>
-              ))}
+              {sizeSelectionProduct.sizes?.map((size) => {
+                const stockQty = sizeSelectionProduct.inventory?.[size] || 0;
+                const inStock = stockQty > 0;
+                return (
+                  <button
+                    key={size}
+                    onClick={() => inStock && handleSizeSelect(size)}
+                    disabled={!inStock}
+                    className={`py-4 px-6 rounded-lg font-bold text-lg transition-all touch-manipulation ${
+                      inStock
+                        ? "bg-zinc-700 hover:bg-zinc-600 text-white active:scale-95"
+                        : "bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50"
+                    }`}
+                  >
+                    <div className="text-center">
+                      <div className="text-lg">{size}</div>
+                      {sizeSelectionProduct.inventory && (
+                        <div className="text-xs mt-1">
+                          {inStock ? `${stockQty} left` : "Out of stock"}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             <button
               onClick={() => setSizeSelectionProduct(null)}
