@@ -87,11 +87,11 @@ export async function deleteSyncedSales() {
   const db = await getDB();
   const allSales = await db.getAll("sales");
   const syncedSales = allSales.filter((sale) => sale.synced);
-  
+
   for (const sale of syncedSales) {
     await db.delete("sales", sale.id);
   }
-  
+
   return syncedSales.length;
 }
 

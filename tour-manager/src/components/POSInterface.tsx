@@ -8,6 +8,7 @@ import {
   PlusIcon,
   MinusIcon,
 } from "@heroicons/react/24/outline";
+import Toast, { ToastType } from "./Toast";
 
 interface POSInterfaceProps {
   products: Product[];
@@ -17,6 +18,11 @@ interface POSInterfaceProps {
     paymentMethod: PaymentMethod,
     isHookup?: boolean
   ) => Promise<void>;
+}
+
+interface ToastState {
+  message: string;
+  type: ToastType;
 }
 
 export default function POSInterface({
@@ -32,6 +38,7 @@ export default function POSInterface({
   const [sizeSelectionProduct, setSizeSelectionProduct] =
     useState<Product | null>(null);
   const [showJumpButton, setShowJumpButton] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
@@ -130,7 +137,10 @@ export default function POSInterface({
       !isHookup &&
       cashReceived < calculateTotal()
     ) {
-      alert("Not enough cash received!");
+      setToast({
+        message: "Not enough cash received!",
+        type: "error",
+      });
       return;
     }
 
@@ -147,13 +157,19 @@ export default function POSInterface({
       setCashReceived(0);
       setIsHookup(false);
 
-      // Show success message
-      alert(
-        isHookup ? "✨ Hook up completed!" : "✅ Sale completed successfully!"
-      );
+      // Show success toast
+      setToast({
+        message: isHookup
+          ? "✨ Hook up completed!"
+          : "✅ Sale completed successfully!",
+        type: "success",
+      });
     } catch (error) {
       console.error("Failed to complete sale:", error);
-      alert("Failed to complete sale. Please try again.");
+      setToast({
+        message: "Failed to complete sale. Please try again.",
+        type: "error",
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -469,6 +485,15 @@ export default function POSInterface({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

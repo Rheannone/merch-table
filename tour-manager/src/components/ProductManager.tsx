@@ -3,12 +3,18 @@
 import { Product } from "@/types";
 import { useState } from "react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import Toast, { ToastType } from "./Toast";
 
 interface ProductManagerProps {
   products: Product[];
   onAddProduct: (product: Product) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
   onSyncToSheet: () => Promise<void>;
+}
+
+interface ToastState {
+  message: string;
+  type: ToastType;
 }
 
 export default function ProductManager({
@@ -26,6 +32,7 @@ export default function ProductManager({
     description: "",
   });
   const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,9 +64,16 @@ export default function ProductManager({
     setIsSyncing(true);
     try {
       await onSyncToSheet();
-      alert("Products synced to Google Sheets!");
+      setToast({
+        message: "Products synced to Google Sheets!",
+        type: "success",
+      });
     } catch (error) {
-      alert("Failed to sync products");
+      console.error("Sync failed:", error);
+      setToast({
+        message: "Failed to sync products",
+        type: "error",
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -282,6 +296,15 @@ export default function ProductManager({
       <p className="text-sm text-zinc-500 mt-4">
         Total: {products.length} products
       </p>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

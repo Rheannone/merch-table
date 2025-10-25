@@ -269,7 +269,9 @@ export default function Home() {
 
           // Delete synced sales to keep local storage clean
           const deletedCount = await deleteSyncedSales();
-          console.log(`🗑️ Cleaned up ${deletedCount} synced sales from local storage`);
+          console.log(
+            `🗑️ Cleaned up ${deletedCount} synced sales from local storage`
+          );
 
           const allSales = await getSales();
           setSyncStatus({
