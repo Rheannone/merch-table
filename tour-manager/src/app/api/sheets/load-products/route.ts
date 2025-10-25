@@ -32,26 +32,40 @@ export async function POST(req: NextRequest) {
     // Read products from the sheet
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:G", // Updated to include all new columns
+      range: "Products!A2:H", // Updated to include inventory column
     });
 
     const rows = response.data.values || [];
 
     // Convert rows to Product objects
-    const products: Product[] = rows.map((row) => ({
-      id: row[0] || "",
-      name: row[1] || "",
-      price: parseFloat(row[2]) || 0,
-      category: row[3] || "Other",
-      sizes: row[4]
-        ? row[4]
-            .split(",")
-            .map((s: string) => s.trim())
-            .filter((s: string) => s.length > 0)
-        : undefined,
-      imageUrl: row[5] || undefined,
-      description: row[6] || undefined,
-    }));
+    const products: Product[] = rows.map((row) => {
+      let inventory: { [key: string]: number } | undefined;
+      
+      // Parse inventory JSON if it exists
+      if (row[7]) {
+        try {
+          inventory = JSON.parse(row[7]);
+        } catch (e) {
+          console.warn("Failed to parse inventory for product:", row[1], e);
+        }
+      }
+
+      return {
+        id: row[0] || "",
+        name: row[1] || "",
+        price: Number.parseFloat(row[2]) || 0,
+        category: row[3] || "Other",
+        sizes: row[4]
+          ? row[4]
+              .split(",")
+              .map((s: string) => s.trim())
+              .filter((s: string) => s.length > 0)
+          : undefined,
+        imageUrl: row[5] || undefined,
+        description: row[6] || undefined,
+        inventory,
+      };
+    });
 
     return NextResponse.json({
       success: true,

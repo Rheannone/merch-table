@@ -43,10 +43,10 @@ export async function setupProductsSheet(
   // Add headers
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sheet1!A1:D1",
+    range: "Sheet1!A1:H1",
     valueInputOption: "RAW",
     requestBody: {
-      values: [["ID", "Name", "Price", "Category"]],
+      values: [["ID", "Name", "Price", "Category", "Sizes", "Image URL", "Description", "Inventory"]],
     },
   });
 

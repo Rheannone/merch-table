@@ -35,7 +35,8 @@ export default function ProductManager({
     description: "",
   });
   const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
-  const [quantityInput, setQuantityInput] = useState("3"); // Default quantity
+  const [sizeQuantities, setSizeQuantities] = useState<{ [size: string]: number }>({}); // Per-size quantities
+  const [defaultQuantity, setDefaultQuantity] = useState("3"); // For non-sized products
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,17 +50,16 @@ export default function ProductManager({
       .filter((s) => s.length > 0);
 
     // Build inventory based on sizes
-    const quantity = parseInt(quantityInput) || 0;
     const inventory: { [key: string]: number } = {};
 
     if (sizesArray.length > 0) {
-      // If has sizes, set quantity for each size
+      // If has sizes, use per-size quantities
       sizesArray.forEach((size) => {
-        inventory[size] = quantity;
+        inventory[size] = sizeQuantities[size] || 0;
       });
     } else {
-      // No sizes, use "default" key
-      inventory.default = quantity;
+      // No sizes, use default quantity
+      inventory.default = Number.parseInt(defaultQuantity) || 0;
     }
 
     const product: Product = {
@@ -86,7 +86,8 @@ export default function ProductManager({
 
     setNewProduct({ name: "", price: 0, category: "Apparel", description: "" });
     setSizesInput("");
-    setQuantityInput("3");
+    setSizeQuantities({});
+    setDefaultQuantity("3");
     setIsAdding(false);
   };
 
@@ -100,11 +101,18 @@ export default function ProductManager({
       imageUrl: product.imageUrl,
     });
     setSizesInput(product.sizes?.join(", ") || "");
-    // Get quantity from first inventory entry
-    const firstQty = product.inventory
-      ? Object.values(product.inventory)[0] || 0
-      : 0;
-    setQuantityInput(firstQty.toString());
+    
+    // Load inventory quantities
+    if (product.inventory) {
+      if (product.sizes && product.sizes.length > 0) {
+        // Has sizes, load per-size quantities
+        setSizeQuantities(product.inventory);
+      } else {
+        // No sizes, load default quantity
+        setDefaultQuantity((product.inventory.default || 0).toString());
+      }
+    }
+    
     setIsAdding(true);
   };
 
@@ -112,8 +120,25 @@ export default function ProductManager({
     setEditingProduct(null);
     setNewProduct({ name: "", price: 0, category: "Apparel", description: "" });
     setSizesInput("");
-    setQuantityInput("3");
+    setSizeQuantities({});
+    setDefaultQuantity("3");
     setIsAdding(false);
+  };
+
+  // When sizes change, initialize quantities for new sizes
+  const handleSizesChange = (value: string) => {
+    setSizesInput(value);
+    const sizesArray = value
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    
+    // Initialize quantities for any new sizes
+    const newQuantities: { [size: string]: number } = {};
+    sizesArray.forEach((size) => {
+      newQuantities[size] = sizeQuantities[size] || 3; // Keep existing or default to 3
+    });
+    setSizeQuantities(newQuantities);
   };
 
   const handleSync = async () => {
@@ -260,7 +285,7 @@ export default function ProductManager({
               <input
                 type="text"
                 value={sizesInput}
-                onChange={(e) => setSizesInput(e.target.value)}
+                onChange={(e) => handleSizesChange(e.target.value)}
                 placeholder="S, M, L, XL (comma separated)"
                 className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
@@ -269,23 +294,58 @@ export default function ProductManager({
               </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1">
-                Quantity *
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={quantityInput}
-                onChange={(e) => setQuantityInput(e.target.value)}
-                placeholder="3"
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                required
-              />
-              <p className="text-xs text-zinc-500 mt-1">
-                For products with sizes, this quantity applies to each size
-              </p>
-            </div>
+            {/* Show per-size quantity inputs if sizes are defined */}
+            {sizesInput.trim().length > 0 ? (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-zinc-300 mb-2">
+                  Quantities per Size *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {sizesInput
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0)
+                    .map((size) => (
+                      <div key={size}>
+                        <label className="block text-xs text-zinc-400 mb-1">
+                          {size}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={sizeQuantities[size] || 0}
+                          onChange={(e) =>
+                            setSizeQuantities({
+                              ...sizeQuantities,
+                              [size]: Number.parseInt(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  Quantity *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={defaultQuantity}
+                  onChange={(e) => setDefaultQuantity(e.target.value)}
+                  placeholder="3"
+                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  required
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Total quantity available
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 mt-4">
@@ -302,7 +362,7 @@ export default function ProductManager({
               type="submit"
               className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 touch-manipulation"
             >
-              {editingProduct ? 'Update Product' : 'Save Product'}
+              {editingProduct ? "Update Product" : "Save Product"}
             </button>
             <button
               type="button"
