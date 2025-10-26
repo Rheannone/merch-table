@@ -46,7 +46,6 @@ export default function ProductManager({
   const [isCreatingInsights, setIsCreatingInsights] = useState(false);
   const [insightsEnabled, setInsightsEnabled] = useState(false);
   const [checkingInsights, setCheckingInsights] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -130,56 +129,6 @@ export default function ProductManager({
       });
     } finally {
       setIsCreatingInsights(false);
-    }
-  };
-
-  const handleMigrateSales = async () => {
-    setIsMigrating(true);
-    try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-
-      if (!spreadsheetId) {
-        setToast({
-          message: "No spreadsheet found. Please create a sheet first.",
-          type: "error",
-        });
-        return;
-      }
-
-      const response = await fetch("/api/sheets/migrate-sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.alreadyMigrated) {
-          setToast({
-            message: "✅ Sales sheet already uses the new format (8 columns)!",
-            type: "success",
-          });
-        } else {
-          setToast({
-            message: `✅ Successfully migrated ${data.migratedRows} sales to new format!`,
-            type: "success",
-          });
-        }
-      } else {
-        setToast({
-          message: `Failed to migrate: ${data.message || data.error}`,
-          type: "error",
-        });
-      }
-    } catch (error) {
-      console.error("Error migrating sales sheet:", error);
-      setToast({
-        message: "Failed to migrate sales sheet. Please try again.",
-        type: "error",
-      });
-    } finally {
-      setIsMigrating(false);
     }
   };
 
@@ -603,22 +552,25 @@ export default function ProductManager({
             revenue, and trends directly in your Google Sheets.
           </p>
 
-          {/* Migration Button - Only show if insights not enabled yet */}
-          {!insightsEnabled && (
-            <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
-              <p className="text-xs text-yellow-400 mb-2">
-                📋 Have existing sales data? Migrate your old Sales sheet to the
-                new 8-column format first:
-              </p>
-              <button
-                onClick={handleMigrateSales}
-                disabled={isMigrating}
-                className="w-full px-3 py-2 rounded bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              >
-                {isMigrating ? "Migrating..." : "🔄 Migrate Sales Sheet"}
-              </button>
+          {/* Experimental Warning Banner */}
+          <div className="mb-4 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+            <div className="flex items-start gap-2">
+              <div className="flex-shrink-0 mt-0.5">
+                <span className="inline-block px-2 py-0.5 text-xs font-bold bg-purple-600 text-white rounded">
+                  BETA
+                </span>
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-purple-300 font-medium mb-1">
+                  Experimental Feature
+                </p>
+                <p className="text-xs text-purple-400">
+                  This feature is still being developed and tested. It may have
+                  bugs or incomplete functionality. Use with caution.
+                </p>
+              </div>
             </div>
-          )}
+          </div>
 
           <button
             onClick={handleCreateInsights}
