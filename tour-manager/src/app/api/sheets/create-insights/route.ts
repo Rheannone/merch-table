@@ -88,13 +88,14 @@ export async function POST(req: NextRequest) {
       ["📅 ACTUAL REVENUE BY DATE"],
       ["Date", "Number of Sales", "Actual Revenue", "Top Item", "Top Size"],
       // QUERY to group by DATE and show stats
+      // Using DATE() to extract just the date portion from timestamp
       // Row 12 will be hidden (QUERY header row)
       // Row 13+ will show actual data with formulas for Top Item and Top Size
       [
-        '=QUERY(Sales!A:J,"SELECT TODATE(B), COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY TODATE(B) ORDER BY TODATE(B) DESC",1)',
+        '=QUERY(Sales!A:J,"SELECT DATE(B), COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY DATE(B) ORDER BY DATE(B) DESC",1)',
         // Top Item formula - will be copied down automatically
         '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")),","),1,1),"N/A")))',
-        // Top Size formula - will be copied down automatically  
+        // Top Size formula - will be copied down automatically
         '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")),","),1,1),"N/A")))',
       ],
       [],
@@ -117,10 +118,12 @@ export async function POST(req: NextRequest) {
       range: "Insights!D13",
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[
-          // Top Item: Show all unique items sold on this date
-          '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")))',
-        ]],
+        values: [
+          [
+            // Top Item: Show all unique items sold on this date
+            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")))',
+          ],
+        ],
       },
     });
 
@@ -129,10 +132,12 @@ export async function POST(req: NextRequest) {
       range: "Insights!E13",
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[
-          // Top Size: Show all unique sizes sold on this date
-          '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")))',
-        ]],
+        values: [
+          [
+            // Top Size: Show all unique sizes sold on this date
+            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")))',
+          ],
+        ],
       },
     });
 

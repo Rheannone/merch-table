@@ -32,8 +32,10 @@ export async function POST(req: NextRequest) {
     // Prepare data with new columns for analytics
     const values = (sales as Sale[]).map((sale) => {
       // Extract product names (comma-separated)
-      const productNames = sale.items.map((item) => item.productName).join(", ");
-      
+      const productNames = sale.items
+        .map((item) => item.productName)
+        .join(", ");
+
       // Extract sizes (comma-separated, filter out items without sizes)
       const sizes = sale.items
         .filter((item) => item.size)
