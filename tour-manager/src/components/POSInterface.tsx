@@ -357,17 +357,12 @@ export default function POSInterface({
 
   const handleCompleteSaleClick = () => {
     // Check if QR code should be shown
-    console.log("Complete sale clicked:", {
-      selectedPaymentSetting,
-      qrCodeUrl: selectedPaymentSetting?.qrCodeUrl,
-      hasQR: !!selectedPaymentSetting?.qrCodeUrl,
-    });
-    
-    if (selectedPaymentSetting?.qrCodeUrl && selectedPaymentSetting.qrCodeUrl.trim() !== "") {
-      console.log("Showing QR modal");
+    if (
+      selectedPaymentSetting?.qrCodeUrl &&
+      selectedPaymentSetting.qrCodeUrl.trim() !== ""
+    ) {
       setShowQRCodeModal(true);
     } else {
-      console.log("No QR code, completing sale directly");
       handleCompleteSale();
     }
   };
@@ -386,6 +381,17 @@ export default function POSInterface({
     if (cartSection) {
       cartSection.scrollIntoView({ behavior: "auto", block: "start" });
     }
+  };
+
+  const getCompleteButtonText = () => {
+    if (isProcessing) return "Processing...";
+    if (
+      selectedPaymentSetting?.qrCodeUrl &&
+      selectedPaymentSetting.qrCodeUrl.trim() !== ""
+    ) {
+      return "Show QR Code";
+    }
+    return "Complete Sale";
   };
 
   const categories = Array.from(new Set(products.map((p) => p.category)));
@@ -621,7 +627,6 @@ export default function POSInterface({
                       <button
                         key={setting.paymentType}
                         onClick={() => {
-                          console.log("Payment button clicked:", setting);
                           setSelectedPaymentMethod(setting.displayName);
                           setSelectedPaymentSetting(setting);
                           handlePaymentMethodChange(setting.displayName);
@@ -823,7 +828,7 @@ export default function POSInterface({
               }
               className="w-full bg-red-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-red-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all touch-manipulation shadow-lg shadow-red-900/50"
             >
-              {isProcessing ? "Processing..." : "Complete Sale"}
+              {getCompleteButtonText()}
             </button>
           </div>
         )}
