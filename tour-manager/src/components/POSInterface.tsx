@@ -13,6 +13,7 @@ import QRCodePaymentModal from "./QRCodePaymentModal";
 
 interface POSInterfaceProps {
   products: Product[];
+  categoryOrder?: string[]; // Optional prop to avoid loading flash
   onCompleteSale: (
     items: CartItem[],
     total: number,
@@ -30,6 +31,7 @@ interface ToastState {
 
 export default function POSInterface({
   products,
+  categoryOrder: initialCategoryOrder = [],
   onCompleteSale,
   onUpdateProduct,
 }: POSInterfaceProps) {
@@ -39,7 +41,8 @@ export default function POSInterface({
   const [selectedPaymentSetting, setSelectedPaymentSetting] =
     useState<PaymentSetting | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
-  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+  const [categoryOrder, setCategoryOrder] =
+    useState<string[]>(initialCategoryOrder);
   const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
@@ -52,6 +55,13 @@ export default function POSInterface({
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
+
+  // Update categoryOrder when prop changes (e.g., after settings save)
+  useEffect(() => {
+    if (initialCategoryOrder.length > 0) {
+      setCategoryOrder(initialCategoryOrder);
+    }
+  }, [initialCategoryOrder]);
 
   // Load payment settings on mount
   useEffect(() => {
@@ -83,8 +93,12 @@ export default function POSInterface({
           setSelectedPaymentSetting(enabled[0]);
         }
 
-        // Load category order
-        if (data.categories && Array.isArray(data.categories)) {
+        // Only update category order if not provided via props
+        if (
+          initialCategoryOrder.length === 0 &&
+          data.categories &&
+          Array.isArray(data.categories)
+        ) {
           setCategoryOrder(data.categories);
         }
       }

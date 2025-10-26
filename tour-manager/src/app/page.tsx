@@ -32,6 +32,7 @@ export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]); // Add category order state
   const [activeTab, setActiveTab] = useState<"pos" | "setup" | "settings">(
     "pos"
   );
@@ -353,6 +354,31 @@ export default function Home() {
       setProducts(loadedProducts);
       setLoadedFromSheets(productsLoadedFromSheets);
       setProductsChanged(hasProductsChanged);
+
+      // Load category order from settings
+      if (storedSalesSheetId) {
+        try {
+          const settingsResponse = await fetch("/api/sheets/settings/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ spreadsheetId: storedSalesSheetId }),
+          });
+
+          if (settingsResponse.ok) {
+            const settingsData = await settingsResponse.json();
+            if (
+              settingsData.categories &&
+              Array.isArray(settingsData.categories)
+            ) {
+              setCategoryOrder(settingsData.categories);
+              console.log("✅ Loaded category order:", settingsData.categories);
+            }
+          }
+        } catch (error) {
+          console.error("❌ Failed to load category order:", error);
+        }
+      }
+
       setIsInitialized(true);
     } catch (error) {
       console.error("Failed to initialize:", error);
@@ -619,6 +645,7 @@ export default function Home() {
         {activeTab === "pos" && (
           <POSInterface
             products={products}
+            categoryOrder={categoryOrder}
             onCompleteSale={handleCompleteSale}
             onUpdateProduct={handleUpdateProduct}
           />
