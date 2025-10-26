@@ -81,17 +81,17 @@ export async function POST(req: NextRequest) {
       // Simple summary
       ["💰 QUICK STATS"],
       ["Metric", "Value"],
-      ["Total Actual Revenue", "=SUM(Sales!E:E)"],
-      ["Number of Sales", "=COUNTA(Sales!A:A)-1"],
+      ["Total Actual Revenue", "=SUM(Sales!E2:E)"],
+      ["Number of Sales", "=COUNTA(Sales!A2:A)"],
       ["Average Sale", "=IF(B6>0,B5/B6,0)"],
       [],
       [],
       // Daily breakdown - this is the main feature
       ["📅 ACTUAL REVENUE BY DATE"],
       ["Date", "Number of Sales", "Actual Revenue"],
-      // QUERY to group by date and sum actual revenue
+      // QUERY to group by date and sum actual revenue - fixed quote escaping
       [
-        "=QUERY(Sales!A:H,\"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC LABEL B 'Date', COUNT(B) '# Sales', SUM(E) 'Revenue'\",1)",
+        '=QUERY(Sales!A:H,"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC",1)',
       ],
       [],
     ];
