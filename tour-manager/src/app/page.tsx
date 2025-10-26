@@ -19,6 +19,7 @@ import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
+import Analytics from "@/components/Analytics";
 import SyncStatusBar from "@/components/SyncStatusBar";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import Toast, { ToastType } from "@/components/Toast";
@@ -26,6 +27,7 @@ import {
   Cog6ToothIcon,
   ShoppingBagIcon,
   ArchiveBoxIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 
 export default function Home() {
@@ -33,9 +35,9 @@ export default function Home() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]); // Add category order state
-  const [activeTab, setActiveTab] = useState<"pos" | "setup" | "settings">(
-    "pos"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "pos" | "setup" | "analytics" | "settings"
+  >("pos");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     lastSyncTime: null,
     pendingSales: 0,
@@ -638,6 +640,17 @@ export default function Home() {
             <ArchiveBoxIcon className="w-5 h-5" />
             Inventory
           </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`flex-1 py-4 px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+              activeTab === "analytics"
+                ? "border-b-2 border-red-500 text-red-400"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <ChartBarIcon className="w-5 h-5" />
+            Analytics
+          </button>
         </div>
       </nav>
 
@@ -658,6 +671,7 @@ export default function Home() {
             onDeleteProduct={handleDeleteProduct}
           />
         )}
+        {activeTab === "analytics" && <Analytics />}
         {activeTab === "settings" && <Settings />}
       </main>
 

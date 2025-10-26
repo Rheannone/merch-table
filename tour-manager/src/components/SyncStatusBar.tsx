@@ -49,9 +49,11 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
           </div>
         )}
 
-        <span className="text-xs text-zinc-400 border-l border-zinc-700 pl-3">
-          Total: {status.totalSales} sale{status.totalSales === 1 ? "" : "s"}
-        </span>
+        {status.totalSales > 0 && (
+          <span className="text-xs text-zinc-400 border-l border-zinc-700 pl-3">
+            Total: {status.totalSales} sale{status.totalSales === 1 ? "" : "s"}
+          </span>
+        )}
 
         {status.lastSyncTime && (
           <span className="text-xs text-zinc-500">

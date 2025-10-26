@@ -2,13 +2,7 @@
 
 import { Product } from "@/types";
 import { useState, useEffect } from "react";
-import {
-  PlusIcon,
-  TrashIcon,
-  PencilIcon,
-  ChartBarIcon,
-  CheckCircleIcon,
-} from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
 interface ProductManagerProps {
@@ -48,9 +42,6 @@ export default function ProductManager({
   }>({}); // Per-size quantities
   const [defaultQuantity, setDefaultQuantity] = useState("3"); // For non-sized products
   const [toast, setToast] = useState<ToastState | null>(null);
-  const [isCreatingInsights, setIsCreatingInsights] = useState(false);
-  const [insightsEnabled, setInsightsEnabled] = useState(false);
-  const [checkingInsights, setCheckingInsights] = useState(false);
 
   // Load categories from settings on component mount
   useEffect(() => {
@@ -82,91 +73,6 @@ export default function ProductManager({
     } catch (error) {
       console.error("Error loading categories:", error);
       // Keep default categories if load fails
-    }
-  };
-
-  // Check if Insights sheet already exists on component mount
-  useEffect(() => {
-    checkInsightsStatus();
-  }, []);
-
-  const checkInsightsStatus = async () => {
-    setCheckingInsights(true);
-    try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) {
-        setCheckingInsights(false);
-        return;
-      }
-
-      const response = await fetch("/api/sheets/check-insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setInsightsEnabled(data.exists);
-      }
-    } catch (error) {
-      console.error("Error checking insights status:", error);
-    } finally {
-      setCheckingInsights(false);
-    }
-  };
-
-  const handleCreateInsights = async () => {
-    setIsCreatingInsights(true);
-    try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-
-      if (!spreadsheetId) {
-        setToast({
-          message:
-            "No spreadsheet found. Please ensure you have synced your data.",
-          type: "error",
-        });
-        return;
-      }
-
-      const response = await fetch("/api/sheets/create-insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.alreadyExists) {
-          setInsightsEnabled(true);
-          setToast({
-            message: "Insights sheet already exists in your spreadsheet!",
-            type: "success",
-          });
-        } else {
-          setInsightsEnabled(true);
-          setToast({
-            message:
-              "✨ Insights sheet created! Check your Google Sheets for detailed analytics.",
-            type: "success",
-          });
-        }
-      } else {
-        setToast({
-          message: `Failed to create insights: ${data.error}`,
-          type: "error",
-        });
-      }
-    } catch (error) {
-      console.error("Error creating insights:", error);
-      setToast({
-        message: "Failed to create insights sheet. Please try again.",
-        type: "error",
-      });
-    } finally {
-      setIsCreatingInsights(false);
     }
   };
 
@@ -576,65 +482,6 @@ export default function ProductManager({
       <p className="text-sm text-zinc-500 mt-4 mb-6">
         Total: {products.length} products
       </p>
-
-      {/* Advanced Insights Button */}
-      <div className="mt-8 pt-6 border-t border-zinc-700">
-        <div className="max-w-md mx-auto">
-          <h3 className="text-lg font-semibold text-white mb-2">
-            📊 Data Analytics
-          </h3>
-          <p className="text-sm text-zinc-400 mb-4">
-            Enable advanced insights to get detailed analytics about your sales,
-            revenue, and trends directly in your Google Sheets.
-          </p>
-
-          {/* Experimental Warning Banner */}
-          <div className="mb-4 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <div className="flex-shrink-0 mt-0.5">
-                <span className="inline-block px-2 py-0.5 text-xs font-bold bg-purple-600 text-white rounded">
-                  BETA
-                </span>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-purple-300 font-medium mb-1">
-                  Experimental Feature
-                </p>
-                <p className="text-xs text-purple-400">
-                  This feature is still being developed and tested. It may have
-                  bugs or incomplete functionality. Use with caution.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleCreateInsights}
-            disabled={isCreatingInsights || insightsEnabled || checkingInsights}
-            className={`w-full px-4 py-3 rounded-lg flex items-center justify-center gap-2 touch-manipulation font-medium ${
-              insightsEnabled
-                ? "bg-green-600 text-white cursor-default"
-                : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            }`}
-          >
-            {insightsEnabled ? (
-              <>
-                <CheckCircleIcon className="w-5 h-5" />
-                Advanced Insights Enabled
-              </>
-            ) : (
-              <>
-                <ChartBarIcon className="w-5 h-5" />
-                {isCreatingInsights
-                  ? "Creating..."
-                  : checkingInsights
-                  ? "Checking..."
-                  : "Enable Advanced Insights"}
-              </>
-            )}
-          </button>
-        </div>
-      </div>
 
       {/* Toast Notification */}
       {toast && (
