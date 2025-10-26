@@ -22,7 +22,11 @@ import Settings from "@/components/Settings";
 import SyncStatusBar from "@/components/SyncStatusBar";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import Toast, { ToastType } from "@/components/Toast";
-import { Cog6ToothIcon, ShoppingBagIcon } from "@heroicons/react/24/outline";
+import {
+  Cog6ToothIcon,
+  ShoppingBagIcon,
+  ArchiveBoxIcon,
+} from "@heroicons/react/24/outline";
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -605,8 +609,8 @@ export default function Home() {
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <Cog6ToothIcon className="w-5 h-5" />
-            Setup
+            <ArchiveBoxIcon className="w-5 h-5" />
+            Inventory
           </button>
         </div>
       </nav>
