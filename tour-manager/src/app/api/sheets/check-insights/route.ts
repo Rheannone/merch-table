@@ -56,18 +56,32 @@ export async function POST(req: NextRequest) {
     // Also get some sample sales data to debug
     const salesData = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "Sales!A1:J5", // Get headers and first few rows
+      range: "Sales!A1:J20", // Get headers and more rows
     });
 
     const salesRows = salesData.data.values || [];
     console.log("Sales sheet sample data:", salesRows);
+
+    // Test the QUERY directly
+    const queryTest = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Insights!A12:C20", // Get QUERY results
+    });
+
+    const queryResults = queryTest.data.values || [];
+    console.log("QUERY results:", queryResults);
 
     return NextResponse.json({
       exists: true,
       sheetId: insightsSheet.properties?.sheetId,
       insightsData: dataRows,
       salesSample: salesRows,
+      queryResults: queryResults,
       message: `Insights sheet exists. Found ${dataRows.length} rows of insights data.`,
+      debug: {
+        salesRowCount: salesRows.length,
+        queryRowCount: queryResults.length,
+      },
     });
   } catch (error) {
     console.error("Failed to check insights sheet:", error);

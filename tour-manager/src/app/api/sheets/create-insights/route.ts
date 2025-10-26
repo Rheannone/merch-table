@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
     // Add QUERY formula in A12 to populate the daily revenue data
     // This QUERY will output WITHOUT headers (0) since we already have headers in row 11
     // It will automatically fill columns A, B, C starting from row 12
+    // Use A2:J to skip the header row in Sales sheet
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "Insights!A12",
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       requestBody: {
         values: [
           [
-            "=QUERY(Sales!A:J,\"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL AND B <> 'Timestamp' GROUP BY B ORDER BY B DESC\",0)",
+            '=QUERY(Sales!A2:J,"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC",0)',
           ],
         ],
       },
