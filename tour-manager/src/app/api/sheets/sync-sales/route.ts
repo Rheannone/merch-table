@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: salesSheetId,
         range: "Sales!A2",
-        valueInputOption: "RAW",
+        valueInputOption: "USER_ENTERED", // Changed from RAW to properly interpret numbers
         requestBody: {
           values,
         },
