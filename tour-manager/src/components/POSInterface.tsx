@@ -1,6 +1,6 @@
 "use client";
 
-import { Product, CartItem, PaymentMethod } from "@/types";
+import { Product, CartItem, PaymentMethod, PaymentSetting } from "@/types";
 import { useState, useEffect } from "react";
 import {
   ShoppingCartIcon,
@@ -9,6 +9,7 @@ import {
   MinusIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
+import QRCodePaymentModal from "./QRCodePaymentModal";
 
 interface POSInterfaceProps {
   products: Product[];
@@ -35,6 +36,10 @@ export default function POSInterface({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>("cash");
+  const [selectedPaymentSetting, setSelectedPaymentSetting] =
+    useState<PaymentSetting | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
+  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
   const [isHookup, setIsHookup] = useState(false);
@@ -46,6 +51,41 @@ export default function POSInterface({
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
+
+  // Load payment settings on mount
+  useEffect(() => {
+    loadPaymentSettings();
+  }, []);
+
+  const loadPaymentSettings = async () => {
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) return;
+
+      const response = await fetch("/api/sheets/settings/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        // Filter to only enabled payment types
+        const enabled = data.paymentSettings.filter(
+          (s: PaymentSetting) => s.enabled
+        );
+        setPaymentSettings(enabled);
+
+        // Set first enabled payment as default
+        if (enabled.length > 0) {
+          setSelectedPaymentMethod(enabled[0].displayName);
+          setSelectedPaymentSetting(enabled[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading payment settings:", error);
+    }
+  };
 
   // Track scroll position to show/hide jump button
   useEffect(() => {
@@ -138,59 +178,40 @@ export default function POSInterface({
     return cashReceived - calculateTotal();
   };
 
-  const handleCompleteSale = async () => {
+  const initiatePayment = () => {
+    const total = calculateTotal();
+
+    // Check if current payment method has QR code
+    if (selectedPaymentSetting?.qrCodeUrl) {
+      // Calculate total with transaction fee if applicable
+      let totalWithFee = total;
+      if (selectedPaymentSetting.transactionFee) {
+        totalWithFee = total * (1 + selectedPaymentSetting.transactionFee);
+      }
+
+      // Show QR code modal
+      setShowQRCodeModal(true);
+    } else {
+      // No QR code, process payment directly
+      handleCompleteSale();
+    }
+  };
+
+  const handleQRCodeComplete = async (
+    actualAmount: number,
+    discount?: number
+  ) => {
+    setShowQRCodeModal(false);
+    await processCompleteSale(actualAmount, discount);
+  };
+
+  const processCompleteSale = async (
+    finalAmount: number,
+    discountAmount?: number
+  ) => {
     if (cart.length === 0) return;
 
     const total = calculateTotal();
-    let actualAmount = total;
-    let discount = 0;
-
-    // Determine actual amount based on payment method and hookup status
-    if (selectedPaymentMethod === "cash") {
-      if (isHookup) {
-        // For cash + hookup, use the hookup amount if provided, otherwise use cash received
-        if (hookupAmount && Number.parseFloat(hookupAmount) > 0) {
-          actualAmount = Number.parseFloat(hookupAmount);
-          discount = total - actualAmount;
-        } else if (cashReceived > 0) {
-          actualAmount = cashReceived;
-          discount = total - actualAmount;
-        } else {
-          setToast({
-            message: "Please enter the hookup amount or cash received!",
-            type: "error",
-          });
-          return;
-        }
-      } else {
-        // Regular cash payment - must have enough cash
-        if (cashReceived < total) {
-          setToast({
-            message: "Not enough cash received!",
-            type: "error",
-          });
-          return;
-        }
-        actualAmount = total; // Full price paid
-      }
-    } else {
-      // Card, Venmo, Other
-      if (isHookup) {
-        // For hookup with non-cash payment, require hookup amount
-        if (!hookupAmount || Number.parseFloat(hookupAmount) <= 0) {
-          setToast({
-            message: "Please enter the hookup amount!",
-            type: "error",
-          });
-          return;
-        }
-        actualAmount = Number.parseFloat(hookupAmount);
-        discount = total - actualAmount;
-      } else {
-        // Regular non-cash payment - full price
-        actualAmount = total;
-      }
-    }
 
     setIsProcessing(true);
     try {
@@ -214,12 +235,17 @@ export default function POSInterface({
       await onCompleteSale(
         cart,
         total,
-        actualAmount,
+        finalAmount,
         selectedPaymentMethod,
-        discount > 0 ? discount : undefined
+        discountAmount
       );
+
+      // Reset state
       setCart([]);
-      setSelectedPaymentMethod("cash");
+      if (paymentSettings.length > 0) {
+        setSelectedPaymentMethod(paymentSettings[0].displayName);
+        setSelectedPaymentSetting(paymentSettings[0]);
+      }
       setCashReceived(0);
       setIsHookup(false);
       setHookupAmount("");
@@ -227,8 +253,8 @@ export default function POSInterface({
       // Show success toast
       setToast({
         message:
-          discount > 0
-            ? `✨ Hook up completed! Saved $${discount.toFixed(2)}`
+          discountAmount && discountAmount > 0
+            ? `✨ Hook up completed! Saved $${discountAmount.toFixed(2)}`
             : "✅ Sale completed successfully!",
         type: "success",
       });
@@ -243,10 +269,105 @@ export default function POSInterface({
     }
   };
 
+  const handleCompleteSale = async () => {
+    if (cart.length === 0) return;
+
+    const total = calculateTotal();
+    let actualAmount = total;
+    let discount = 0;
+
+    // Apply transaction fee if applicable
+    if (selectedPaymentSetting?.transactionFee) {
+      actualAmount = total * (1 + selectedPaymentSetting.transactionFee);
+    }
+
+    // Determine actual amount based on payment method and hookup status
+    if (
+      selectedPaymentMethod.toLowerCase() === "cash" ||
+      selectedPaymentSetting?.paymentType === "cash"
+    ) {
+      if (isHookup) {
+        // For cash + hookup, use the hookup amount if provided, otherwise use cash received
+        if (hookupAmount && Number.parseFloat(hookupAmount) > 0) {
+          const hookupValue = Number.parseFloat(hookupAmount);
+          actualAmount = hookupValue;
+          // Apply transaction fee after hookup if applicable
+          if (selectedPaymentSetting?.transactionFee) {
+            actualAmount =
+              hookupValue * (1 + selectedPaymentSetting.transactionFee);
+          }
+          discount = total - hookupValue;
+        } else if (cashReceived > 0) {
+          actualAmount = cashReceived;
+          discount = total - cashReceived;
+        } else {
+          setToast({
+            message: "Please enter the hookup amount or cash received!",
+            type: "error",
+          });
+          return;
+        }
+      } else {
+        // Regular cash payment - must have enough cash
+        const requiredAmount = selectedPaymentSetting?.transactionFee
+          ? total * (1 + selectedPaymentSetting.transactionFee)
+          : total;
+
+        if (cashReceived < requiredAmount) {
+          setToast({
+            message: "Not enough cash received!",
+            type: "error",
+          });
+          return;
+        }
+        actualAmount = requiredAmount;
+      }
+    } else {
+      // Other payment methods
+      if (isHookup) {
+        // For hookup with non-cash payment, require hookup amount
+        if (!hookupAmount || Number.parseFloat(hookupAmount) <= 0) {
+          setToast({
+            message: "Please enter the hookup amount!",
+            type: "error",
+          });
+          return;
+        }
+        const hookupValue = Number.parseFloat(hookupAmount);
+        actualAmount = hookupValue;
+        // Apply transaction fee after hookup if applicable
+        if (selectedPaymentSetting?.transactionFee) {
+          actualAmount =
+            hookupValue * (1 + selectedPaymentSetting.transactionFee);
+        }
+        discount = total - hookupValue;
+      } else {
+        // Regular non-cash payment - apply transaction fee if applicable
+        actualAmount = selectedPaymentSetting?.transactionFee
+          ? total * (1 + selectedPaymentSetting.transactionFee)
+          : total;
+      }
+    }
+
+    await processCompleteSale(
+      actualAmount,
+      discount > 0 ? discount : undefined
+    );
+  };
+
+  const handleCompleteSaleClick = () => {
+    // Check if QR code should be shown
+    if (selectedPaymentSetting?.qrCodeUrl) {
+      setShowQRCodeModal(true);
+    } else {
+      handleCompleteSale();
+    }
+  };
+
   const handlePaymentMethodChange = (method: PaymentMethod) => {
     setSelectedPaymentMethod(method);
     // Reset cash received when switching payment methods
-    if (method !== "cash") {
+    if (method !== "cash" && method.toLowerCase() !== "cash") {
       setCashReceived(0);
     }
   };
@@ -487,21 +608,38 @@ export default function POSInterface({
                 Payment Method
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {(["cash", "card", "venmo", "other"] as PaymentMethod[]).map(
-                  (method) => (
-                    <button
-                      key={method}
-                      onClick={() => handlePaymentMethodChange(method)}
-                      className={`py-3 px-2 rounded-lg font-medium capitalize transition-all touch-manipulation ${
-                        selectedPaymentMethod === method
-                          ? "bg-red-600 text-white"
-                          : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-                      }`}
-                    >
-                      {method}
-                    </button>
-                  )
-                )}
+                {paymentSettings.length > 0
+                  ? paymentSettings.map((setting) => (
+                      <button
+                        key={setting.paymentType}
+                        onClick={() => {
+                          setSelectedPaymentMethod(setting.displayName);
+                          setSelectedPaymentSetting(setting);
+                          handlePaymentMethodChange(setting.displayName);
+                        }}
+                        className={`py-3 px-2 rounded-lg font-medium transition-all touch-manipulation ${
+                          selectedPaymentMethod === setting.displayName
+                            ? "bg-red-600 text-white"
+                            : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                        }`}
+                      >
+                        {setting.displayName}
+                      </button>
+                    ))
+                  : // Fallback if settings not loaded
+                    (["cash", "venmo", "other"] as const).map((method) => (
+                      <button
+                        key={method}
+                        onClick={() => handlePaymentMethodChange(method)}
+                        className={`py-3 px-2 rounded-lg font-medium capitalize transition-all touch-manipulation ${
+                          selectedPaymentMethod === method
+                            ? "bg-red-600 text-white"
+                            : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                        }`}
+                      >
+                        {method}
+                      </button>
+                    ))}
               </div>
             </div>
 
@@ -564,6 +702,41 @@ export default function POSInterface({
                       </p>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Transaction Fee Info */}
+            {selectedPaymentSetting?.transactionFee && (
+              <div className="p-3 bg-blue-900/20 border border-blue-600/30 rounded-lg">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-blue-300">Cart Total:</span>
+                  <span className="text-white font-semibold">
+                    ${total.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm mt-1">
+                  <span className="text-blue-300">
+                    Transaction Fee (
+                    {(selectedPaymentSetting.transactionFee * 100).toFixed(1)}
+                    %):
+                  </span>
+                  <span className="text-blue-400 font-semibold">
+                    $
+                    {(total * selectedPaymentSetting.transactionFee).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-base mt-2 pt-2 border-t border-blue-600/30">
+                  <span className="text-blue-200 font-medium">
+                    Total to Collect:
+                  </span>
+                  <span className="text-blue-400 font-bold text-lg">
+                    $
+                    {(
+                      total *
+                      (1 + selectedPaymentSetting.transactionFee)
+                    ).toFixed(2)}
+                  </span>
                 </div>
               </div>
             )}
@@ -631,7 +804,7 @@ export default function POSInterface({
             </div>
 
             <button
-              onClick={handleCompleteSale}
+              onClick={handleCompleteSaleClick}
               disabled={
                 isProcessing ||
                 (selectedPaymentMethod === "cash" &&
@@ -645,6 +818,22 @@ export default function POSInterface({
           </div>
         )}
       </div>
+
+      {/* QR Code Payment Modal */}
+      {showQRCodeModal && selectedPaymentSetting?.qrCodeUrl && (
+        <QRCodePaymentModal
+          qrCodeUrl={selectedPaymentSetting.qrCodeUrl}
+          total={
+            calculateTotal() *
+            (selectedPaymentSetting.transactionFee
+              ? 1 + selectedPaymentSetting.transactionFee
+              : 1)
+          }
+          paymentMethodName={selectedPaymentSetting.displayName}
+          onComplete={handleQRCodeComplete}
+          onCancel={() => setShowQRCodeModal(false)}
+        />
+      )}
 
       {/* Size Selection Modal */}
       {sizeSelectionProduct && (

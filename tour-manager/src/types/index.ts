@@ -19,7 +19,26 @@ export interface CartItem {
   size?: string; // Selected size if product has sizes
 }
 
-export type PaymentMethod = "cash" | "card" | "venmo" | "other";
+export type PaymentMethod = string; // "cash", "venmo", "credit", "other", or custom payment type names
+
+export interface PaymentSetting {
+  paymentType:
+    | "cash"
+    | "venmo"
+    | "credit"
+    | "other"
+    | "custom1"
+    | "custom2"
+    | "custom3";
+  enabled: boolean;
+  displayName: string; // What shows on the button (e.g., "Cash", "Venmo", "Apple Pay")
+  transactionFee?: number; // Percentage as decimal (e.g., 0.03 for 3%)
+  qrCodeUrl?: string; // Optional QR code image URL
+}
+
+export interface POSSettings {
+  paymentSettings: PaymentSetting[];
+}
 
 export interface Sale {
   id: string;

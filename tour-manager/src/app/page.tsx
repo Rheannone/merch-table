@@ -18,6 +18,7 @@ import {
 import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
+import Settings from "@/components/Settings";
 import SyncStatusBar from "@/components/SyncStatusBar";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import Toast, { ToastType } from "@/components/Toast";
@@ -27,7 +28,9 @@ export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
-  const [activeTab, setActiveTab] = useState<"pos" | "setup">("pos");
+  const [activeTab, setActiveTab] = useState<"pos" | "setup" | "settings">(
+    "pos"
+  );
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     lastSyncTime: null,
     pendingSales: 0,
@@ -559,6 +562,17 @@ export default function Home() {
               </p>
             </div>
             <button
+              onClick={() => setActiveTab("settings")}
+              className={`px-4 py-2 rounded border transition-all ${
+                activeTab === "settings"
+                  ? "bg-zinc-700 border-zinc-600 text-white"
+                  : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border-zinc-700"
+              }`}
+              title="Settings"
+            >
+              <Cog6ToothIcon className="w-5 h-5" />
+            </button>
+            <button
               onClick={() => signOut()}
               className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded border border-zinc-700 text-sm transition-all"
             >
@@ -592,7 +606,7 @@ export default function Home() {
             }`}
           >
             <Cog6ToothIcon className="w-5 h-5" />
-            Product Setup
+            Setup
           </button>
         </div>
       </nav>
@@ -613,6 +627,7 @@ export default function Home() {
             onDeleteProduct={handleDeleteProduct}
           />
         )}
+        {activeTab === "settings" && <Settings />}
       </main>
 
       <OfflineIndicator />
