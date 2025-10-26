@@ -87,16 +87,9 @@ export async function POST(req: NextRequest) {
       // Daily breakdown - this is the main feature
       ["📅 ACTUAL REVENUE BY DATE"],
       ["Date", "Number of Sales", "Actual Revenue", "Top Item", "Top Size"],
-      // QUERY to group by DATE (column B is now just a date string)
-      // Row 12 will be hidden (QUERY header row)
-      // Row 13+ will show actual data with formulas for Top Item and Top Size
-      [
-        "=QUERY(Sales!A:J,\"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL AND B <> 'Timestamp' GROUP BY B ORDER BY B DESC\",1)",
-        // Top Item formula - will be copied down automatically
-        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(Sales!$B$2:$B=A13,Sales!$I$2:$I,"")),","),1,1),"N/A")))',
-        // Top Size formula - will be copied down automatically
-        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(Sales!$B$2:$B=A13,Sales!$J$2:$J,"")),","),1,1),"N/A")))',
-      ],
+      // Row 12: This row will contain the QUERY formula in column A only
+      // The QUERY will automatically populate Date, Number of Sales, and Actual Revenue
+      [],
       [],
     ];
 
@@ -110,17 +103,33 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Add formulas for Top Item (D13) and Top Size (E13) that will reference their row's date
+    // Add QUERY formula in A12 to populate the daily revenue data
+    // This QUERY will output WITHOUT headers (0) since we already have headers in row 11
+    // It will automatically fill columns A, B, C starting from row 12
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: "Insights!A12",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [
+          [
+            "=QUERY(Sales!A:J,\"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL AND B <> 'Timestamp' GROUP BY B ORDER BY B DESC\",0)",
+          ],
+        ],
+      },
+    });
+
+    // Add formulas for Top Item (D12) and Top Size (E12) that will reference their row's date
     // Simple formula that shows first item/size sold on that date
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: "Insights!D13",
+      range: "Insights!D12",
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
           [
             // Top Item: Show first item sold on this date
-            '=IFERROR(INDEX(Sales!$I:$I,MATCH(A13,Sales!$B:$B,0)),"")',
+            '=IF(A12="","",IFERROR(INDEX(Sales!$I:$I,MATCH(A12,Sales!$B:$B,0)),""))',
           ],
         ],
       },
@@ -128,19 +137,19 @@ export async function POST(req: NextRequest) {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: "Insights!E13",
+      range: "Insights!E12",
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
           [
             // Top Size: Show first size sold on this date
-            '=IFERROR(INDEX(Sales!$J:$J,MATCH(A13,Sales!$B:$B,0)),"")',
+            '=IF(A12="","",IFERROR(INDEX(Sales!$J:$J,MATCH(A12,Sales!$B:$B,0)),""))',
           ],
         ],
       },
     });
 
-    // Auto-copy the formulas down using copyPaste (copies D13:E13 down to rows 14-50)
+    // Auto-copy the formulas down using copyPaste (copies D12:E12 down to rows 13-50)
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -149,14 +158,14 @@ export async function POST(req: NextRequest) {
             copyPaste: {
               source: {
                 sheetId: insightsSheetId,
-                startRowIndex: 12, // Row 13 (0-indexed)
-                endRowIndex: 13,
+                startRowIndex: 11, // Row 12 (0-indexed)
+                endRowIndex: 12,
                 startColumnIndex: 3, // Column D
                 endColumnIndex: 5, // Column E (exclusive)
               },
               destination: {
                 sheetId: insightsSheetId,
-                startRowIndex: 13, // Row 14
+                startRowIndex: 12, // Row 13
                 endRowIndex: 50, // Copy down to row 50
                 startColumnIndex: 3,
                 endColumnIndex: 5,
@@ -315,21 +324,6 @@ export async function POST(req: NextRequest) {
                 pixelSize: 150,
               },
               fields: "pixelSize",
-            },
-          },
-          // Hide row 12 (the QUERY formula header row)
-          {
-            updateDimensionProperties: {
-              range: {
-                sheetId: insightsSheetId,
-                dimension: "ROWS",
-                startIndex: 11, // Row 12 (0-indexed)
-                endIndex: 12,
-              },
-              properties: {
-                hiddenByUser: true,
-              },
-              fields: "hiddenByUser",
             },
           },
         ],
