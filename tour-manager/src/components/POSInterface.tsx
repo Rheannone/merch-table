@@ -357,9 +357,17 @@ export default function POSInterface({
 
   const handleCompleteSaleClick = () => {
     // Check if QR code should be shown
-    if (selectedPaymentSetting?.qrCodeUrl) {
+    console.log("Complete sale clicked:", {
+      selectedPaymentSetting,
+      qrCodeUrl: selectedPaymentSetting?.qrCodeUrl,
+      hasQR: !!selectedPaymentSetting?.qrCodeUrl,
+    });
+    
+    if (selectedPaymentSetting?.qrCodeUrl && selectedPaymentSetting.qrCodeUrl.trim() !== "") {
+      console.log("Showing QR modal");
       setShowQRCodeModal(true);
     } else {
+      console.log("No QR code, completing sale directly");
       handleCompleteSale();
     }
   };
@@ -613,6 +621,7 @@ export default function POSInterface({
                       <button
                         key={setting.paymentType}
                         onClick={() => {
+                          console.log("Payment button clicked:", setting);
                           setSelectedPaymentMethod(setting.displayName);
                           setSelectedPaymentSetting(setting);
                           handlePaymentMethodChange(setting.displayName);
