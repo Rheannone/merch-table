@@ -77,40 +77,52 @@ export async function POST(req: NextRequest) {
     // Build the data for the Insights sheet
     const insightsData = [
       // Header row
-      ["📊 MERCH TABLE INSIGHTS", "", "", "", "", `Generated: ${currentDate}`],
+      [
+        "📊 MERCH TABLE INSIGHTS",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        `Generated: ${currentDate}`,
+      ],
       [],
       // Total Sales Summary
       ["💰 TOTAL SALES SUMMARY"],
       ["Metric", "Value"],
-      ["Total Revenue (Actual)", "=SUM(Sales!E:E)"], // Sum of Actual Amount column
-      ["Total Cart Value", "=SUM(Sales!D:D)"], // Sum of Total column
-      ["Total Discounts Given", "=SUM(Sales!F:F)"], // Sum of Discount column
-      ["Total Number of Sales", "=COUNTA(Sales!A:A)-1"], // Count of sales minus header
-      ["Average Sale Amount", "=AVERAGE(Sales!E:E)"], // Average actual amount
-      ["Discount Rate", "=IF(D6>0,D7/D6,0)"], // Total discounts / Total cart value
+      ["Total Revenue (Actual)", "=SUM(Sales!E2:E)"], // Sum of Actual Amount column (skip header)
+      ["Total Cart Value", "=SUM(Sales!D2:D)"], // Sum of Total column (skip header)
+      ["Total Discounts Given", "=SUM(Sales!F2:F)"], // Sum of Discount column (skip header)
+      ["Total Number of Sales", "=COUNTA(Sales!A2:A)"], // Count of sales (skip header)
+      [
+        "Average Sale Amount",
+        "=IF(COUNTA(Sales!E2:E)>0,AVERAGE(Sales!E2:E),0)",
+      ], // Average actual amount with safety
+      ["Discount Rate", "=IF(B6>0,B7/B6,0)"], // Total discounts / Total cart value (using row references)
       [],
       // Sales by Payment Method
       ["💳 SALES BY PAYMENT METHOD"],
       ["Payment Method", "Count", "Total Revenue"],
       [
         "Cash",
-        '=COUNTIF(Sales!G:G,"cash")',
-        '=SUMIF(Sales!G:G,"cash",Sales!E:E)',
+        '=COUNTIF(Sales!G2:G,"cash")',
+        '=SUMIF(Sales!G2:G,"cash",Sales!E2:E)',
       ],
       [
         "Card",
-        '=COUNTIF(Sales!G:G,"card")',
-        '=SUMIF(Sales!G:G,"card",Sales!E:E)',
+        '=COUNTIF(Sales!G2:G,"card")',
+        '=SUMIF(Sales!G2:G,"card",Sales!E2:E)',
       ],
       [
         "Venmo",
-        '=COUNTIF(Sales!G:G,"venmo")',
-        '=SUMIF(Sales!G:G,"venmo",Sales!E:E)',
+        '=COUNTIF(Sales!G2:G,"venmo")',
+        '=SUMIF(Sales!G2:G,"venmo",Sales!E2:E)',
       ],
       [
         "Other",
-        '=COUNTIF(Sales!G:G,"other")',
-        '=SUMIF(Sales!G:G,"other",Sales!E:E)',
+        '=COUNTIF(Sales!G2:G,"other")',
+        '=SUMIF(Sales!G2:G,"other",Sales!E2:E)',
       ],
       [],
       // Top 10 Items Sold
@@ -123,9 +135,9 @@ export async function POST(req: NextRequest) {
       // Daily Sales Breakdown (using QUERY for automatic grouping)
       ["📅 SALES BY DATE"],
       ["Date", "Number of Sales", "Total Revenue", "Total Discounts"],
-      // This formula will automatically group sales by date
+      // This formula will automatically group sales by date - Fixed to include all columns B through H
       [
-        "=QUERY(Sales!B2:F,\"SELECT B, COUNT(B), SUM(E), SUM(F) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC LABEL B 'Date', COUNT(B) 'Sales', SUM(E) 'Revenue', SUM(F) 'Discounts'\",1)",
+        "=QUERY(Sales!B2:H,\"SELECT B, COUNT(B), SUM(E), SUM(F) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC LABEL B 'Date', COUNT(B) 'Sales', SUM(E) 'Revenue', SUM(F) 'Discounts'\",1)",
       ],
       [],
       [],
@@ -136,20 +148,20 @@ export async function POST(req: NextRequest) {
       [],
       [],
       [],
-      // Top Sales Day
+      // Top Sales Day - Fixed with safety checks
       ["🏆 TOP PERFORMERS"],
       ["Metric", "Value"],
       [
         "Highest Revenue Day",
-        "=INDEX(Insights!A30:A,MATCH(MAX(Insights!C30:C),Insights!C30:C,0))",
+        '=IF(COUNTA(A30:A39)>0,INDEX(A30:A39,MATCH(MAX(C30:C39),C30:C39,0)),"N/A")',
       ],
       [
         "Most Sales in One Day",
-        "=INDEX(Insights!A30:A,MATCH(MAX(Insights!B30:B),Insights!B30:B,0))",
+        '=IF(COUNTA(A30:A39)>0,INDEX(A30:A39,MATCH(MAX(B30:B39),B30:B39,0)),"N/A")',
       ],
       [
         "Biggest Discount Day",
-        "=INDEX(Insights!A30:A,MATCH(MAX(Insights!D30:D),Insights!D30:D,0))",
+        '=IF(COUNTA(A30:A39)>0,INDEX(A30:A39,MATCH(MAX(D30:D39),D30:D39,0)),"N/A")',
       ],
       [],
       // Size Analysis (if applicable)
@@ -158,19 +170,19 @@ export async function POST(req: NextRequest) {
         "Note: Sizes are embedded in the Items column. Review Sales sheet for detailed size breakdown.",
       ],
       [],
-      // Hookup/Discount Analysis
+      // Hookup/Discount Analysis - Fixed with safety checks
       ["✨ HOOKUP/DISCOUNT ANALYSIS"],
       ["Metric", "Value"],
-      ["Total Hookups Given", '=COUNTIF(Sales!H:H,"Yes")'],
-      ["Hookup Rate", "=D55/(D8-1)"], // Hookups / Total Sales
-      ["Average Discount per Hookup", "=D7/D55"], // Total discounts / Hookups
+      ["Total Hookups Given", '=COUNTIF(Sales!H2:H,"Yes")'],
+      ["Hookup Rate", "=IF(B8>0,B55/B8,0)"], // Hookups / Total Sales with safety check
+      ["Average Discount per Hookup", "=IF(B55>0,B7/B55,0)"], // Total discounts / Hookups with safety check
       [],
-      // Revenue Trends
+      // Revenue Trends - Fixed with safety checks
       ["📈 REVENUE INSIGHTS"],
       ["Metric", "Value"],
-      ["Average Daily Revenue", "=AVERAGE(Insights!C30:C)"],
-      ["Highest Single Sale", "=MAX(Sales!E:E)"],
-      ["Lowest Single Sale", "=MIN(Sales!E:E)"],
+      ["Average Daily Revenue", "=IF(COUNTA(C30:C39)>0,AVERAGE(C30:C39),0)"],
+      ["Highest Single Sale", "=IF(COUNTA(Sales!E2:E)>0,MAX(Sales!E2:E),0)"],
+      ["Lowest Single Sale", "=IF(COUNTA(Sales!E2:E)>0,MIN(Sales!E2:E),0)"],
       [],
     ];
 
