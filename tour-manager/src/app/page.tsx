@@ -20,6 +20,7 @@ import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import SyncStatusBar from "@/components/SyncStatusBar";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import Toast, { ToastType } from "@/components/Toast";
 import { Cog6ToothIcon, ShoppingBagIcon } from "@heroicons/react/24/outline";
 
 export default function Home() {
@@ -36,6 +37,11 @@ export default function Home() {
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
+  const [loadedFromSheets, setLoadedFromSheets] = useState(false); // Track if products were loaded from Sheets
+  const [toast, setToast] = useState<{
+    message: string;
+    type: ToastType;
+  } | null>(null);
 
   // Handle authentication redirect
   useEffect(() => {
@@ -56,6 +62,67 @@ export default function Home() {
       const interval = setInterval(updateSyncStatus, 5000);
       return () => clearInterval(interval);
     }
+  }, [isInitialized]);
+
+  // Auto-sync on page load/refresh after initialization
+  useEffect(() => {
+    if (isInitialized && navigator.onLine) {
+      const autoSync = async () => {
+        console.log("🔄 Auto-syncing on page load...");
+
+        const unsyncedSales = await getUnsyncedSales();
+        const hasUnsyncedProducts = syncStatus.pendingProductSync;
+
+        // Build toast message based on what happened
+        const messageParts: string[] = [];
+
+        // If products were loaded from Sheets, mention it
+        if (loadedFromSheets) {
+          messageParts.push("Loaded latest products");
+        }
+
+        // Sync any local changes
+        if (unsyncedSales.length > 0 || hasUnsyncedProducts) {
+          const syncParts: string[] = [];
+
+          if (unsyncedSales.length > 0) {
+            await syncSales();
+            syncParts.push(
+              `${unsyncedSales.length} sale${
+                unsyncedSales.length > 1 ? "s" : ""
+              }`
+            );
+          }
+
+          if (hasUnsyncedProducts) {
+            await syncProductsToSheet();
+            syncParts.push("products");
+          }
+
+          if (syncParts.length > 0) {
+            messageParts.push(`synced ${syncParts.join(" and ")}`);
+          }
+        }
+
+        // Show toast if there's something to report
+        if (messageParts.length > 0) {
+          // Capitalize first letter
+          const message = messageParts.join(" and ");
+          const formattedMessage =
+            message.charAt(0).toUpperCase() + message.slice(1);
+
+          setToast({
+            message: `✅ ${formattedMessage}`,
+            type: "success",
+          });
+        }
+      };
+
+      // Small delay to let the app finish loading
+      const timer = setTimeout(autoSync, 1000);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized]);
 
   // Auto-sync when coming back online
@@ -163,6 +230,7 @@ export default function Home() {
 
       // Load products - try from Google Sheets first, then IndexedDB, then defaults
       let loadedProducts: Product[] = [];
+      let productsLoadedFromSheets = false;
 
       // If we have a sheet ID, try loading products from Google Sheets
       if (storedProductsSheetId) {
@@ -179,6 +247,7 @@ export default function Home() {
             if (data.products && data.products.length > 0) {
               loadedProducts = data.products;
               await saveProducts(loadedProducts); // Save to IndexedDB
+              productsLoadedFromSheets = true;
               console.log(
                 "✅ Loaded",
                 loadedProducts.length,
@@ -209,6 +278,7 @@ export default function Home() {
       }
 
       setProducts(loadedProducts);
+      setLoadedFromSheets(productsLoadedFromSheets);
       setIsInitialized(true);
     } catch (error) {
       console.error("Failed to initialize:", error);
@@ -228,8 +298,9 @@ export default function Home() {
   const handleCompleteSale = async (
     items: CartItem[],
     total: number,
+    actualAmount: number,
     paymentMethod: PaymentMethod,
-    isHookup: boolean = false
+    discount?: number
   ) => {
     const sale: Sale = {
       id: `sale-${Date.now()}`,
@@ -242,9 +313,11 @@ export default function Home() {
         size: item.size,
       })),
       total,
+      actualAmount,
+      discount,
       paymentMethod,
       synced: false,
-      isHookup,
+      isHookup: discount !== undefined && discount > 0, // For backward compatibility
     };
 
     await saveSale(sale);
@@ -476,6 +549,15 @@ export default function Home() {
       </main>
 
       <OfflineIndicator />
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

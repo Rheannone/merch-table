@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
-    // Prepare data
+    // Prepare data with new columns for financial tracking
     const values = (sales as Sale[]).map((sale) => [
       sale.id,
       new Date(sale.timestamp).toLocaleString(),
@@ -39,9 +39,11 @@ export async function POST(req: NextRequest) {
           return `${item.productName}${sizeInfo} x${item.quantity}`;
         })
         .join(", "),
-      sale.total.toFixed(2),
+      sale.total.toFixed(2), // Total cart value
+      sale.actualAmount.toFixed(2), // Actual money received
+      sale.discount ? sale.discount.toFixed(2) : "0.00", // Discount/hookup amount
       sale.paymentMethod,
-      sale.isHookup ? "Hookup" : "",
+      sale.isHookup ? "Yes" : "No", // For backward compatibility
     ]);
 
     if (values.length > 0) {

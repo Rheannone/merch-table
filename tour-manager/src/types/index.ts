@@ -31,10 +31,12 @@ export interface Sale {
     price: number;
     size?: string; // Selected size if applicable
   }[];
-  total: number;
+  total: number; // Total cart value before any discounts
+  actualAmount: number; // Actual amount of money received/charged
+  discount?: number; // Discount amount (hookup) - calculated as total - actualAmount
   paymentMethod: PaymentMethod;
   synced: boolean;
-  isHookup?: boolean; // True if this was a hookup/discount sale
+  isHookup?: boolean; // True if this was a hookup/discount sale (for backward compatibility)
 }
 
 export interface SyncStatus {

@@ -119,14 +119,23 @@ export async function setupSalesSheet(
 
   const sheets = google.sheets({ version: "v4", auth });
 
-  // Add headers
+  // Add headers with new financial tracking columns
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sheet1!A1:F1",
+    range: "Sheet1!A1:H1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        ["Sale ID", "Date", "Items", "Total", "Payment Method", "Synced"],
+        [
+          "Sale ID",
+          "Date",
+          "Items",
+          "Total",
+          "Actual Amount",
+          "Discount",
+          "Payment Method",
+          "Hookup",
+        ],
       ],
     },
   });
@@ -220,7 +229,7 @@ export async function initializeUserSheets(
   // Set up Products sheet headers
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Products!A1:G1",
+    range: "Products!A1:I1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -232,19 +241,30 @@ export async function initializeUserSheets(
           "Sizes",
           "Image URL",
           "Description",
+          "Inventory",
+          "Show Text",
         ],
       ],
     },
   });
 
-  // Set up Sales sheet headers
+  // Set up Sales sheet headers with new financial columns
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sales!A1:F1",
+    range: "Sales!A1:H1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        ["ID", "Timestamp", "Items", "Total", "Payment Method", "Hookup"],
+        [
+          "ID",
+          "Timestamp",
+          "Items",
+          "Total",
+          "Actual Amount",
+          "Discount",
+          "Payment Method",
+          "Hookup",
+        ],
       ],
     },
   });

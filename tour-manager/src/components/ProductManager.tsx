@@ -1,8 +1,14 @@
 "use client";
 
 import { Product } from "@/types";
-import { useState } from "react";
-import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { useState, useEffect } from "react";
+import {
+  PlusIcon,
+  TrashIcon,
+  PencilIcon,
+  ChartBarIcon,
+  CheckCircleIcon,
+} from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
 interface ProductManagerProps {
@@ -37,6 +43,94 @@ export default function ProductManager({
   }>({}); // Per-size quantities
   const [defaultQuantity, setDefaultQuantity] = useState("3"); // For non-sized products
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [isCreatingInsights, setIsCreatingInsights] = useState(false);
+  const [insightsEnabled, setInsightsEnabled] = useState(false);
+  const [checkingInsights, setCheckingInsights] = useState(false);
+
+  // Check if Insights sheet already exists on component mount
+  useEffect(() => {
+    checkInsightsStatus();
+  }, []);
+
+  const checkInsightsStatus = async () => {
+    setCheckingInsights(true);
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) {
+        setCheckingInsights(false);
+        return;
+      }
+
+      const response = await fetch("/api/sheets/check-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setInsightsEnabled(data.exists);
+      }
+    } catch (error) {
+      console.error("Error checking insights status:", error);
+    } finally {
+      setCheckingInsights(false);
+    }
+  };
+
+  const handleCreateInsights = async () => {
+    setIsCreatingInsights(true);
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+
+      if (!spreadsheetId) {
+        setToast({
+          message:
+            "No spreadsheet found. Please ensure you have synced your data.",
+          type: "error",
+        });
+        return;
+      }
+
+      const response = await fetch("/api/sheets/create-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.alreadyExists) {
+          setInsightsEnabled(true);
+          setToast({
+            message: "Insights sheet already exists in your spreadsheet!",
+            type: "success",
+          });
+        } else {
+          setInsightsEnabled(true);
+          setToast({
+            message:
+              "✨ Insights sheet created! Check your Google Sheets for detailed analytics.",
+            type: "success",
+          });
+        }
+      } else {
+        setToast({
+          message: `Failed to create insights: ${data.error}`,
+          type: "error",
+        });
+      }
+    } catch (error) {
+      console.error("Error creating insights:", error);
+      setToast({
+        message: "Failed to create insights sheet. Please try again.",
+        type: "error",
+      });
+    } finally {
+      setIsCreatingInsights(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,13 +244,40 @@ export default function ProductManager({
         <h2 className="text-2xl sm:text-3xl font-bold text-white">
           Product Management
         </h2>
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="px-4 py-3 sm:py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 flex items-center justify-center gap-2 touch-manipulation font-medium"
-        >
-          <PlusIcon className="w-5 h-5" />
-          Add Product
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={handleCreateInsights}
+            disabled={isCreatingInsights || insightsEnabled || checkingInsights}
+            className={`px-4 py-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 touch-manipulation font-medium ${
+              insightsEnabled
+                ? "bg-green-600 text-white cursor-default"
+                : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            }`}
+          >
+            {insightsEnabled ? (
+              <>
+                <CheckCircleIcon className="w-5 h-5" />
+                Advanced Insights Enabled
+              </>
+            ) : (
+              <>
+                <ChartBarIcon className="w-5 h-5" />
+                {isCreatingInsights
+                  ? "Creating..."
+                  : checkingInsights
+                  ? "Checking..."
+                  : "Enable Advanced Insights"}
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="px-4 py-3 sm:py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 flex items-center justify-center gap-2 touch-manipulation font-medium"
+          >
+            <PlusIcon className="w-5 h-5" />
+            Add Product
+          </button>
+        </div>
       </div>
 
       {isAdding && (

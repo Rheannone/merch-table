@@ -15,8 +15,9 @@ interface POSInterfaceProps {
   onCompleteSale: (
     items: CartItem[],
     total: number,
+    actualAmount: number,
     paymentMethod: PaymentMethod,
-    isHookup?: boolean
+    discount?: number
   ) => Promise<void>;
   onUpdateProduct: (product: Product) => Promise<void>;
 }
@@ -37,6 +38,7 @@ export default function POSInterface({
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
   const [isHookup, setIsHookup] = useState(false);
+  const [hookupAmount, setHookupAmount] = useState<string>(""); // Amount for hookup/discount
   const [sizeSelectionProduct, setSizeSelectionProduct] =
     useState<Product | null>(null);
   const [showJumpButton, setShowJumpButton] = useState(false);
@@ -139,17 +141,55 @@ export default function POSInterface({
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
 
-    // For cash payments (unless hookup), ensure enough money was received
-    if (
-      selectedPaymentMethod === "cash" &&
-      !isHookup &&
-      cashReceived < calculateTotal()
-    ) {
-      setToast({
-        message: "Not enough cash received!",
-        type: "error",
-      });
-      return;
+    const total = calculateTotal();
+    let actualAmount = total;
+    let discount = 0;
+
+    // Determine actual amount based on payment method and hookup status
+    if (selectedPaymentMethod === "cash") {
+      if (isHookup) {
+        // For cash + hookup, use the hookup amount if provided, otherwise use cash received
+        if (hookupAmount && Number.parseFloat(hookupAmount) > 0) {
+          actualAmount = Number.parseFloat(hookupAmount);
+          discount = total - actualAmount;
+        } else if (cashReceived > 0) {
+          actualAmount = cashReceived;
+          discount = total - actualAmount;
+        } else {
+          setToast({
+            message: "Please enter the hookup amount or cash received!",
+            type: "error",
+          });
+          return;
+        }
+      } else {
+        // Regular cash payment - must have enough cash
+        if (cashReceived < total) {
+          setToast({
+            message: "Not enough cash received!",
+            type: "error",
+          });
+          return;
+        }
+        actualAmount = total; // Full price paid
+      }
+    } else {
+      // Card, Venmo, Other
+      if (isHookup) {
+        // For hookup with non-cash payment, require hookup amount
+        if (!hookupAmount || Number.parseFloat(hookupAmount) <= 0) {
+          setToast({
+            message: "Please enter the hookup amount!",
+            type: "error",
+          });
+          return;
+        }
+        actualAmount = Number.parseFloat(hookupAmount);
+        discount = total - actualAmount;
+      } else {
+        // Regular non-cash payment - full price
+        actualAmount = total;
+      }
     }
 
     setIsProcessing(true);
@@ -173,20 +213,23 @@ export default function POSInterface({
 
       await onCompleteSale(
         cart,
-        calculateTotal(),
+        total,
+        actualAmount,
         selectedPaymentMethod,
-        isHookup
+        discount > 0 ? discount : undefined
       );
       setCart([]);
       setSelectedPaymentMethod("cash");
       setCashReceived(0);
       setIsHookup(false);
+      setHookupAmount("");
 
       // Show success toast
       setToast({
-        message: isHookup
-          ? "✨ Hook up completed!"
-          : "✅ Sale completed successfully!",
+        message:
+          discount > 0
+            ? `✨ Hook up completed! Saved $${discount.toFixed(2)}`
+            : "✅ Sale completed successfully!",
         type: "success",
       });
     } catch (error) {
@@ -279,7 +322,7 @@ export default function POSInterface({
                               inStock ? "" : "opacity-40"
                             }`}
                           />
-                          
+
                           {/* Text overlay - only show gradient if text is on */}
                           {showText ? (
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
@@ -291,11 +334,12 @@ export default function POSInterface({
                                   <p className="text-xl font-bold text-red-400 drop-shadow-lg">
                                     ${product.price}
                                   </p>
-                                  {product.sizes && product.sizes.length > 0 && (
-                                    <p className="text-xs text-zinc-300 mt-1">
-                                      {product.sizes.join(", ")}
-                                    </p>
-                                  )}
+                                  {product.sizes &&
+                                    product.sizes.length > 0 && (
+                                      <p className="text-xs text-zinc-300 mt-1">
+                                        {product.sizes.join(", ")}
+                                      </p>
+                                    )}
                                 </>
                               ) : (
                                 <p className="text-lg font-bold text-zinc-400">
@@ -524,17 +568,54 @@ export default function POSInterface({
               </div>
             )}
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIsHookup(!isHookup)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${
-                  isHookup
-                    ? "bg-yellow-600 text-white"
-                    : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-                }`}
-              >
-                {isHookup ? "✨ Hook Up Active" : "🤝 Hook It Up"}
-              </button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setIsHookup(!isHookup);
+                    if (isHookup) {
+                      setHookupAmount(""); // Clear hookup amount when disabling
+                    }
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${
+                    isHookup
+                      ? "bg-yellow-600 text-white"
+                      : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                  }`}
+                >
+                  {isHookup ? "✨ Hook Up Active" : "🤝 Hook It Up"}
+                </button>
+              </div>
+
+              {/* Hookup Amount Input */}
+              {isHookup && (
+                <div className="p-3 bg-yellow-900/20 border border-yellow-600/50 rounded-lg">
+                  <label className="block text-sm font-medium text-yellow-300 mb-2">
+                    Hookup Amount (what they&apos;re actually paying)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-bold">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={total}
+                      value={hookupAmount}
+                      onChange={(e) => setHookupAmount(e.target.value)}
+                      placeholder={total.toFixed(2)}
+                      className="w-full pl-8 pr-4 py-2 bg-zinc-800 border border-zinc-600 rounded-lg text-white font-bold focus:outline-none focus:border-yellow-500"
+                    />
+                  </div>
+                  {hookupAmount && Number.parseFloat(hookupAmount) < total && (
+                    <p className="text-xs text-yellow-300 mt-1">
+                      Discount: $
+                      {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <button
