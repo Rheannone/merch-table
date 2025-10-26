@@ -38,6 +38,7 @@ export interface PaymentSetting {
 
 export interface POSSettings {
   paymentSettings: PaymentSetting[];
+  categories: string[]; // Custom product categories
 }
 
 export interface Sale {

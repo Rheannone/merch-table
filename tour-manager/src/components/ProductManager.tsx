@@ -37,6 +37,11 @@ export default function ProductManager({
     category: "Apparel",
     description: "",
   });
+  const [categories, setCategories] = useState<string[]>([
+    "Apparel",
+    "Merch",
+    "Music",
+  ]);
   const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
   const [sizeQuantities, setSizeQuantities] = useState<{
     [size: string]: number;
@@ -46,6 +51,39 @@ export default function ProductManager({
   const [isCreatingInsights, setIsCreatingInsights] = useState(false);
   const [insightsEnabled, setInsightsEnabled] = useState(false);
   const [checkingInsights, setCheckingInsights] = useState(false);
+
+  // Load categories from settings on component mount
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) return;
+
+      const response = await fetch("/api/sheets/settings/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.categories) {
+        setCategories(data.categories);
+        // Update newProduct category if current one doesn't exist
+        if (
+          newProduct.category &&
+          !data.categories.includes(newProduct.category)
+        ) {
+          setNewProduct({ ...newProduct, category: data.categories[0] });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading categories:", error);
+      // Keep default categories if load fails
+    }
+  };
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -235,8 +273,6 @@ export default function ProductManager({
     });
     setSizeQuantities(newQuantities);
   };
-
-  const categories = ["Apparel", "Music", "Merch"];
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto bg-zinc-900 min-h-screen">

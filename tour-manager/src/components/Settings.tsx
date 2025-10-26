@@ -15,6 +15,8 @@ interface ToastState {
 
 export default function Settings({}: SettingsProps) {
   const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -46,6 +48,7 @@ export default function Settings({}: SettingsProps) {
 
       if (response.ok) {
         setPaymentSettings(data.paymentSettings);
+        setCategories(data.categories || ["Apparel", "Merch", "Music"]);
       } else {
         setToast({
           message: `Failed to load settings: ${data.error}`,
@@ -79,7 +82,7 @@ export default function Settings({}: SettingsProps) {
       const response = await fetch("/api/sheets/settings/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId, paymentSettings }),
+        body: JSON.stringify({ spreadsheetId, paymentSettings, categories }),
       });
 
       const data = await response.json();
@@ -269,6 +272,80 @@ export default function Settings({}: SettingsProps) {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Product Categories Section */}
+        <div className="bg-zinc-800 rounded-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold text-white mb-4">
+            📦 Product Categories
+          </h2>
+          <p className="text-sm text-zinc-400 mb-6">
+            Manage your product categories for inventory organization.
+          </p>
+
+          <div className="space-y-4">
+            {/* Add New Category */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newCategory.trim()) {
+                    if (!categories.includes(newCategory.trim())) {
+                      setCategories([...categories, newCategory.trim()]);
+                      setNewCategory("");
+                    }
+                  }
+                }}
+                placeholder="Enter new category name..."
+                className="flex-1 px-4 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:border-red-500"
+              />
+              <button
+                onClick={() => {
+                  if (
+                    newCategory.trim() &&
+                    !categories.includes(newCategory.trim())
+                  ) {
+                    setCategories([...categories, newCategory.trim()]);
+                    setNewCategory("");
+                  }
+                }}
+                disabled={
+                  !newCategory.trim() || categories.includes(newCategory.trim())
+                }
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                ➕ Add
+              </button>
+            </div>
+
+            {/* Category List */}
+            <div className="space-y-2">
+              {categories.map((category) => (
+                <div
+                  key={category}
+                  className="flex items-center justify-between bg-zinc-700 border border-zinc-600 rounded p-3"
+                >
+                  <span className="text-white font-medium">{category}</span>
+                  <button
+                    onClick={() => {
+                      setCategories(categories.filter((c) => c !== category));
+                    }}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-all"
+                  >
+                    🗑️ Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {categories.length === 0 && (
+              <p className="text-center text-zinc-500 py-4">
+                No categories yet. Add your first category above!
+              </p>
+            )}
           </div>
         </div>
 

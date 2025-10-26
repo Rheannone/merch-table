@@ -19,6 +19,9 @@ const DEFAULT_PAYMENT_SETTINGS: PaymentSetting[] = [
   { paymentType: "custom3", enabled: false, displayName: "Custom 3" },
 ];
 
+// Default categories
+const DEFAULT_CATEGORIES = ["Apparel", "Merch", "Music"];
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         paymentSettings: DEFAULT_PAYMENT_SETTINGS,
+        categories: DEFAULT_CATEGORIES,
         isDefault: true,
       });
     }
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest) {
     // Load settings from sheet
     const settingsData = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "POS Settings!A2:E20", // Skip header row
+      range: "POS Settings!A2:E20", // Payment settings (skip header row)
     });
 
     const rows = settingsData.data.values || [];
@@ -76,22 +80,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         paymentSettings: DEFAULT_PAYMENT_SETTINGS,
+        categories: DEFAULT_CATEGORIES,
         isDefault: true,
       });
     }
 
-    // Parse settings from sheet
+    // Parse payment settings from sheet
     const paymentSettings: PaymentSetting[] = rows.map((row) => ({
       paymentType: row[0] as PaymentSetting["paymentType"],
       enabled: row[1] === "TRUE" || row[1] === "Yes",
       displayName: row[2] || "",
-      transactionFee: row[3] ? parseFloat(row[3]) : undefined,
+      transactionFee: row[3] ? Number.parseFloat(row[3]) : undefined,
       qrCodeUrl: row[4] || undefined,
     }));
+
+    // Load categories from sheet (stored after payment settings)
+    const categoriesData = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "POS Settings!G2:G50", // Categories in column G
+    });
+
+    const categoryRows = categoriesData.data.values || [];
+    const categories =
+      categoryRows.length > 0
+        ? categoryRows.map((row) => row[0]).filter((cat) => cat && cat.trim())
+        : DEFAULT_CATEGORIES;
 
     return NextResponse.json({
       success: true,
       paymentSettings,
+      categories: categories.length > 0 ? categories : DEFAULT_CATEGORIES,
       isDefault: false,
     });
   } catch (error) {

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { spreadsheetId, paymentSettings } = await req.json();
+    const { spreadsheetId, paymentSettings, categories } = await req.json();
 
     if (!spreadsheetId) {
       return NextResponse.json(
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       // Add headers
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: "POS Settings!A1:E1",
+        range: "POS Settings!A1:G1",
         valueInputOption: "RAW",
         requestBody: {
           values: [
@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
               "Display Name",
               "Transaction Fee %",
               "QR Code URL",
+              "", // Empty column F
+              "Categories",
             ],
           ],
         },
@@ -121,9 +123,15 @@ export async function POST(req: NextRequest) {
         spreadsheetId,
         range: "POS Settings!A2:E100",
       });
+
+      // Clear categories
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId,
+        range: "POS Settings!G2:G100",
+      });
     }
 
-    // Prepare data rows
+    // Prepare payment settings data rows
     const rows = (paymentSettings as PaymentSetting[]).map((setting) => [
       setting.paymentType,
       setting.enabled ? "Yes" : "No",
@@ -134,7 +142,7 @@ export async function POST(req: NextRequest) {
       setting.qrCodeUrl || "",
     ]);
 
-    // Write settings data
+    // Write payment settings data
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "POS Settings!A2",
@@ -144,9 +152,22 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Write categories if provided
+    if (categories && Array.isArray(categories) && categories.length > 0) {
+      const categoryRows = categories.map((cat) => [cat]);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "POS Settings!G2",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: categoryRows,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Payment settings saved successfully",
+      message: "Settings saved successfully",
     });
   } catch (error) {
     console.error("Failed to save POS settings:", error);
