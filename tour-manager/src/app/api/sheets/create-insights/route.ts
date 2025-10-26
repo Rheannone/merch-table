@@ -71,12 +71,10 @@ export async function POST(req: NextRequest) {
       throw new Error("Failed to create Insights sheet");
     }
 
-    const currentDate = new Date().toLocaleDateString();
-
     // SIMPLIFIED Insights sheet - just daily revenue tracking
     const insightsData = [
       // Header row
-      ["📊 DAILY REVENUE TRACKER", "", "", `Generated: ${currentDate}`],
+      ["📊 INSIGHTS"],
       [],
       // Simple summary
       ["💰 QUICK STATS"],
@@ -89,9 +87,9 @@ export async function POST(req: NextRequest) {
       // Daily breakdown - this is the main feature
       ["📅 ACTUAL REVENUE BY DATE"],
       ["Date", "Number of Sales", "Actual Revenue"],
-      // QUERY to group by date and sum actual revenue - fixed quote escaping
+      // QUERY to group by DATE (extracts date from timestamp) and sum actual revenue
       [
-        '=QUERY(Sales!A:H,"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC",1)',
+        '=QUERY(Sales!A:H,"SELECT TODATE(B), COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY TODATE(B) ORDER BY TODATE(B) DESC",1)',
       ],
       [],
     ];
