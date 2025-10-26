@@ -42,9 +42,12 @@ export async function POST(req: NextRequest) {
         .map((item) => item.size)
         .join(", ");
 
+      // Format date as simple date string (no time) for easier analytics
+      const saleDate = new Date(sale.timestamp).toLocaleDateString();
+
       return [
         sale.id,
-        new Date(sale.timestamp).toLocaleString(),
+        saleDate, // Just the date, no time
         sale.items
           .map((item) => {
             const sizeInfo = item.size ? ` (${item.size})` : "";

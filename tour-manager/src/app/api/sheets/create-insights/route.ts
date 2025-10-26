@@ -87,12 +87,11 @@ export async function POST(req: NextRequest) {
       // Daily breakdown - this is the main feature
       ["📅 ACTUAL REVENUE BY DATE"],
       ["Date", "Number of Sales", "Actual Revenue", "Top Item", "Top Size"],
-      // QUERY to group by DATE and show stats
-      // Using DATE() to extract just the date portion from timestamp
+      // QUERY to group by DATE (column B is now just a date string)
       // Row 12 will be hidden (QUERY header row)
       // Row 13+ will show actual data with formulas for Top Item and Top Size
       [
-        '=QUERY(Sales!A:J,"SELECT DATE(B), COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY DATE(B) ORDER BY DATE(B) DESC",1)',
+        '=QUERY(Sales!A:J,"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC",1)',
         // Top Item formula - will be copied down automatically
         '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")),","),1,1),"N/A")))',
         // Top Size formula - will be copied down automatically
@@ -112,7 +111,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Add formulas for Top Item (D13) and Top Size (E13) that will reference their row's date
-    // These formulas collect all items/sizes sold on that date
+    // These formulas collect all items/sizes sold on that date (now simple string matching)
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "Insights!D13",
@@ -120,8 +119,8 @@ export async function POST(req: NextRequest) {
       requestBody: {
         values: [
           [
-            // Top Item: Show all unique items sold on this date
-            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")))',
+            // Top Item: Show all unique items sold on this date (simple text match now)
+            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(Sales!$B$2:$B=A13,Sales!$I$2:$I,"")))',
           ],
         ],
       },
@@ -134,8 +133,8 @@ export async function POST(req: NextRequest) {
       requestBody: {
         values: [
           [
-            // Top Size: Show all unique sizes sold on this date
-            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")))',
+            // Top Size: Show all unique sizes sold on this date (simple text match now)
+            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(Sales!$B$2:$B=A13,Sales!$J$2:$J,"")))',
           ],
         ],
       },
