@@ -643,8 +643,9 @@ export default function POSInterface({
               </div>
             </div>
 
-            {/* Cash Calculator */}
-            {selectedPaymentMethod === "cash" && (
+            {/* Cash Calculator - show for cash payment type */}
+            {(selectedPaymentMethod.toLowerCase() === "cash" ||
+              selectedPaymentSetting?.paymentType === "cash") && (
               <div className="space-y-3 p-4 bg-zinc-900 border border-zinc-700 rounded-lg">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-sm font-medium text-zinc-300">
