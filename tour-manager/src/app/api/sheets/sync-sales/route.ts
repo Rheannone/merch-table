@@ -29,22 +29,35 @@ export async function POST(req: NextRequest) {
 
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
-    // Prepare data with new columns for financial tracking
-    const values = (sales as Sale[]).map((sale) => [
-      sale.id,
-      new Date(sale.timestamp).toLocaleString(),
-      sale.items
-        .map((item) => {
-          const sizeInfo = item.size ? ` (${item.size})` : "";
-          return `${item.productName}${sizeInfo} x${item.quantity}`;
-        })
-        .join(", "),
-      sale.total.toFixed(2), // Total cart value
-      sale.actualAmount.toFixed(2), // Actual money received
-      sale.discount ? sale.discount.toFixed(2) : "0.00", // Discount/hookup amount
-      sale.paymentMethod,
-      sale.isHookup ? "Yes" : "No", // For backward compatibility
-    ]);
+    // Prepare data with new columns for analytics
+    const values = (sales as Sale[]).map((sale) => {
+      // Extract product names (comma-separated)
+      const productNames = sale.items.map((item) => item.productName).join(", ");
+      
+      // Extract sizes (comma-separated, filter out items without sizes)
+      const sizes = sale.items
+        .filter((item) => item.size)
+        .map((item) => item.size)
+        .join(", ");
+
+      return [
+        sale.id,
+        new Date(sale.timestamp).toLocaleString(),
+        sale.items
+          .map((item) => {
+            const sizeInfo = item.size ? ` (${item.size})` : "";
+            return `${item.productName}${sizeInfo} x${item.quantity}`;
+          })
+          .join(", "),
+        sale.total.toFixed(2), // Total cart value
+        sale.actualAmount.toFixed(2), // Actual money received
+        sale.discount ? sale.discount.toFixed(2) : "0.00", // Discount/hookup amount
+        sale.paymentMethod,
+        sale.isHookup ? "Yes" : "No", // For backward compatibility
+        productNames, // New: Individual product names
+        sizes || "N/A", // New: Individual sizes
+      ];
+    });
 
     if (values.length > 0) {
       await sheets.spreadsheets.values.append({

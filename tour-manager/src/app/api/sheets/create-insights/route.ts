@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       throw new Error("Failed to create Insights sheet");
     }
 
-    // SIMPLIFIED Insights sheet - just daily revenue tracking
+    // SIMPLIFIED Insights sheet - just daily revenue tracking with product analytics
     const insightsData = [
       // Header row
       ["📊 INSIGHTS"],
@@ -86,10 +86,16 @@ export async function POST(req: NextRequest) {
       [],
       // Daily breakdown - this is the main feature
       ["📅 ACTUAL REVENUE BY DATE"],
-      ["Date", "Number of Sales", "Actual Revenue"],
-      // QUERY to group by DATE (extracts date from timestamp) and sum actual revenue
+      ["Date", "Number of Sales", "Actual Revenue", "Top Item", "Top Size"],
+      // QUERY to group by DATE and show stats
+      // Row 12 will be hidden (QUERY header row)
+      // Row 13+ will show actual data with formulas for Top Item and Top Size
       [
-        '=QUERY(Sales!A:H,"SELECT TODATE(B), COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY TODATE(B) ORDER BY TODATE(B) DESC",1)',
+        '=QUERY(Sales!A:J,"SELECT TODATE(B), COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY TODATE(B) ORDER BY TODATE(B) DESC",1)',
+        // Top Item formula - will be copied down automatically
+        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")),","),1,1),"N/A")))',
+        // Top Size formula - will be copied down automatically  
+        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")),","),1,1),"N/A")))',
       ],
       [],
     ];
@@ -101,6 +107,60 @@ export async function POST(req: NextRequest) {
       valueInputOption: "USER_ENTERED", // Important: USER_ENTERED interprets formulas
       requestBody: {
         values: insightsData,
+      },
+    });
+
+    // Add formulas for Top Item (D13) and Top Size (E13) that will reference their row's date
+    // These formulas collect all items/sizes sold on that date
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: "Insights!D13",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[
+          // Top Item: Show all unique items sold on this date
+          '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")))',
+        ]],
+      },
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: "Insights!E13",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[
+          // Top Size: Show all unique sizes sold on this date
+          '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(INT(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")))',
+        ]],
+      },
+    });
+
+    // Auto-copy the formulas down using copyPaste (copies D13:E13 down to rows 14-50)
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            copyPaste: {
+              source: {
+                sheetId: insightsSheetId,
+                startRowIndex: 12, // Row 13 (0-indexed)
+                endRowIndex: 13,
+                startColumnIndex: 3, // Column D
+                endColumnIndex: 5, // Column E (exclusive)
+              },
+              destination: {
+                sheetId: insightsSheetId,
+                startRowIndex: 13, // Row 14
+                endRowIndex: 50, // Copy down to row 50
+                startColumnIndex: 3,
+                endColumnIndex: 5,
+              },
+              pasteType: "PASTE_NORMAL",
+            },
+          },
+        ],
       },
     });
 
@@ -251,6 +311,21 @@ export async function POST(req: NextRequest) {
                 pixelSize: 150,
               },
               fields: "pixelSize",
+            },
+          },
+          // Hide row 12 (the QUERY formula header row)
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: insightsSheetId,
+                dimension: "ROWS",
+                startIndex: 11, // Row 12 (0-indexed)
+                endIndex: 12,
+              },
+              properties: {
+                hiddenByUser: true,
+              },
+              fields: "hiddenByUser",
             },
           },
         ],

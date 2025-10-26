@@ -248,10 +248,10 @@ export async function initializeUserSheets(
     },
   });
 
-  // Set up Sales sheet headers with new financial columns
+  // Set up Sales sheet headers with new analytics columns
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sales!A1:H1",
+    range: "Sales!A1:J1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -264,6 +264,8 @@ export async function initializeUserSheets(
           "Discount",
           "Payment Method",
           "Hookup",
+          "Product Names",
+          "Sizes",
         ],
       ],
     },
