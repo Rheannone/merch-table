@@ -56,8 +56,6 @@ export async function POST(req: NextRequest) {
                 title: "Insights",
                 gridProperties: {
                   frozenRowCount: 1,
-                  columnCount: 10,
-                  rowCount: 100,
                 },
               },
             },
@@ -69,120 +67,32 @@ export async function POST(req: NextRequest) {
     const insightsSheetId =
       addSheetResponse.data.replies?.[0]?.addSheet?.properties?.sheetId;
 
-    // Set up the Insights sheet with sections and formulas
-    // This will create a dashboard-style layout with different sections
+    if (!insightsSheetId) {
+      throw new Error("Failed to create Insights sheet");
+    }
 
     const currentDate = new Date().toLocaleDateString();
 
-    // Build the data for the Insights sheet
+    // SIMPLIFIED Insights sheet - just daily revenue tracking
     const insightsData = [
       // Header row
-      [
-        "📊 MERCH TABLE INSIGHTS",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        `Generated: ${currentDate}`,
-      ],
+      ["📊 DAILY REVENUE TRACKER", "", "", `Generated: ${currentDate}`],
       [],
-      // Total Sales Summary
-      ["💰 TOTAL SALES SUMMARY"],
+      // Simple summary
+      ["💰 QUICK STATS"],
       ["Metric", "Value"],
-      ["Total Revenue (Actual)", "=SUM(Sales!E2:E)"], // Sum of Actual Amount column (skip header)
-      ["Total Cart Value", "=SUM(Sales!D2:D)"], // Sum of Total column (skip header)
-      ["Total Discounts Given", "=SUM(Sales!F2:F)"], // Sum of Discount column (skip header)
-      ["Total Number of Sales", "=COUNTA(Sales!A2:A)"], // Count of sales (skip header)
-      [
-        "Average Sale Amount",
-        "=IF(COUNTA(Sales!E2:E)>0,AVERAGE(Sales!E2:E),0)",
-      ], // Average actual amount with safety
-      ["Discount Rate", "=IF(B6>0,B7/B6,0)"], // Total discounts / Total cart value (using row references)
+      ["Total Actual Revenue", "=SUM(Sales!E:E)"],
+      ["Number of Sales", "=COUNTA(Sales!A:A)-1"],
+      ["Average Sale", "=IF(B6>0,B5/B6,0)"],
       [],
-      // Sales by Payment Method
-      ["💳 SALES BY PAYMENT METHOD"],
-      ["Payment Method", "Count", "Total Revenue"],
+      [],
+      // Daily breakdown - this is the main feature
+      ["📅 ACTUAL REVENUE BY DATE"],
+      ["Date", "Number of Sales", "Actual Revenue"],
+      // QUERY to group by date and sum actual revenue
       [
-        "Cash",
-        '=COUNTIF(Sales!G2:G,"cash")',
-        '=SUMIF(Sales!G2:G,"cash",Sales!E2:E)',
+        "=QUERY(Sales!A:H,\"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC LABEL B 'Date', COUNT(B) '# Sales', SUM(E) 'Revenue'\",1)",
       ],
-      [
-        "Card",
-        '=COUNTIF(Sales!G2:G,"card")',
-        '=SUMIF(Sales!G2:G,"card",Sales!E2:E)',
-      ],
-      [
-        "Venmo",
-        '=COUNTIF(Sales!G2:G,"venmo")',
-        '=SUMIF(Sales!G2:G,"venmo",Sales!E2:E)',
-      ],
-      [
-        "Other",
-        '=COUNTIF(Sales!G2:G,"other")',
-        '=SUMIF(Sales!G2:G,"other",Sales!E2:E)',
-      ],
-      [],
-      // Top 10 Items Sold
-      ["🔥 TOP ITEMS SOLD"],
-      ["Note: Extract product names from the Items column to analyze"],
-      ["Product", "Times Sold (approx)"],
-      // We'll use a simple approach - user can manually analyze or we can improve this later
-      ["See Sales sheet for detailed item breakdown"],
-      [],
-      // Daily Sales Breakdown (using QUERY for automatic grouping)
-      ["📅 SALES BY DATE"],
-      ["Date", "Number of Sales", "Total Revenue", "Total Discounts"],
-      // This formula will automatically group sales by date - Fixed to include all columns B through H
-      [
-        "=QUERY(Sales!B2:H,\"SELECT B, COUNT(B), SUM(E), SUM(F) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC LABEL B 'Date', COUNT(B) 'Sales', SUM(E) 'Revenue', SUM(F) 'Discounts'\",1)",
-      ],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      [],
-      // Top Sales Day - Fixed with safety checks
-      ["🏆 TOP PERFORMERS"],
-      ["Metric", "Value"],
-      [
-        "Highest Revenue Day",
-        '=IF(COUNTA(A30:A39)>0,INDEX(A30:A39,MATCH(MAX(C30:C39),C30:C39,0)),"N/A")',
-      ],
-      [
-        "Most Sales in One Day",
-        '=IF(COUNTA(A30:A39)>0,INDEX(A30:A39,MATCH(MAX(B30:B39),B30:B39,0)),"N/A")',
-      ],
-      [
-        "Biggest Discount Day",
-        '=IF(COUNTA(A30:A39)>0,INDEX(A30:A39,MATCH(MAX(D30:D39),D30:D39,0)),"N/A")',
-      ],
-      [],
-      // Size Analysis (if applicable)
-      ["👕 SIZE ANALYSIS"],
-      [
-        "Note: Sizes are embedded in the Items column. Review Sales sheet for detailed size breakdown.",
-      ],
-      [],
-      // Hookup/Discount Analysis - Fixed with safety checks
-      ["✨ HOOKUP/DISCOUNT ANALYSIS"],
-      ["Metric", "Value"],
-      ["Total Hookups Given", '=COUNTIF(Sales!H2:H,"Yes")'],
-      ["Hookup Rate", "=IF(B8>0,B55/B8,0)"], // Hookups / Total Sales with safety check
-      ["Average Discount per Hookup", "=IF(B55>0,B7/B55,0)"], // Total discounts / Hookups with safety check
-      [],
-      // Revenue Trends - Fixed with safety checks
-      ["📈 REVENUE INSIGHTS"],
-      ["Metric", "Value"],
-      ["Average Daily Revenue", "=IF(COUNTA(C30:C39)>0,AVERAGE(C30:C39),0)"],
-      ["Highest Single Sale", "=IF(COUNTA(Sales!E2:E)>0,MAX(Sales!E2:E),0)"],
-      ["Lowest Single Sale", "=IF(COUNTA(Sales!E2:E)>0,MIN(Sales!E2:E),0)"],
       [],
     ];
 
@@ -201,7 +111,7 @@ export async function POST(req: NextRequest) {
       spreadsheetId,
       requestBody: {
         requests: [
-          // Bold the header row
+          // Format header row (bold + dark background)
           {
             repeatCell: {
               range: {
@@ -230,7 +140,7 @@ export async function POST(req: NextRequest) {
               fields: "userEnteredFormat(backgroundColor,textFormat)",
             },
           },
-          // Bold all section headers (rows with emojis)
+          // Format section headers (bold)
           {
             repeatCell: {
               range: {
@@ -253,6 +163,42 @@ export async function POST(req: NextRequest) {
             repeatCell: {
               range: {
                 sheetId: insightsSheetId,
+                startRowIndex: 10,
+                endRowIndex: 11,
+              },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: {
+                    bold: true,
+                    fontSize: 12,
+                  },
+                },
+              },
+              fields: "userEnteredFormat.textFormat",
+            },
+          },
+          // Format table headers
+          {
+            repeatCell: {
+              range: {
+                sheetId: insightsSheetId,
+                startRowIndex: 3,
+                endRowIndex: 4,
+              },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: {
+                    bold: true,
+                  },
+                },
+              },
+              fields: "userEnteredFormat.textFormat.bold",
+            },
+          },
+          {
+            repeatCell: {
+              range: {
+                sheetId: insightsSheetId,
                 startRowIndex: 11,
                 endRowIndex: 12,
               },
@@ -260,122 +206,13 @@ export async function POST(req: NextRequest) {
                 userEnteredFormat: {
                   textFormat: {
                     bold: true,
-                    fontSize: 12,
                   },
                 },
               },
-              fields: "userEnteredFormat.textFormat",
+              fields: "userEnteredFormat.textFormat.bold",
             },
           },
-          {
-            repeatCell: {
-              range: {
-                sheetId: insightsSheetId,
-                startRowIndex: 18,
-                endRowIndex: 19,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                    fontSize: 12,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          {
-            repeatCell: {
-              range: {
-                sheetId: insightsSheetId,
-                startRowIndex: 27,
-                endRowIndex: 28,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                    fontSize: 12,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          {
-            repeatCell: {
-              range: {
-                sheetId: insightsSheetId,
-                startRowIndex: 43,
-                endRowIndex: 44,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                    fontSize: 12,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          {
-            repeatCell: {
-              range: {
-                sheetId: insightsSheetId,
-                startRowIndex: 48,
-                endRowIndex: 49,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                    fontSize: 12,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          {
-            repeatCell: {
-              range: {
-                sheetId: insightsSheetId,
-                startRowIndex: 53,
-                endRowIndex: 54,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                    fontSize: 12,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          {
-            repeatCell: {
-              range: {
-                sheetId: insightsSheetId,
-                startRowIndex: 59,
-                endRowIndex: 60,
-              },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: {
-                    bold: true,
-                    fontSize: 12,
-                  },
-                },
-              },
-              fields: "userEnteredFormat.textFormat",
-            },
-          },
-          // Resize columns for better visibility
+          // Set column widths
           {
             updateDimensionProperties: {
               range: {
@@ -385,7 +222,7 @@ export async function POST(req: NextRequest) {
                 endIndex: 1,
               },
               properties: {
-                pixelSize: 250,
+                pixelSize: 200,
               },
               fields: "pixelSize",
             },
@@ -396,7 +233,7 @@ export async function POST(req: NextRequest) {
                 sheetId: insightsSheetId,
                 dimension: "COLUMNS",
                 startIndex: 1,
-                endIndex: 4,
+                endIndex: 2,
               },
               properties: {
                 pixelSize: 150,
@@ -404,25 +241,18 @@ export async function POST(req: NextRequest) {
               fields: "pixelSize",
             },
           },
-          // Format currency columns
           {
-            repeatCell: {
+            updateDimensionProperties: {
               range: {
                 sheetId: insightsSheetId,
-                startRowIndex: 4,
-                endRowIndex: 10,
-                startColumnIndex: 1,
-                endColumnIndex: 2,
+                dimension: "COLUMNS",
+                startIndex: 2,
+                endIndex: 3,
               },
-              cell: {
-                userEnteredFormat: {
-                  numberFormat: {
-                    type: "CURRENCY",
-                    pattern: "$#,##0.00",
-                  },
-                },
+              properties: {
+                pixelSize: 150,
               },
-              fields: "userEnteredFormat.numberFormat",
+              fields: "pixelSize",
             },
           },
         ],
@@ -431,15 +261,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message:
-        "Insights sheet created successfully! It will automatically update as you make sales.",
-      sheetId: insightsSheetId,
+      message: "Insights sheet created successfully!",
     });
   } catch (error) {
-    console.error("Failed to create insights sheet:", error);
+    console.error("Failed to create insights:", error);
     return NextResponse.json(
       {
-        error: "Failed to create insights sheet",
+        error: "Failed to create Insights sheet",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
