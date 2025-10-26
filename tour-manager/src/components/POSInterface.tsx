@@ -39,6 +39,7 @@ export default function POSInterface({
   const [selectedPaymentSetting, setSelectedPaymentSetting] =
     useState<PaymentSetting | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
@@ -80,6 +81,11 @@ export default function POSInterface({
         if (enabled.length > 0) {
           setSelectedPaymentMethod(enabled[0].displayName);
           setSelectedPaymentSetting(enabled[0]);
+        }
+
+        // Load category order
+        if (data.categories && Array.isArray(data.categories)) {
+          setCategoryOrder(data.categories);
         }
       }
     } catch (error) {
@@ -394,7 +400,36 @@ export default function POSInterface({
     return "Complete Sale";
   };
 
-  const categories = Array.from(new Set(products.map((p) => p.category)));
+  // Get categories from products, then order them according to settings
+  const getOrderedCategories = () => {
+    const productCategories = Array.from(
+      new Set(products.map((p) => p.category))
+    );
+
+    if (categoryOrder.length === 0) {
+      // No order specified, return categories as they appear in products
+      return productCategories;
+    }
+
+    // Order categories according to categoryOrder, then add any new categories not in the order
+    const ordered: string[] = [];
+    for (const cat of categoryOrder) {
+      if (productCategories.includes(cat)) {
+        ordered.push(cat);
+      }
+    }
+
+    // Add any categories that exist in products but not in the order
+    for (const cat of productCategories) {
+      if (!ordered.includes(cat)) {
+        ordered.push(cat);
+      }
+    }
+
+    return ordered;
+  };
+
+  const categories = getOrderedCategories();
   const total = calculateTotal();
   const change = calculateChange();
 

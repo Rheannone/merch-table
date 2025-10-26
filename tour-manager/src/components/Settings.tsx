@@ -281,7 +281,8 @@ export default function Settings({}: SettingsProps) {
             📦 Product Categories
           </h2>
           <p className="text-sm text-zinc-400 mb-6">
-            Manage your product categories for inventory organization.
+            Manage your product categories for inventory organization. The order
+            here determines how they display in the POS interface.
           </p>
 
           <div className="space-y-4">
@@ -321,14 +322,57 @@ export default function Settings({}: SettingsProps) {
               </button>
             </div>
 
-            {/* Category List */}
+            {/* Category List with Reordering */}
             <div className="space-y-2">
-              {categories.map((category) => (
+              {categories.map((category, index) => (
                 <div
                   key={category}
-                  className="flex items-center justify-between bg-zinc-700 border border-zinc-600 rounded p-3"
+                  className="flex items-center gap-2 bg-zinc-700 border border-zinc-600 rounded p-3"
                 >
-                  <span className="text-white font-medium">{category}</span>
+                  {/* Order Controls */}
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => {
+                        if (index > 0) {
+                          const newCategories = [...categories];
+                          [newCategories[index - 1], newCategories[index]] = [
+                            newCategories[index],
+                            newCategories[index - 1],
+                          ];
+                          setCategories(newCategories);
+                        }
+                      }}
+                      disabled={index === 0}
+                      className="px-2 py-0.5 bg-zinc-600 hover:bg-zinc-500 text-white text-xs rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      title="Move up"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (index < categories.length - 1) {
+                          const newCategories = [...categories];
+                          [newCategories[index], newCategories[index + 1]] = [
+                            newCategories[index + 1],
+                            newCategories[index],
+                          ];
+                          setCategories(newCategories);
+                        }
+                      }}
+                      disabled={index === categories.length - 1}
+                      className="px-2 py-0.5 bg-zinc-600 hover:bg-zinc-500 text-white text-xs rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      title="Move down"
+                    >
+                      ▼
+                    </button>
+                  </div>
+
+                  {/* Category Name */}
+                  <span className="flex-1 text-white font-medium">
+                    {index + 1}. {category}
+                  </span>
+
+                  {/* Remove Button */}
                   <button
                     onClick={() => {
                       setCategories(categories.filter((c) => c !== category));
