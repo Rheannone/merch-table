@@ -572,9 +572,21 @@ export default function POSInterface({
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    setIsHookup(!isHookup);
-                    if (isHookup) {
-                      setHookupAmount(""); // Clear hookup amount when disabling
+                    const newHookupState = !isHookup;
+                    setIsHookup(newHookupState);
+
+                    if (newHookupState) {
+                      // Enabling hookup
+                      // If cash payment and cash has been received, auto-fill with cash amount
+                      if (
+                        selectedPaymentMethod === "cash" &&
+                        cashReceived > 0
+                      ) {
+                        setHookupAmount(cashReceived.toFixed(2));
+                      }
+                    } else {
+                      // Disabling hookup - clear the amount
+                      setHookupAmount("");
                     }
                   }}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${

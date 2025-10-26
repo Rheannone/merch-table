@@ -38,6 +38,7 @@ export default function Home() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
   const [loadedFromSheets, setLoadedFromSheets] = useState(false); // Track if products were loaded from Sheets
+  const [productsChanged, setProductsChanged] = useState(false); // Track if products actually changed
   const [toast, setToast] = useState<{
     message: string;
     type: ToastType;
@@ -76,8 +77,8 @@ export default function Home() {
         // Build toast message based on what happened
         const messageParts: string[] = [];
 
-        // If products were loaded from Sheets, mention it
-        if (loadedFromSheets) {
+        // If products were loaded from Sheets AND they changed, mention it
+        if (loadedFromSheets && productsChanged) {
           messageParts.push("Loaded latest products");
         }
 
@@ -150,6 +151,62 @@ export default function Home() {
     return () => globalThis.removeEventListener("online", handleOnline);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Helper function to detect if products have changed
+  const detectProductChanges = (
+    oldProducts: Product[],
+    newProducts: Product[]
+  ): boolean => {
+    // If counts differ, they've changed
+    if (oldProducts.length !== newProducts.length) {
+      return true;
+    }
+
+    // If no old products (first load), consider it changed
+    if (oldProducts.length === 0) {
+      return newProducts.length > 0;
+    }
+
+    // Create a simple fingerprint by sorting IDs and comparing
+    const oldFingerprint = [...oldProducts]
+      .map((p) => p.id)
+      .sort((a, b) => a.localeCompare(b))
+      .join(",");
+    const newFingerprint = [...newProducts]
+      .map((p) => p.id)
+      .sort((a, b) => a.localeCompare(b))
+      .join(",");
+
+    // If IDs changed, products changed
+    if (oldFingerprint !== newFingerprint) {
+      return true;
+    }
+
+    // Check if any product's key properties changed
+    // Create a more detailed fingerprint including name, price, and inventory
+    const sortedOldProducts = [...oldProducts].sort((a, b) =>
+      a.id.localeCompare(b.id)
+    );
+    const sortedNewProducts = [...newProducts].sort((a, b) =>
+      a.id.localeCompare(b.id)
+    );
+
+    const oldDetailedFingerprint = sortedOldProducts
+      .map(
+        (p) =>
+          `${p.id}:${p.name}:${p.price}:${JSON.stringify(p.inventory || {})}`
+      )
+      .join("|");
+
+    const newDetailedFingerprint = sortedNewProducts
+      .map(
+        (p) =>
+          `${p.id}:${p.name}:${p.price}:${JSON.stringify(p.inventory || {})}`
+      )
+      .join("|");
+
+    return oldDetailedFingerprint !== newDetailedFingerprint;
+  };
 
   const initializeApp = async () => {
     try {
@@ -232,6 +289,9 @@ export default function Home() {
       let loadedProducts: Product[] = [];
       let productsLoadedFromSheets = false;
 
+      // Get current products from IndexedDB to compare for changes
+      const currentProducts = await getProducts();
+
       // If we have a sheet ID, try loading products from Google Sheets
       if (storedProductsSheetId) {
         try {
@@ -277,8 +337,15 @@ export default function Home() {
         console.log("🎯 Using default products");
       }
 
+      // Detect if products actually changed
+      const hasProductsChanged = detectProductChanges(
+        currentProducts,
+        loadedProducts
+      );
+
       setProducts(loadedProducts);
       setLoadedFromSheets(productsLoadedFromSheets);
+      setProductsChanged(hasProductsChanged);
       setIsInitialized(true);
     } catch (error) {
       console.error("Failed to initialize:", error);

@@ -244,40 +244,13 @@ export default function ProductManager({
         <h2 className="text-2xl sm:text-3xl font-bold text-white">
           Product Management
         </h2>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={handleCreateInsights}
-            disabled={isCreatingInsights || insightsEnabled || checkingInsights}
-            className={`px-4 py-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 touch-manipulation font-medium ${
-              insightsEnabled
-                ? "bg-green-600 text-white cursor-default"
-                : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            }`}
-          >
-            {insightsEnabled ? (
-              <>
-                <CheckCircleIcon className="w-5 h-5" />
-                Advanced Insights Enabled
-              </>
-            ) : (
-              <>
-                <ChartBarIcon className="w-5 h-5" />
-                {isCreatingInsights
-                  ? "Creating..."
-                  : checkingInsights
-                  ? "Checking..."
-                  : "Enable Advanced Insights"}
-              </>
-            )}
-          </button>
-          <button
-            onClick={() => setIsAdding(!isAdding)}
-            className="px-4 py-3 sm:py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 flex items-center justify-center gap-2 touch-manipulation font-medium"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Add Product
-          </button>
-        </div>
+        <button
+          onClick={() => setIsAdding(!isAdding)}
+          className="px-4 py-3 sm:py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 flex items-center justify-center gap-2 touch-manipulation font-medium"
+        >
+          <PlusIcon className="w-5 h-5" />
+          Add Product
+        </button>
       </div>
 
       {isAdding && (
@@ -564,9 +537,47 @@ export default function ProductManager({
         </table>
       </div>
 
-      <p className="text-sm text-zinc-500 mt-4">
+      <p className="text-sm text-zinc-500 mt-4 mb-6">
         Total: {products.length} products
       </p>
+
+      {/* Advanced Insights Button */}
+      <div className="mt-8 pt-6 border-t border-zinc-700">
+        <div className="max-w-md mx-auto">
+          <h3 className="text-lg font-semibold text-white mb-2">
+            📊 Data Analytics
+          </h3>
+          <p className="text-sm text-zinc-400 mb-4">
+            Enable advanced insights to get detailed analytics about your sales,
+            revenue, and trends directly in your Google Sheets.
+          </p>
+          <button
+            onClick={handleCreateInsights}
+            disabled={isCreatingInsights || insightsEnabled || checkingInsights}
+            className={`w-full px-4 py-3 rounded-lg flex items-center justify-center gap-2 touch-manipulation font-medium ${
+              insightsEnabled
+                ? "bg-green-600 text-white cursor-default"
+                : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            }`}
+          >
+            {insightsEnabled ? (
+              <>
+                <CheckCircleIcon className="w-5 h-5" />
+                Advanced Insights Enabled
+              </>
+            ) : (
+              <>
+                <ChartBarIcon className="w-5 h-5" />
+                {isCreatingInsights
+                  ? "Creating..."
+                  : checkingInsights
+                  ? "Checking..."
+                  : "Enable Advanced Insights"}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* Toast Notification */}
       {toast && (
