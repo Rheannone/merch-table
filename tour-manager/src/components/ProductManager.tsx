@@ -152,7 +152,7 @@ export default function ProductManager({
       }
     }
 
-    setIsAdding(true);
+    // Don't set isAdding(true) - we show inline instead
   };
 
   const handleCancelEdit = () => {
@@ -195,7 +195,7 @@ export default function ProductManager({
         </button>
       </div>
 
-      {isAdding && (
+      {isAdding && !editingProduct && (
         <form
           onSubmit={handleSubmit}
           className="bg-zinc-800 border border-zinc-700 p-6 rounded-lg shadow-lg mb-6"
@@ -382,20 +382,11 @@ export default function ProductManager({
           </div>
 
           <div className="flex gap-3 mt-4">
-            {editingProduct && (
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="px-6 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 touch-manipulation"
-              >
-                Cancel
-              </button>
-            )}
             <button
               type="submit"
               className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 touch-manipulation"
             >
-              {editingProduct ? "Update Product" : "Save Product"}
+              Save Product
             </button>
             <button
               type="button"
@@ -431,49 +422,255 @@ export default function ProductManager({
           </thead>
           <tbody className="divide-y divide-zinc-700">
             {products.map((product) => (
-              <tr key={product.id} className="hover:bg-zinc-900/50">
-                <td className="px-4 sm:px-6 py-4 text-sm font-medium text-white">
-                  <div className="flex items-center gap-2">
-                    {product.imageUrl && (
-                      <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                    {product.name}
-                  </div>
-                </td>
-                <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden sm:table-cell">
-                  {product.category}
-                </td>
-                <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300">
-                  ${product.price.toFixed(2)}
-                </td>
-                <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden md:table-cell">
-                  {product.sizes?.join(", ") || "-"}
-                </td>
-                <td className="px-4 sm:px-6 py-4 text-right text-sm">
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="text-blue-500 hover:text-blue-400 p-2 touch-manipulation"
-                      aria-label="Edit product"
+              <>
+                <tr key={product.id} className="hover:bg-zinc-900/50">
+                  <td className="px-4 sm:px-6 py-4 text-sm font-medium text-white">
+                    <div className="flex items-center gap-2">
+                      {product.imageUrl && (
+                        <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      {product.name}
+                    </div>
+                  </td>
+                  <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden sm:table-cell">
+                    {product.category}
+                  </td>
+                  <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300">
+                    ${product.price.toFixed(2)}
+                  </td>
+                  <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden md:table-cell">
+                    {product.sizes?.join(", ") || "-"}
+                  </td>
+                  <td className="px-4 sm:px-6 py-4 text-right text-sm">
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => handleEdit(product)}
+                        className="text-blue-500 hover:text-blue-400 p-2 touch-manipulation"
+                        aria-label="Edit product"
+                      >
+                        <PencilIcon className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteProduct(product.id)}
+                        className="text-red-500 hover:text-red-400 p-2 touch-manipulation"
+                        aria-label="Delete product"
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+                {/* Inline Edit Form - appears below the row being edited */}
+                {editingProduct?.id === product.id && (
+                  <tr key={`${product.id}-edit`}>
+                    <td
+                      colSpan={5}
+                      className="px-4 sm:px-6 py-4 bg-zinc-800/50"
                     >
-                      <PencilIcon className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => onDeleteProduct(product.id)}
-                      className="text-red-500 hover:text-red-400 p-2 touch-manipulation"
-                      aria-label="Delete product"
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+                      <form onSubmit={handleSubmit} className="space-y-4">
+                        <h3 className="text-lg font-semibold text-white mb-4">
+                          Edit Product
+                        </h3>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                              Product Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={newProduct.name || ""}
+                              onChange={(e) =>
+                                setNewProduct({
+                                  ...newProduct,
+                                  name: e.target.value,
+                                })
+                              }
+                              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                              Price *
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={newProduct.price || ""}
+                              onChange={(e) =>
+                                setNewProduct({
+                                  ...newProduct,
+                                  price: Number.parseFloat(e.target.value),
+                                })
+                              }
+                              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                              Category *
+                            </label>
+                            <select
+                              value={newProduct.category || ""}
+                              onChange={(e) =>
+                                setNewProduct({
+                                  ...newProduct,
+                                  category: e.target.value,
+                                })
+                              }
+                              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                            >
+                              {categories.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                              Description
+                            </label>
+                            <input
+                              type="text"
+                              value={newProduct.description || ""}
+                              onChange={(e) =>
+                                setNewProduct({
+                                  ...newProduct,
+                                  description: e.target.value,
+                                })
+                              }
+                              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            Image URL
+                          </label>
+                          <input
+                            type="url"
+                            value={newProduct.imageUrl || ""}
+                            onChange={(e) =>
+                              setNewProduct({
+                                ...newProduct,
+                                imageUrl: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                            placeholder="https://example.com/image.jpg"
+                          />
+                          <p className="text-xs text-zinc-500 mt-1">
+                            Optional - will be displayed as full image in POS
+                            button
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            Sizes (optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={sizesInput}
+                            onChange={(e) => handleSizesChange(e.target.value)}
+                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                            placeholder="S, M, L, XL (comma separated)"
+                          />
+                          <p className="text-xs text-zinc-500 mt-1">
+                            For apparel - customer will choose size when adding
+                            to cart
+                          </p>
+                        </div>
+
+                        {sizesInput.split(",").filter((s) => s.trim()).length >
+                        0 ? (
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-2">
+                              Quantity per Size
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {sizesInput
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter((s) => s.length > 0)
+                                .map((size) => (
+                                  <div key={size}>
+                                    <label className="block text-xs text-zinc-400 mb-1">
+                                      {size}
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={sizeQuantities[size] || 0}
+                                      onChange={(e) =>
+                                        setSizeQuantities({
+                                          ...sizeQuantities,
+                                          [size]:
+                                            Number.parseInt(e.target.value) ||
+                                            0,
+                                        })
+                                      }
+                                      className="w-full px-2 py-1 bg-zinc-900 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-red-500"
+                                    />
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                              Quantity *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={defaultQuantity}
+                              onChange={(e) =>
+                                setDefaultQuantity(e.target.value)
+                              }
+                              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-red-500"
+                              placeholder="Total quantity available"
+                            />
+                            <p className="text-xs text-zinc-500 mt-1">
+                              Total quantity available
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="flex gap-3 mt-4">
+                          <button
+                            type="submit"
+                            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 touch-manipulation"
+                          >
+                            Update Product
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="px-6 py-2 bg-zinc-700 text-zinc-300 rounded-lg hover:bg-zinc-600 touch-manipulation"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </tbody>
         </table>

@@ -276,15 +276,6 @@ export default function Analytics() {
               </>
             )}
           </button>
-
-          {insightsEnabled && (
-            <div className="mt-6 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
-              <p className="text-sm text-green-300">
-                ✅ Your analytics are ready! Open your Google Sheets and check
-                the &quot;Insights&quot; tab to view your data dashboard.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Live Insights Data Display */}
