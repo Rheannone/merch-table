@@ -39,41 +39,44 @@ export async function POST(req: NextRequest) {
 
     if (!insightsSheet) {
       return NextResponse.json({
-        exists: false,
-        message: "Insights sheet not found",
+        success: true,
+        message: "Insights sheet doesn't exist, nothing to delete",
+        alreadyDeleted: true,
       });
     }
 
-    // Get data from the insights sheet to check if it's populated
-    const insightsData = await sheets.spreadsheets.values.get({
+    const sheetId = insightsSheet.properties?.sheetId;
+
+    if (sheetId === undefined) {
+      return NextResponse.json(
+        { error: "Could not determine sheet ID" },
+        { status: 400 }
+      );
+    }
+
+    // Delete the Insights sheet
+    await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      range: "Insights!A12:E20", // Check the QUERY results area
+      requestBody: {
+        requests: [
+          {
+            deleteSheet: {
+              sheetId: sheetId,
+            },
+          },
+        ],
+      },
     });
-
-    const dataRows = insightsData.data.values || [];
-    console.log("Insights data rows:", dataRows);
-
-    // Also get some sample sales data to debug
-    const salesData = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "Sales!A1:J5", // Get headers and first few rows
-    });
-
-    const salesRows = salesData.data.values || [];
-    console.log("Sales sheet sample data:", salesRows);
 
     return NextResponse.json({
-      exists: true,
-      sheetId: insightsSheet.properties?.sheetId,
-      insightsData: dataRows,
-      salesSample: salesRows,
-      message: `Insights sheet exists. Found ${dataRows.length} rows of insights data.`,
+      success: true,
+      message: "Insights sheet deleted successfully",
     });
   } catch (error) {
-    console.error("Failed to check insights sheet:", error);
+    console.error("Failed to delete insights sheet:", error);
     return NextResponse.json(
       {
-        error: "Failed to check insights sheet",
+        error: "Failed to delete insights sheet",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }

@@ -91,11 +91,11 @@ export async function POST(req: NextRequest) {
       // Row 12 will be hidden (QUERY header row)
       // Row 13+ will show actual data with formulas for Top Item and Top Size
       [
-        '=QUERY(Sales!A:J,"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL GROUP BY B ORDER BY B DESC",1)',
+        "=QUERY(Sales!A:J,\"SELECT B, COUNT(B), SUM(E) WHERE B IS NOT NULL AND B <> 'Timestamp' GROUP BY B ORDER BY B DESC\",1)",
         // Top Item formula - will be copied down automatically
-        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$I$2:$I,"")),","),1,1),"N/A")))',
+        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(Sales!$B$2:$B=A13,Sales!$I$2:$I,"")),","),1,1),"N/A")))',
         // Top Size formula - will be copied down automatically
-        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(TODATE(Sales!$B$2:$B)=A13,Sales!$J$2:$J,"")),","),1,1),"N/A")))',
+        '=IF(A13="","",ARRAYFORMULA(IFERROR(INDEX(SPLIT(TEXTJOIN(",",TRUE,IF(Sales!$B$2:$B=A13,Sales!$J$2:$J,"")),","),1,1),"N/A")))',
       ],
       [],
     ];
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Add formulas for Top Item (D13) and Top Size (E13) that will reference their row's date
-    // These formulas collect all items/sizes sold on that date (now simple string matching)
+    // Simple formula that shows first item/size sold on that date
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "Insights!D13",
@@ -119,8 +119,8 @@ export async function POST(req: NextRequest) {
       requestBody: {
         values: [
           [
-            // Top Item: Show all unique items sold on this date (simple text match now)
-            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(Sales!$B$2:$B=A13,Sales!$I$2:$I,"")))',
+            // Top Item: Show first item sold on this date
+            '=IFERROR(INDEX(Sales!$I:$I,MATCH(A13,Sales!$B:$B,0)),"")',
           ],
         ],
       },
@@ -133,8 +133,8 @@ export async function POST(req: NextRequest) {
       requestBody: {
         values: [
           [
-            // Top Size: Show all unique sizes sold on this date (simple text match now)
-            '=IF(A13="","",TEXTJOIN(", ",TRUE,IF(Sales!$B$2:$B=A13,Sales!$J$2:$J,"")))',
+            // Top Size: Show first size sold on this date
+            '=IFERROR(INDEX(Sales!$J:$J,MATCH(A13,Sales!$B:$B,0)),"")',
           ],
         ],
       },

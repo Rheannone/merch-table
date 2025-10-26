@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
         .map((item) => item.size)
         .join(", ");
 
-      // Format date as simple date string (no time) for easier analytics
-      const saleDate = new Date(sale.timestamp).toLocaleDateString();
+      // Format date as YYYY-MM-DD for Google Sheets QUERY compatibility
+      const saleDate = new Date(sale.timestamp).toISOString().split("T")[0];
 
       return [
         sale.id,
