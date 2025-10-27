@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 export default function DebugPage() {
   const { data: session, status } = useSession();
@@ -87,24 +87,14 @@ export default function DebugPage() {
 
       console.log("🎉 Nuclear reset complete!");
 
-      alert(
-        "✅ Reset complete!\n\n" +
-          "⚠️ REMINDER: Go to Google Drive and manually delete your 'Merch Table' spreadsheet.\n\n" +
-          "You will now be signed out and redirected to the home page."
-      );
-
-      // 7. Sign out and redirect to home
-      await signOut({ callbackUrl: "/" });
+      // 7. Do a HARD redirect (bypasses React, clears everything)
+      window.location.replace("/auth/signin");
     } catch (error) {
       console.error("❌ Error during nuclear reset:", error);
-      alert(
-        "⚠️ Error during reset. Check console for details.\n\n" +
-          "Some data may not have been cleared. Try manually clearing browser data:\n" +
-          "Settings → Privacy → Clear Browsing Data"
-      );
+      // Even if there's an error, redirect anyway
+      window.location.replace("/auth/signin");
     }
   };
-
   const handleCheckInsights = async () => {
     const spreadsheetId = localStorage.getItem("salesSheetId");
     if (!spreadsheetId) {
