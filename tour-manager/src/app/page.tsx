@@ -61,6 +61,21 @@ export default function Home() {
     }
   }, [status, router]);
 
+  // Monitor session for token refresh errors and auto-logout
+  useEffect(() => {
+    if (session?.error === "RefreshAccessTokenError") {
+      console.error("Token refresh failed. Logging out...");
+      setToast({
+        message: "Your session has expired. Please sign in again.",
+        type: "error",
+      });
+      // Sign out after a short delay to show the toast
+      setTimeout(() => {
+        signOut({ callbackUrl: "/auth/signin" });
+      }, 2000);
+    }
+  }, [session]);
+
   useEffect(() => {
     if (session) {
       initializeApp();
