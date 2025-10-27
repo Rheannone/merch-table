@@ -237,6 +237,18 @@ export default function Home() {
 
   const initializeApp = async () => {
     try {
+      // Check for force-new parameter to bypass cached IDs (for testing)
+      const urlParams = new URLSearchParams(window.location.search);
+      const forceNew = urlParams.has("force-new");
+
+      if (forceNew) {
+        console.log("🆕 Force-new parameter detected - clearing cached IDs");
+        localStorage.removeItem("productsSheetId");
+        localStorage.removeItem("salesSheetId");
+        // Remove the parameter from URL
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+
       // Check if user has sheet IDs stored locally
       let storedProductsSheetId = localStorage.getItem("productsSheetId");
       let storedSalesSheetId = localStorage.getItem("salesSheetId");
