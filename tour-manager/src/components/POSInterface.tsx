@@ -465,7 +465,7 @@ export default function POSInterface({
           >
             ↓ Jump to Payment
           </button>
-          
+
           {/* Cart Summary Bar - Shows below Jump button when cart has items */}
           {cart.length > 0 && (
             <div className="bg-zinc-800 border-b border-zinc-700 px-4 py-2 shadow-lg">
@@ -474,25 +474,38 @@ export default function POSInterface({
                   <ShoppingCartIcon className="w-4 h-4 text-red-400" />
                   <span className="text-zinc-300">
                     {cart.reduce((sum, item) => sum + item.quantity, 0)} item
-                    {cart.reduce((sum, item) => sum + item.quantity, 0) !== 1 ? "s" : ""}
+                    {cart.reduce((sum, item) => sum + item.quantity, 0) !== 1
+                      ? "s"
+                      : ""}
                   </span>
                 </div>
                 <span className="font-bold text-white">
                   ${total.toFixed(2)}
                 </span>
               </div>
-              {/* Mini cart items preview */}
-              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+              {/* Mini cart items preview - Optimized for quick size identification */}
+              <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
                 {cart.map((item) => (
                   <div
                     key={`${item.product.id}-${item.size || "default"}`}
-                    className="flex items-center justify-between text-xs text-zinc-400"
+                    className="flex items-center gap-2 bg-zinc-900/50 rounded px-2 py-1.5"
                   >
-                    <span className="truncate flex-1">
-                      {item.quantity}x {item.product.name}
-                      {item.size ? ` (${item.size})` : ""}
-                    </span>
-                    <span className="ml-2 text-zinc-300">
+                    {/* Size badge - Large and prominent for quick identification */}
+                    {item.size && (
+                      <span className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 bg-red-600 text-white font-bold text-base rounded shadow-lg">
+                        {item.size}
+                      </span>
+                    )}
+
+                    {/* Item details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-medium text-sm truncate">
+                        {item.quantity}x {item.product.name}
+                      </div>
+                    </div>
+
+                    {/* Price */}
+                    <span className="text-white font-semibold text-sm whitespace-nowrap">
                       ${(item.product.price * item.quantity).toFixed(2)}
                     </span>
                   </div>
@@ -653,14 +666,18 @@ export default function POSInterface({
                   key={`${item.product.id}-${item.size || "no-size"}-${index}`}
                   className="flex items-center gap-3 p-3 bg-zinc-900 border border-zinc-700 rounded-lg"
                 >
+                  {/* Large size badge for easy visibility */}
+                  {item.size && (
+                    <div className="flex-shrink-0">
+                      <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-red-600 text-white font-bold text-xl rounded-lg shadow-lg">
+                        {item.size}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-zinc-100 text-sm truncate">
+                    <h4 className="font-medium text-zinc-100 text-base truncate">
                       {item.product.name}
-                      {item.size && (
-                        <span className="ml-2 text-xs bg-red-600 px-2 py-0.5 rounded">
-                          {item.size}
-                        </span>
-                      )}
                     </h4>
                     <p className="text-sm text-zinc-400">
                       ${item.product.price} × {item.quantity}
