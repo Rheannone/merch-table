@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Product, CartItem, PaymentMethod, Sale, SyncStatus } from "@/types";
@@ -33,6 +33,7 @@ import {
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const initializingRef = useRef(false); // Prevent multiple initializations
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]); // Add category order state
   const [activeTab, setActiveTab] = useState<
@@ -77,10 +78,11 @@ export default function Home() {
   }, [session]);
 
   useEffect(() => {
-    if (session) {
+    if (session && !isInitialized && !initializingRef.current) {
+      initializingRef.current = true;
       initializeApp();
     }
-  }, [session]);
+  }, [session, isInitialized]);
 
   useEffect(() => {
     if (isInitialized) {
