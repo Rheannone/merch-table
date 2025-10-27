@@ -16,6 +16,40 @@ export default function DebugPage() {
     }
   };
 
+  const handleFreshUserReset = async () => {
+    if (
+      confirm(
+        "⚠️ FRESH USER RESET ⚠️\n\nThis will:\n- Clear localStorage (sheet IDs)\n- Delete IndexedDB (all products & sales)\n- Simulate a brand new user\n\nThe app will search for existing spreadsheets or create new ones.\n\nContinue?"
+      )
+    ) {
+      try {
+        // Clear localStorage
+        localStorage.clear();
+        console.log("✅ Cleared localStorage");
+
+        // Delete IndexedDB
+        await new Promise<void>((resolve, reject) => {
+          const deleteRequest = indexedDB.deleteDatabase("merch-pos-db");
+          deleteRequest.onsuccess = () => {
+            console.log("✅ Deleted IndexedDB");
+            resolve();
+          };
+          deleteRequest.onerror = () => {
+            console.error("❌ Failed to delete IndexedDB");
+            reject();
+          };
+        });
+
+        // Reload the page
+        alert("✅ Reset complete! The page will reload as a fresh user.");
+        globalThis.location.reload();
+      } catch (error) {
+        console.error("Error during reset:", error);
+        alert("Error during reset. Check console for details.");
+      }
+    }
+  };
+
   const handleCheckInsights = async () => {
     const spreadsheetId = localStorage.getItem("salesSheetId");
     if (!spreadsheetId) {
@@ -81,13 +115,20 @@ export default function DebugPage() {
       <div className="mb-6 space-y-4">
         <div>
           <button
+            onClick={handleFreshUserReset}
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded transition-all mr-4"
+          >
+            🆕 Fresh User Reset (Complete)
+          </button>
+          <button
             onClick={handleResetCache}
             className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded transition-all"
           >
             🔄 Reset Cache & Reload from Sheets
           </button>
           <p className="text-zinc-400 text-sm mt-2">
-            Clears localStorage and reloads products from Google Sheets
+            <strong>Fresh User:</strong> Clears everything (localStorage + IndexedDB) to simulate a new user<br />
+            <strong>Cache Reset:</strong> Clears localStorage and reloads products from Google Sheets
           </p>
         </div>
 
