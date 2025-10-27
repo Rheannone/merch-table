@@ -150,6 +150,13 @@ export default function POSInterface({
       }
       return [...prev, { product, quantity: 1, size }];
     });
+
+    // Show success toast
+    const itemName = size ? `${product.name} (${size})` : product.name;
+    setToast({
+      message: `✅ ${itemName} added to cart!`,
+      type: "success",
+    });
   };
 
   const updateQuantity = (productId: string, delta: number, size?: string) => {
@@ -458,13 +465,52 @@ export default function POSInterface({
           >
             ↓ Jump to Payment
           </button>
+          
+          {/* Cart Summary Bar - Shows below Jump button when cart has items */}
+          {cart.length > 0 && (
+            <div className="bg-zinc-800 border-b border-zinc-700 px-4 py-2 shadow-lg">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <ShoppingCartIcon className="w-4 h-4 text-red-400" />
+                  <span className="text-zinc-300">
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)} item
+                    {cart.reduce((sum, item) => sum + item.quantity, 0) !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <span className="font-bold text-white">
+                  ${total.toFixed(2)}
+                </span>
+              </div>
+              {/* Mini cart items preview */}
+              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                {cart.map((item) => (
+                  <div
+                    key={`${item.product.id}-${item.size || "default"}`}
+                    className="flex items-center justify-between text-xs text-zinc-400"
+                  >
+                    <span className="truncate flex-1">
+                      {item.quantity}x {item.product.name}
+                      {item.size ? ` (${item.size})` : ""}
+                    </span>
+                    <span className="ml-2 text-zinc-300">
+                      ${(item.product.price * item.quantity).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Products Grid */}
       <div
         className={`flex-1 p-4 lg:p-6 ${
-          showJumpButton ? "pt-16" : "pt-4"
+          showJumpButton && cart.length > 0
+            ? "pt-32"
+            : showJumpButton
+            ? "pt-16"
+            : "pt-4"
         } lg:pt-6`}
       >
         <h2 className="text-2xl font-bold mb-6 text-white">Products</h2>
