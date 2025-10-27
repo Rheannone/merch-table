@@ -154,7 +154,7 @@ export default function POSInterface({
     // Show success toast
     const itemName = size ? `${product.name} (${size})` : product.name;
     setToast({
-      message: `✅ ${itemName} added to cart!`,
+      message: `${itemName} added to cart!`,
       type: "success",
     });
   };
@@ -282,7 +282,7 @@ export default function POSInterface({
         message:
           discountAmount && discountAmount > 0
             ? `✨ Hook up completed! Saved $${discountAmount.toFixed(2)}`
-            : "✅ Sale completed successfully!",
+            : "Sale completed successfully!",
         type: "success",
       });
     } catch (error) {
@@ -664,54 +664,113 @@ export default function POSInterface({
               {cart.map((item, index) => (
                 <div
                   key={`${item.product.id}-${item.size || "no-size"}-${index}`}
-                  className="flex items-center gap-3 p-3 bg-zinc-900 border border-zinc-700 rounded-lg"
+                  className="p-3 bg-zinc-900 border border-zinc-700 rounded-lg"
                 >
-                  {/* Large size badge for easy visibility */}
-                  {item.size && (
-                    <div className="flex-shrink-0">
-                      <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-red-600 text-white font-bold text-xl rounded-lg shadow-lg">
-                        {item.size}
-                      </span>
+                  {/* Desktop layout: Product info on top, size and controls below */}
+                  <div className="hidden lg:flex lg:flex-col gap-2">
+                    {/* Product name and price on top */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-zinc-100 text-base truncate">
+                          {item.product.name}
+                        </h4>
+                        <p className="text-sm text-zinc-400">
+                          ${item.product.price} × {item.quantity}
+                        </p>
+                      </div>
+                      <div className="font-bold text-white min-w-[60px] text-right flex-shrink-0">
+                        ${(item.product.price * item.quantity).toFixed(2)}
+                      </div>
                     </div>
-                  )}
 
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-zinc-100 text-base truncate">
-                      {item.product.name}
-                    </h4>
-                    <p className="text-sm text-zinc-400">
-                      ${item.product.price} × {item.quantity}
-                    </p>
+                    {/* Size badge on left, controls aligned right under price */}
+                    <div className="flex items-center justify-between">
+                      {item.size && (
+                        <div className="flex-shrink-0">
+                          <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-red-600 text-white font-bold text-xl rounded-lg shadow-lg">
+                            {item.size}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product.id, -1, item.size)
+                          }
+                          className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
+                        >
+                          <MinusIcon className="w-4 h-4 text-white" />
+                        </button>
+                        <span className="w-8 text-center font-semibold text-white">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product.id, 1, item.size)
+                          }
+                          className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
+                        >
+                          <PlusIcon className="w-4 h-4 text-white" />
+                        </button>
+                        <button
+                          onClick={() => removeFromCart(item.product.id)}
+                          className="p-1 rounded bg-red-900/40 hover:bg-red-900/60 text-red-400 active:scale-95 touch-manipulation ml-1"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() =>
-                        updateQuantity(item.product.id, -1, item.size)
-                      }
-                      className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
-                    >
-                      <MinusIcon className="w-4 h-4 text-white" />
-                    </button>
-                    <span className="w-8 text-center font-semibold text-white">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() =>
-                        updateQuantity(item.product.id, 1, item.size)
-                      }
-                      className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
-                    >
-                      <PlusIcon className="w-4 h-4 text-white" />
-                    </button>
-                    <button
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="p-1 rounded bg-red-900/40 hover:bg-red-900/60 text-red-400 active:scale-95 touch-manipulation ml-1"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="font-bold text-white min-w-[60px] text-right flex-shrink-0">
-                    ${(item.product.price * item.quantity).toFixed(2)}
+
+                  {/* Mobile layout: Original horizontal layout */}
+                  <div className="flex lg:hidden items-center gap-3">
+                    {/* Large size badge for easy visibility */}
+                    {item.size && (
+                      <div className="flex-shrink-0">
+                        <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-red-600 text-white font-bold text-xl rounded-lg shadow-lg">
+                          {item.size}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-zinc-100 text-base truncate">
+                        {item.product.name}
+                      </h4>
+                      <p className="text-sm text-zinc-400">
+                        ${item.product.price} × {item.quantity}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() =>
+                          updateQuantity(item.product.id, -1, item.size)
+                        }
+                        className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
+                      >
+                        <MinusIcon className="w-4 h-4 text-white" />
+                      </button>
+                      <span className="w-8 text-center font-semibold text-white">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() =>
+                          updateQuantity(item.product.id, 1, item.size)
+                        }
+                        className="p-1 rounded bg-zinc-700 hover:bg-zinc-600 active:scale-95 touch-manipulation"
+                      >
+                        <PlusIcon className="w-4 h-4 text-white" />
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.product.id)}
+                        className="p-1 rounded bg-red-900/40 hover:bg-red-900/60 text-red-400 active:scale-95 touch-manipulation ml-1"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="font-bold text-white min-w-[60px] text-right flex-shrink-0">
+                      ${(item.product.price * item.quantity).toFixed(2)}
+                    </div>
                   </div>
                 </div>
               ))}

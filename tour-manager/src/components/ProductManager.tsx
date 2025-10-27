@@ -1,7 +1,7 @@
 "use client";
 
 import { Product } from "@/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
@@ -43,12 +43,7 @@ export default function ProductManager({
   const [defaultQuantity, setDefaultQuantity] = useState("3"); // For non-sized products
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  // Load categories from settings on component mount
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       const spreadsheetId = localStorage.getItem("salesSheetId");
       if (!spreadsheetId) return;
@@ -74,7 +69,13 @@ export default function ProductManager({
       console.error("Error loading categories:", error);
       // Keep default categories if load fails
     }
-  };
+  }, [newProduct]);
+
+  // Load categories from settings on component mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadCategories();
+  }, [loadCategories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -415,6 +416,9 @@ export default function ProductManager({
               <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase hidden md:table-cell">
                 Sizes
               </th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase hidden lg:table-cell">
+                Inventory
+              </th>
               <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-zinc-400 uppercase">
                 Actions
               </th>
@@ -425,17 +429,63 @@ export default function ProductManager({
               <>
                 <tr key={product.id} className="hover:bg-zinc-900/50">
                   <td className="px-4 sm:px-6 py-4 text-sm font-medium text-white">
-                    <div className="flex items-center gap-2">
-                      {product.imageUrl && (
-                        <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      {product.name}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        {product.imageUrl && (
+                          <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+                        {product.name}
+                      </div>
+                      {/* Show inventory on mobile/tablet - hide on desktop where we have column */}
+                      <div className="lg:hidden">
+                        {product.inventory ? (
+                          product.sizes && product.sizes.length > 0 ? (
+                            // Product has sizes - show size breakdown
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {product.sizes.map((size) => {
+                                const qty = product.inventory?.[size] || 0;
+                                return (
+                                  <span
+                                    key={size}
+                                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                      qty === 0
+                                        ? "bg-red-900/30 text-red-400"
+                                        : qty <= 2
+                                        ? "bg-yellow-900/30 text-yellow-400"
+                                        : "bg-green-900/30 text-green-400"
+                                    }`}
+                                  >
+                                    {size}: {qty}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            // No sizes - show total quantity
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                (product.inventory.default || 0) === 0
+                                  ? "bg-red-900/30 text-red-400"
+                                  : (product.inventory.default || 0) <= 2
+                                  ? "bg-yellow-900/30 text-yellow-400"
+                                  : "bg-green-900/30 text-green-400"
+                              }`}
+                            >
+                              {product.inventory.default || 0} in stock
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-zinc-500 text-xs">
+                            No inventory data
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden sm:table-cell">
@@ -446,6 +496,47 @@ export default function ProductManager({
                   </td>
                   <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden md:table-cell">
                     {product.sizes?.join(", ") || "-"}
+                  </td>
+                  <td className="px-4 sm:px-6 py-4 text-sm text-zinc-300 hidden lg:table-cell">
+                    {product.inventory ? (
+                      product.sizes && product.sizes.length > 0 ? (
+                        // Product has sizes - show size breakdown
+                        <div className="flex flex-wrap gap-1">
+                          {product.sizes.map((size) => {
+                            const qty = product.inventory?.[size] || 0;
+                            return (
+                              <span
+                                key={size}
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  qty === 0
+                                    ? "bg-red-900/30 text-red-400"
+                                    : qty <= 2
+                                    ? "bg-yellow-900/30 text-yellow-400"
+                                    : "bg-green-900/30 text-green-400"
+                                }`}
+                              >
+                                {size}: {qty}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        // No sizes - show total quantity
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded text-sm font-medium ${
+                            (product.inventory.default || 0) === 0
+                              ? "bg-red-900/30 text-red-400"
+                              : (product.inventory.default || 0) <= 2
+                              ? "bg-yellow-900/30 text-yellow-400"
+                              : "bg-green-900/30 text-green-400"
+                          }`}
+                        >
+                          {product.inventory.default || 0} in stock
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-zinc-500">-</span>
+                    )}
                   </td>
                   <td className="px-4 sm:px-6 py-4 text-right text-sm">
                     <div className="flex gap-2 justify-end">
@@ -471,7 +562,7 @@ export default function ProductManager({
                 {editingProduct?.id === product.id && (
                   <tr key={`${product.id}-edit`}>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-4 sm:px-6 py-4 bg-zinc-800/50"
                     >
                       <form onSubmit={handleSubmit} className="space-y-4">
