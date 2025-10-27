@@ -127,8 +127,11 @@ export default function DebugPage() {
             🔄 Reset Cache & Reload from Sheets
           </button>
           <p className="text-zinc-400 text-sm mt-2">
-            <strong>Fresh User:</strong> Clears everything (localStorage + IndexedDB) to simulate a new user<br />
-            <strong>Cache Reset:</strong> Clears localStorage and reloads products from Google Sheets
+            <strong>Fresh User:</strong> Clears everything (localStorage +
+            IndexedDB) to simulate a new user
+            <br />
+            <strong>Cache Reset:</strong> Clears localStorage and reloads
+            products from Google Sheets
           </p>
         </div>
 

@@ -321,18 +321,18 @@ export default function Home() {
       if (storedProductsSheetId) {
         try {
           console.log("📥 Loading products from Google Sheets...");
-          
+
           // Add timeout to prevent hanging
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-          
+
           const response = await fetch("/api/sheets/load-products", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ productsSheetId: storedProductsSheetId }),
             signal: controller.signal,
           });
-          
+
           clearTimeout(timeoutId);
 
           if (response.ok) {
@@ -353,7 +353,7 @@ export default function Home() {
             console.error("❌ Load products response not OK:", response.status);
           }
         } catch (error) {
-          if (error instanceof Error && error.name === 'AbortError') {
+          if (error instanceof Error && error.name === "AbortError") {
             console.error("❌ Load products timed out after 10 seconds");
           } else {
             console.error("❌ Failed to load from Google Sheets:", error);
@@ -376,7 +376,7 @@ export default function Home() {
         await saveProducts(DEFAULT_PRODUCTS);
         loadedProducts = DEFAULT_PRODUCTS;
         console.log("🎯 Using default products");
-        
+
         // Sync default products to Google Sheets for new users
         if (storedProductsSheetId) {
           try {
@@ -389,7 +389,7 @@ export default function Home() {
                 products: DEFAULT_PRODUCTS,
               }),
             });
-            
+
             if (syncResponse.ok) {
               console.log("✅ Default products synced to Google Sheets");
             } else {
@@ -442,7 +442,8 @@ export default function Home() {
       // User can retry from settings or debug page
       setIsInitialized(true);
       setToast({
-        message: "⚠️ Error during initialization. Some features may not work. Try refreshing or check /debug",
+        message:
+          "⚠️ Error during initialization. Some features may not work. Try refreshing or check /debug",
         type: "error",
       });
     }
