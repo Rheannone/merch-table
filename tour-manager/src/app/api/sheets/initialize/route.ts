@@ -21,6 +21,7 @@ export async function POST() {
       success: true,
       productsSheetId: sheetConfig.productsSheetId,
       salesSheetId: sheetConfig.salesSheetId,
+      sheetName: "Merch Table - Sales & Inventory",
       message: "Google Sheets created successfully!",
     });
   } catch (error) {

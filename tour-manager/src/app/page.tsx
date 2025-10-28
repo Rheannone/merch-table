@@ -310,6 +310,9 @@ export default function Home() {
             console.log("📄 Create result:", data);
             localStorage.setItem("productsSheetId", data.productsSheetId);
             localStorage.setItem("salesSheetId", data.salesSheetId);
+            if (data.sheetName) {
+              localStorage.setItem("salesSheetName", data.sheetName);
+            }
             console.log(
               "✅ Google Sheets created successfully!",
               data.productsSheetId
