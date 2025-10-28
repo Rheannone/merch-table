@@ -40,6 +40,7 @@ export interface POSSettings {
   paymentSettings: PaymentSetting[];
   categories: string[]; // Custom product categories
   theme?: string; // Selected theme name (e.g., 'default', 'girlypop')
+  showTipJar?: boolean; // Whether to show the "Add a Tip" option (default: true)
 }
 
 export interface Theme {
@@ -101,6 +102,7 @@ export interface Sale {
   paymentMethod: PaymentMethod;
   synced: boolean;
   isHookup?: boolean; // True if this was a hookup/discount sale (for backward compatibility)
+  tipAmount?: number; // Tip amount added to the sale (not included in actualAmount)
 }
 
 export interface SyncStatus {

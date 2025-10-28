@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         sale.isHookup ? "Yes" : "No", // For backward compatibility
         productNames, // New: Individual product names
         sizes || "N/A", // New: Individual sizes
+        sale.tipAmount ? sale.tipAmount.toFixed(2) : "0.00", // Tips column (K)
       ];
     });
 

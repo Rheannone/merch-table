@@ -100,3 +100,8 @@ export async function clearAllData() {
   await db.clear("products");
   await db.clear("sales");
 }
+
+export async function clearAllProducts() {
+  const db = await getDB();
+  await db.clear("products");
+}

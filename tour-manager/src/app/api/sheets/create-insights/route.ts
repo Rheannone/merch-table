@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
+import {
+  SALES_COL_LETTERS,
+  INSIGHTS_FIXED_COLUMNS,
+  INSIGHTS_COL_LETTERS,
+  DEFAULT_PAYMENT_METHODS,
+  normalizePaymentMethod,
+  getColumnLetter,
+} from "@/lib/sheetSchema";
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,7 +82,7 @@ export async function POST(req: NextRequest) {
     // Get unique payment methods from Sales sheet
     const salesDataResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "Sales!G2:G", // Payment Method column
+      range: `Sales!${SALES_COL_LETTERS.PAYMENT_METHOD}2:${SALES_COL_LETTERS.PAYMENT_METHOD}`, // Payment Method column
     });
 
     const paymentMethods = Array.from(
@@ -82,21 +90,23 @@ export async function POST(req: NextRequest) {
         (salesDataResponse.data.values || [])
           .flat()
           .filter((method) => method && method.trim())
+          .map((method) => normalizePaymentMethod(method)) // Normalize to Title Case
       )
     ).sort();
 
     // If no sales yet, use default payment methods
-    const defaultPaymentMethods = ["Cash", "Venmo", "Card", "Other"];
     const paymentMethodsList =
-      paymentMethods.length > 0 ? paymentMethods : defaultPaymentMethods;
+      paymentMethods.length > 0 ? paymentMethods : [...DEFAULT_PAYMENT_METHODS];
 
-    // Build dynamic header row with payment methods
+    // Build dynamic header row with Tips BEFORE payment methods (fixed position)
+    // This ensures Tips is always in column D regardless of payment method count
     const paymentHeaders = paymentMethodsList.map((pm) => `${pm} Revenue`);
     const headerRow = [
       "Date",
       "Number of Sales",
       "Actual Revenue",
-      ...paymentHeaders,
+      "Tips", // Fixed column D
+      ...paymentHeaders, // Dynamic columns starting at E
       "Top Item",
       "Top Size",
     ];
@@ -150,17 +160,36 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Add formulas for payment method breakdowns dynamically
-    // These use SUMIFS to sum actual revenue by date AND payment method
-    const paymentFormulas = paymentMethodsList.map((paymentMethod) => {
-      return `=IF(A12="","",SUMIFS(Sales!$E:$E,Sales!$B:$B,A12,Sales!$G:$G,"${paymentMethod}"))`;
+    // Add Tips formula in FIXED column D (always same position)
+    const tipsColumn = INSIGHTS_COL_LETTERS.TIPS;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `Insights!${tipsColumn}12`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [
+          [
+            // Sum of all tips for this date
+            `=IF(A12="","",SUMIFS(Sales!$${SALES_COL_LETTERS.TIPS}:$${SALES_COL_LETTERS.TIPS},Sales!$${SALES_COL_LETTERS.DATE}:$${SALES_COL_LETTERS.DATE},A12))`,
+          ],
+        ],
+      },
     });
 
-    // Calculate the range for payment formulas (starts at column D, after "Actual Revenue")
-    const paymentStartColumn = "D";
-    const paymentEndColumnIndex = 3 + paymentMethodsList.length; // D=3, E=4, F=5, etc.
-    const paymentEndColumn = String.fromCharCode(65 + paymentEndColumnIndex); // Convert to letter
-    const paymentRange = `Insights!${paymentStartColumn}12:${paymentEndColumn}12`;
+    // Add formulas for payment method breakdowns dynamically
+    // These use SUMIFS to sum actual revenue by date AND payment method
+    // Payment methods start at column E (after Tips in column D)
+    const paymentFormulas = paymentMethodsList.map((paymentMethod) => {
+      return `=IF(A12="","",SUMIFS(Sales!$${SALES_COL_LETTERS.ACTUAL_AMOUNT}:$${SALES_COL_LETTERS.ACTUAL_AMOUNT},Sales!$${SALES_COL_LETTERS.DATE}:$${SALES_COL_LETTERS.DATE},A12,Sales!$${SALES_COL_LETTERS.PAYMENT_METHOD}:$${SALES_COL_LETTERS.PAYMENT_METHOD},"${paymentMethod}"))`;
+    });
+
+    // Calculate the range for payment formulas (starts at column E, after Tips)
+    const paymentStartColumnIndex = INSIGHTS_FIXED_COLUMNS.TIPS + 1; // Column E (Tips is D=3, so payments start at E=4)
+    const paymentStartColumn = getColumnLetter(paymentStartColumnIndex);
+    const lastPaymentColumnIndex =
+      paymentStartColumnIndex + paymentMethodsList.length - 1;
+    const paymentLastColumn = getColumnLetter(lastPaymentColumnIndex);
+    const paymentRange = `Insights!${paymentStartColumn}12:${paymentLastColumn}12`;
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
@@ -172,10 +201,10 @@ export async function POST(req: NextRequest) {
     });
 
     // Add formulas for Top Item and Top Size (after all payment columns)
-    const topItemStartColumn = String.fromCharCode(
-      65 + paymentEndColumnIndex + 1
-    ); // Next column after payments
-    const topSizeColumn = String.fromCharCode(65 + paymentEndColumnIndex + 2); // Column after Top Item
+    const topItemColumnIndex = lastPaymentColumnIndex + 1; // Next column after last payment
+    const topSizeColumnIndex = lastPaymentColumnIndex + 2; // Column after Top Item
+    const topItemStartColumn = getColumnLetter(topItemColumnIndex);
+    const topSizeColumn = getColumnLetter(topSizeColumnIndex);
     const topItemRange = `Insights!${topItemStartColumn}12:${topSizeColumn}12`;
 
     await sheets.spreadsheets.values.update({
@@ -186,16 +215,17 @@ export async function POST(req: NextRequest) {
         values: [
           [
             // Top Item - Show first item sold on this date
-            '=IF(A12="","",IFERROR(INDEX(Sales!$I:$I,MATCH(A12,Sales!$B:$B,0)),""))',
+            `=IF(A12="","",IFERROR(INDEX(Sales!$${SALES_COL_LETTERS.PRODUCT_NAMES}:$${SALES_COL_LETTERS.PRODUCT_NAMES},MATCH(A12,Sales!$${SALES_COL_LETTERS.DATE}:$${SALES_COL_LETTERS.DATE},0)),""))`,
             // Top Size - Show first size sold on this date
-            '=IF(A12="","",IFERROR(INDEX(Sales!$J:$J,MATCH(A12,Sales!$B:$B,0)),""))',
+            `=IF(A12="","",IFERROR(INDEX(Sales!$${SALES_COL_LETTERS.SIZES}:$${SALES_COL_LETTERS.SIZES},MATCH(A12,Sales!$${SALES_COL_LETTERS.DATE}:$${SALES_COL_LETTERS.DATE},0)),""))`,
           ],
         ],
       },
     });
 
-    // Auto-copy the formulas down using copyPaste (copies all payment columns + Top Item/Size down to rows 13-50)
-    const copyEndColumnIndex = paymentEndColumnIndex + 3; // Include Top Item and Top Size columns
+    // Auto-copy the formulas down using copyPaste (copies Tips + all payment columns + Top Item/Size down to rows 13-50)
+    const copyStartColumnIndex = INSIGHTS_FIXED_COLUMNS.TIPS; // Column D (Tips)
+    const copyEndColumnIndex = topSizeColumnIndex + 1; // Include all columns through Top Size (exclusive)
 
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
@@ -207,14 +237,14 @@ export async function POST(req: NextRequest) {
                 sheetId: insightsSheetId,
                 startRowIndex: 11, // Row 12 (0-indexed)
                 endRowIndex: 12,
-                startColumnIndex: 3, // Column D (first payment column)
-                endColumnIndex: copyEndColumnIndex, // Last column with data (exclusive)
+                startColumnIndex: copyStartColumnIndex, // Column D (Tips)
+                endColumnIndex: copyEndColumnIndex, // Through Top Size (exclusive)
               },
               destination: {
                 sheetId: insightsSheetId,
                 startRowIndex: 12, // Row 13
                 endRowIndex: 50, // Copy down to row 50
-                startColumnIndex: 3,
+                startColumnIndex: copyStartColumnIndex,
                 endColumnIndex: copyEndColumnIndex,
               },
               pasteType: "PASTE_NORMAL",
@@ -373,14 +403,14 @@ export async function POST(req: NextRequest) {
               fields: "pixelSize",
             },
           },
-          // Payment method columns (D-G): 120px each
+          // Tips column (D): 120px
           {
             updateDimensionProperties: {
               range: {
                 sheetId: insightsSheetId,
                 dimension: "COLUMNS",
                 startIndex: 3, // Column D
-                endIndex: 7, // Through column G
+                endIndex: 4, // Just column D
               },
               properties: {
                 pixelSize: 120,
@@ -388,14 +418,29 @@ export async function POST(req: NextRequest) {
               fields: "pixelSize",
             },
           },
-          // Top Item and Top Size columns (H-I): 150px each
+          // Payment method columns (E onwards): 120px each, dynamically sized based on payment method count
           {
             updateDimensionProperties: {
               range: {
                 sheetId: insightsSheetId,
                 dimension: "COLUMNS",
-                startIndex: 7, // Column H
-                endIndex: 9, // Through column I
+                startIndex: 4, // Column E (first payment method)
+                endIndex: 4 + paymentMethodsList.length, // Through all payment methods
+              },
+              properties: {
+                pixelSize: 120,
+              },
+              fields: "pixelSize",
+            },
+          },
+          // Top Item and Top Size columns: 150px each (after all payment methods)
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: insightsSheetId,
+                dimension: "COLUMNS",
+                startIndex: 4 + paymentMethodsList.length, // After last payment method
+                endIndex: 4 + paymentMethodsList.length + 2, // Top Item + Top Size
               },
               properties: {
                 pixelSize: 150,

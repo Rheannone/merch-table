@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
+import { SALES_COLUMNS, SALES_COL_LETTERS } from "@/lib/sheetSchema";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,10 +30,10 @@ export async function POST(req: NextRequest) {
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
     // Fetch all sales data from Sales sheet
-    // Columns: A=ID, B=Date, C=Items, D=Total, E=Actual, F=Discount, G=Payment, H=Hookup, I=Product Names, J=Sizes
+    // Use column constants instead of hardcoded ranges
     const salesResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "Sales!B2:I", // Get Date (B), Items (C), and Product Names (I)
+      range: `Sales!${SALES_COL_LETTERS.DATE}2:${SALES_COL_LETTERS.PRODUCT_NAMES}`, // Get Date (B) through Product Names (I)
     });
 
     const salesData = salesResponse.data.values || [];
@@ -40,12 +41,36 @@ export async function POST(req: NextRequest) {
     // Filter sales for the specific date and aggregate product quantities
     const productCounts: { [productName: string]: number } = {};
 
+    // Normalize the target date to compare (handle both "10/26/2025" and "2025-10-26" formats)
+    const normalizeDate = (dateStr: string): string => {
+      if (!dateStr) return "";
+
+      // If format is "MM/DD/YYYY" or "M/D/YYYY", convert to "YYYY-MM-DD"
+      if (dateStr.includes("/")) {
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          const month = parts[0].padStart(2, "0");
+          const day = parts[1].padStart(2, "0");
+          const year = parts[2];
+          return `${year}-${month}-${day}`;
+        }
+      }
+
+      // Already in "YYYY-MM-DD" format
+      return dateStr;
+    };
+
+    const normalizedTargetDate = normalizeDate(date);
+
     salesData.forEach((row) => {
-      const saleDate = row[0]; // Column B (Date)
-      const itemsColumn = row[1]; // Column C (Items) - e.g., "T-Shirt (M) x2, Vinyl x1"
+      const saleDate = row[SALES_COLUMNS.DATE - 1]; // Column B (Date) - adjust for slice starting at B
+      const itemsColumn = row[SALES_COLUMNS.ITEMS - 1]; // Column C (Items)
+
+      // Normalize both dates for comparison
+      const normalizedSaleDate = normalizeDate(saleDate);
 
       // Only process sales from the requested date
-      if (saleDate === date) {
+      if (normalizedSaleDate === normalizedTargetDate) {
         // Parse the Items column to extract quantities
         // Format: "Product (Size) x2, Product2 x1" or "Product x3"
         const itemParts =
@@ -77,6 +102,10 @@ export async function POST(req: NextRequest) {
         quantity,
       }))
       .sort((a, b) => b.quantity - a.quantity);
+
+    console.log(
+      `✅ Found ${productBreakdown.length} products for date ${date} (normalized: ${normalizedTargetDate})`
+    );
 
     return NextResponse.json({
       success: true,

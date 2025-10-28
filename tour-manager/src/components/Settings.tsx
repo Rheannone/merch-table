@@ -6,6 +6,7 @@ import { PaymentSetting } from "@/types";
 import Toast, { ToastType } from "./Toast";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
+import { clearAllProducts } from "@/lib/db";
 
 // TypeScript declarations for Google Picker API
 declare global {
@@ -31,6 +32,7 @@ export default function Settings({}: SettingsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [showTipJar, setShowTipJar] = useState(true); // Default to true
 
   // Theme state
   const { setTheme, themeId } = useTheme();
@@ -140,6 +142,7 @@ export default function Settings({}: SettingsProps) {
       if (response.ok) {
         setPaymentSettings(data.paymentSettings);
         setCategories(data.categories || ["Apparel", "Merch", "Music"]);
+        setShowTipJar(data.showTipJar !== false); // Default to true if not set
 
         // Load theme if provided - but only update if user hasn't selected a different theme to preview
         // This prevents overwriting the user's preview selection
@@ -184,6 +187,7 @@ export default function Settings({}: SettingsProps) {
           paymentSettings,
           categories,
           theme: selectedThemeId,
+          showTipJar,
         }),
       });
 
@@ -266,7 +270,7 @@ export default function Settings({}: SettingsProps) {
   };
 
   // Handle sheet selection from picker
-  const handlePickerCallback = (data: any) => {
+  const handlePickerCallback = async (data: any) => {
     if (data.action === window.google.picker.Action.PICKED) {
       const doc = data.docs[0];
       const newSheetId = doc.id;
@@ -275,6 +279,10 @@ export default function Settings({}: SettingsProps) {
       // Update localStorage
       localStorage.setItem("salesSheetId", newSheetId);
       localStorage.setItem("salesSheetName", newSheetName);
+      localStorage.setItem("productsSheetId", newSheetId);
+
+      // Clear IndexedDB products so they're loaded fresh from new sheet
+      await clearAllProducts();
 
       // Update state
       setCurrentSheetId(newSheetId);
@@ -353,6 +361,28 @@ export default function Settings({}: SettingsProps) {
               <p className="text-sm text-theme-muted mb-6">
                 Configure which payment types are available in your POS system.
               </p>
+
+              {/* Show Tip Jar Option */}
+              <div className="mb-6 p-4 bg-theme border border-theme rounded-lg">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={showTipJar}
+                    onChange={(e) => setShowTipJar(e.target.checked)}
+                    className="w-5 h-5"
+                    id="showTipJar"
+                  />
+                  <label
+                    htmlFor="showTipJar"
+                    className="text-lg font-semibold text-theme cursor-pointer"
+                  >
+                    💰 Show Tip Jar
+                  </label>
+                </div>
+                <p className="text-xs text-theme-muted ml-8 mt-1">
+                  Allow customers to add tips to their purchase
+                </p>
+              </div>
 
               <div className="space-y-6">
                 {paymentSettings.map((setting, index) => (

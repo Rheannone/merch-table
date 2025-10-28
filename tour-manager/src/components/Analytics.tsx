@@ -7,6 +7,7 @@ import {
   ArrowPathIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
@@ -33,6 +34,7 @@ interface DailyRevenueData {
   numberOfSales: number;
   actualRevenue: number;
   payments: { [key: string]: number };
+  tips?: number; // Tips for the day
   productBreakdown?: ProductBreakdown[];
 }
 
@@ -40,6 +42,9 @@ interface InsightsData {
   quickStats: QuickStats;
   dailyRevenue: DailyRevenueData[];
   paymentMethods: string[];
+  schemaOutdated?: boolean; // Flag if payment methods have changed
+  expectedPaymentMethods?: string[]; // What the schema should have
+  currentPaymentMethods?: string[]; // What the schema currently has
 }
 
 export default function Analytics() {
@@ -54,6 +59,7 @@ export default function Analytics() {
   const [loadingProducts, setLoadingProducts] = useState<Set<string>>(
     new Set()
   );
+  const [showSchemaBanner, setShowSchemaBanner] = useState(false);
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -111,8 +117,24 @@ export default function Analytics() {
       if (response.ok) {
         const data = await response.json();
         setInsightsData(data);
+
+        // Check if schema is outdated
+        if (data.schemaOutdated) {
+          setShowSchemaBanner(true);
+        } else {
+          setShowSchemaBanner(false);
+        }
       } else {
-        console.error("Failed to fetch insights data");
+        const error = await response.json();
+        console.error("Failed to fetch insights data", error);
+
+        // Show helpful error message if schema needs refresh
+        if (error.suggestion) {
+          setToast({
+            message: `${error.error}. ${error.suggestion}`,
+            type: "error",
+          });
+        }
       }
     } catch (error) {
       console.error("Error fetching insights data:", error);
@@ -223,6 +245,8 @@ export default function Analytics() {
             "Insights sheet migrated successfully! Now includes payment breakdowns.",
           type: "success",
         });
+        // Hide the banner after successful migration
+        setShowSchemaBanner(false);
         // Refresh the insights data
         await fetchInsightsData();
       } else {
@@ -352,59 +376,61 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Features List */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-theme mb-4">
-              What you&apos;ll get:
-            </h3>
-            <ul className="space-y-3">
-              <li className="flex items-start gap-3">
-                <span className="text-success mt-1">✓</span>
-                <div>
-                  <p className="text-theme font-medium">
-                    Daily Revenue Tracking
-                  </p>
-                  <p className="text-sm text-theme-muted">
-                    Automatic aggregation of sales by date with actual revenue
-                    amounts
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-success mt-1">✓</span>
-                <div>
-                  <p className="text-theme font-medium">
-                    Payment Method Breakdowns
-                  </p>
-                  <p className="text-sm text-theme-muted">
-                    See daily totals by payment type (Cash, Venmo, Card, Other)
-                    for easy reconciliation
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-success mt-1">✓</span>
-                <div>
-                  <p className="text-theme font-medium">Sales Analytics</p>
-                  <p className="text-sm text-theme-muted">
-                    Number of transactions, average sale value, and top selling
-                    items
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-success mt-1">✓</span>
-                <div>
-                  <p className="text-theme font-medium">
-                    Auto-Updating Dashboard
-                  </p>
-                  <p className="text-sm text-theme-muted">
-                    Formulas automatically update as new sales are synced
-                  </p>
-                </div>
-              </li>
-            </ul>
-          </div>
+          {/* Features List - Only show when insights are NOT enabled */}
+          {!insightsEnabled && (
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-theme mb-4">
+                What you&apos;ll get:
+              </h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <span className="text-success mt-1">✓</span>
+                  <div>
+                    <p className="text-theme font-medium">
+                      Daily Revenue Tracking
+                    </p>
+                    <p className="text-sm text-theme-muted">
+                      Automatic aggregation of sales by date with actual revenue
+                      amounts
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-success mt-1">✓</span>
+                  <div>
+                    <p className="text-theme font-medium">
+                      Payment Method Breakdowns
+                    </p>
+                    <p className="text-sm text-theme-muted">
+                      See daily totals by payment type (Cash, Venmo, Card,
+                      Other) for easy reconciliation
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-success mt-1">✓</span>
+                  <div>
+                    <p className="text-theme font-medium">Sales Analytics</p>
+                    <p className="text-sm text-theme-muted">
+                      Number of transactions, average sale value, and top
+                      selling items
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-success mt-1">✓</span>
+                  <div>
+                    <p className="text-theme font-medium">
+                      Auto-Updating Dashboard
+                    </p>
+                    <p className="text-sm text-theme-muted">
+                      Formulas automatically update as new sales are synced
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          )}
 
           {/* Enable Button */}
           <button
@@ -428,41 +454,59 @@ export default function Analytics() {
               </>
             )}
           </button>
-
-          {/* Migration Button - Only show when insights are enabled */}
-          {insightsEnabled && (
-            <div className="mt-4 p-4 bg-theme-secondary border border-theme rounded-lg opacity-70">
-              <div className="mb-3">
-                <p className="text-sm font-medium text-info mb-1">
-                  🔄 Update Available: Payment Breakdowns
-                </p>
-                <p className="text-sm text-theme-secondary">
-                  Migrate your Insights sheet to the new format with daily
-                  payment method totals (Cash, Venmo, Card, Other). This will
-                  recreate the Insights tab only - your Sales and Products data
-                  will not be affected.
-                </p>
-              </div>
-              <button
-                onClick={handleMigrateInsights}
-                disabled={isMigrating}
-                className="w-full px-4 py-3 bg-secondary hover:bg-secondary text-theme rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isMigrating ? (
-                  <>
-                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                    Migrating Insights Sheet...
-                  </>
-                ) : (
-                  <>
-                    <ArrowPathIcon className="w-5 h-5" />
-                    Migrate to New Format
-                  </>
-                )}
-              </button>
-            </div>
-          )}
         </div>
+
+        {/* Schema Outdated Banner - Show PROMINENTLY when payment methods have changed */}
+        {insightsEnabled && showSchemaBanner && insightsData && (
+          <div className="mt-6 bg-warning bg-opacity-20 border-2 border-warning rounded-lg p-6">
+            <div className="flex items-start gap-4">
+              <ExclamationTriangleIcon className="w-8 h-8 text-warning flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-warning mb-2">
+                  ⚠️ Payment Methods Changed - Update Required
+                </h3>
+                <p className="text-base text-theme mb-3">
+                  Your Insights sheet needs to be updated to include new payment
+                  methods.
+                </p>
+                {insightsData.expectedPaymentMethods &&
+                  insightsData.currentPaymentMethods && (
+                    <div className="text-sm space-y-2 mb-4 bg-theme-tertiary p-3 rounded">
+                      <p className="text-theme">
+                        <strong>Current columns:</strong>{" "}
+                        {insightsData.currentPaymentMethods.join(", ") ||
+                          "None"}
+                      </p>
+                      <p className="text-theme">
+                        <strong>Should be:</strong>{" "}
+                        {insightsData.expectedPaymentMethods.join(", ")}
+                      </p>
+                    </div>
+                  )}
+                <button
+                  onClick={() => {
+                    setShowSchemaBanner(false);
+                    handleMigrateInsights();
+                  }}
+                  disabled={isMigrating}
+                  className="w-full px-6 py-3 bg-yellow-500 text-black rounded-lg font-bold text-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                >
+                  {isMigrating ? (
+                    <>
+                      <ArrowPathIcon className="w-6 h-6 animate-spin" />
+                      Updating Schema...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowPathIcon className="w-6 h-6" />
+                      Update Schema Now
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Live Insights Data Display */}
         {insightsEnabled && insightsData && (
@@ -545,13 +589,12 @@ export default function Analytics() {
                           key={method}
                           className="px-4 py-3 text-sm font-semibold text-theme-secondary text-right"
                         >
-                          {method === "Cash" && "💵 "}
-                          {method === "Venmo" && "📱 "}
-                          {method === "Card" && "💳 "}
-                          {method === "Other" && "🔧 "}
                           {method}
                         </th>
                       ))}
+                      <th className="px-4 py-3 text-sm font-semibold text-theme-secondary text-right">
+                        Tips
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -588,11 +631,16 @@ export default function Analytics() {
                                   </td>
                                 );
                               })}
+                              <td className="px-4 py-3 text-sm text-green-400 font-semibold text-right">
+                                {row.tips && row.tips > 0
+                                  ? `$${row.tips.toFixed(2)}`
+                                  : "-"}
+                              </td>
                             </tr>
                             {/* Collapsible Product Insights Row */}
                             <tr key={`${row.date}-expand`}>
                               <td
-                                colSpan={3 + insightsData.paymentMethods.length}
+                                colSpan={4 + insightsData.paymentMethods.length}
                                 className="px-4 py-0 bg-theme-tertiary/20"
                               >
                                 <button
@@ -666,7 +714,7 @@ export default function Analytics() {
                     ) : (
                       <tr>
                         <td
-                          colSpan={3 + insightsData.paymentMethods.length}
+                          colSpan={4 + insightsData.paymentMethods.length}
                           className="px-4 py-8 text-center text-theme-muted"
                         >
                           No sales data yet. Start making sales to see your
@@ -677,6 +725,38 @@ export default function Analytics() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Refresh Schema Button - At bottom of page when insights enabled */}
+            <div className="mt-6 p-5 bg-theme-secondary border border-theme rounded-lg">
+              <div className="mb-3">
+                <p className="text-sm font-medium text-info mb-1">
+                  🔄 Refresh Insights Schema
+                </p>
+                <p className="text-sm text-theme-secondary">
+                  Click this button after adding or removing payment methods to
+                  update your Insights sheet columns. This will recreate the
+                  Insights tab with the current payment methods from your sales
+                  data. Your Sales and Products data will not be affected.
+                </p>
+              </div>
+              <button
+                onClick={handleMigrateInsights}
+                disabled={isMigrating}
+                className="w-full px-4 py-3 bg-secondary hover:bg-secondary text-theme rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isMigrating ? (
+                  <>
+                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                    Refreshing Schema...
+                  </>
+                ) : (
+                  <>
+                    <ArrowPathIcon className="w-5 h-5" />
+                    Refresh Insights Schema
+                  </>
+                )}
+              </button>
             </div>
           </div>
         )}

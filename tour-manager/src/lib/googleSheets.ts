@@ -122,7 +122,7 @@ export async function setupSalesSheet(
   // Add headers with new financial tracking columns
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sheet1!A1:H1",
+    range: "Sheet1!A1:K1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -135,6 +135,9 @@ export async function setupSalesSheet(
           "Discount",
           "Payment Method",
           "Hookup",
+          "Product Names",
+          "Sizes",
+          "Tips",
         ],
       ],
     },
@@ -251,7 +254,7 @@ export async function initializeUserSheets(
   // Set up Sales sheet headers with new analytics columns
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: "Sales!A1:J1",
+    range: "Sales!A1:K1",
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -266,6 +269,7 @@ export async function initializeUserSheets(
           "Hookup",
           "Product Names",
           "Sizes",
+          "Tips",
         ],
       ],
     },

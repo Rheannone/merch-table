@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
+import {
+  SALES_COL_LETTERS,
+  INSIGHTS_FIXED_COLUMNS,
+  DEFAULT_PAYMENT_METHODS,
+  normalizePaymentMethod,
+  getColumnLetter,
+} from "@/lib/sheetSchema";
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest) {
     // Detect payment methods from Sales sheet
     const salesDataResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "Sales!G2:G", // Payment Method column
+      range: `Sales!${SALES_COL_LETTERS.PAYMENT_METHOD}2:${SALES_COL_LETTERS.PAYMENT_METHOD}`, // Payment Method column
     });
 
     const salesPaymentData = salesDataResponse.data.values || [];
@@ -63,20 +70,46 @@ export async function POST(req: NextRequest) {
       new Set(
         salesPaymentData
           .filter((row) => row[0]) // Filter out empty values
-          .map((row) => row[0].trim())
+          .map((row) => normalizePaymentMethod(row[0].trim())) // Normalize to Title Case
       )
     ).sort();
 
     // Use default payment methods if no sales exist yet
-    const defaultPaymentMethods = ["Cash", "Venmo", "Card", "Other"];
     const paymentMethodsList =
-      paymentMethods.length > 0 ? paymentMethods : defaultPaymentMethods;
+      paymentMethods.length > 0 ? paymentMethods : [...DEFAULT_PAYMENT_METHODS];
+
+    // Check if Insights sheet schema matches current payment methods
+    // Read the header row to see what payment method columns exist
+    const headerResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Insights!A11:Z11", // Row 11 has the headers
+    });
+
+    const headerRow = headerResponse.data.values?.[0] || [];
+
+    // Extract payment method column headers (they end with " Revenue")
+    // Expected order: Date, Number of Sales, Actual Revenue, Tips, [Payment Method Revenue...], Top Item, Top Size
+    const existingPaymentHeaders = headerRow
+      .slice(4) // Skip Date, Number of Sales, Actual Revenue, Tips (first 4 columns)
+      .filter((header) => header && header.endsWith(" Revenue"))
+      .map((header) => header.replace(" Revenue", ""));
+
+    // Check if payment methods match
+    const paymentMethodsChanged =
+      existingPaymentHeaders.length !== paymentMethodsList.length ||
+      !existingPaymentHeaders.every(
+        (method, index) => method === paymentMethodsList[index]
+      );
 
     // Calculate the column positions dynamically
-    const topItemColumnIndex = 3 + paymentMethodsList.length; // After Date, Sales, Revenue, and all payment columns
+    // New order: Date (A), Sales (B), Revenue (C), Tips (D), Payment Methods (E+), Top Item, Top Size
+    const tipsColumnIndex = INSIGHTS_FIXED_COLUMNS.TIPS; // Fixed column D
+    const paymentStartColumnIndex = INSIGHTS_FIXED_COLUMNS.TIPS + 1; // Payment methods start at column E (after Tips)
+    const topItemColumnIndex =
+      paymentStartColumnIndex + paymentMethodsList.length; // After all payment methods
     const topSizeColumnIndex = topItemColumnIndex + 1;
-    const topItemColumn = String.fromCharCode(65 + topItemColumnIndex);
-    const topSizeColumn = String.fromCharCode(65 + topSizeColumnIndex);
+    const topItemColumn = getColumnLetter(topItemColumnIndex);
+    const topSizeColumn = getColumnLetter(topSizeColumnIndex);
 
     // Get overall top item and size from first data row (row 12)
     const topItemsResponse = await sheets.spreadsheets.values.get({
@@ -94,15 +127,15 @@ export async function POST(req: NextRequest) {
       topSize: topItemsValues[0]?.[1] || "N/A",
     };
 
-    // Fetch Daily Revenue Data with dynamic payment columns
-    const paymentEndColumnIndex = 3 + paymentMethodsList.length;
-    const paymentEndColumn = String.fromCharCode(
-      65 + paymentEndColumnIndex - 1
-    ); // -1 because we want the last payment column
+    // Fetch Daily Revenue Data with Tips + dynamic payment columns
+    // Range includes: A (Date), B (Sales), C (Revenue), D (Tips), E+ (Payment Methods)
+    const lastPaymentColumnIndex =
+      paymentStartColumnIndex + paymentMethodsList.length - 1;
+    const lastPaymentColumn = getColumnLetter(lastPaymentColumnIndex);
 
     const dailyRevenueResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `Insights!A12:${paymentEndColumn}`,
+      range: `Insights!A12:${lastPaymentColumn}`,
     });
 
     const dailyRevenueValues = dailyRevenueResponse.data.values || [];
@@ -111,13 +144,16 @@ export async function POST(req: NextRequest) {
       .map((row) => {
         const payments: { [key: string]: number } = {};
         paymentMethodsList.forEach((method, index) => {
-          payments[method] = Number.parseFloat(row[3 + index] || "0");
+          payments[method] = Number.parseFloat(
+            row[paymentStartColumnIndex + index] || "0"
+          );
         });
 
         return {
           date: row[0] || "",
           numberOfSales: Number.parseInt(row[1] || "0", 10),
           actualRevenue: Number.parseFloat(row[2] || "0"),
+          tips: Number.parseFloat(row[tipsColumnIndex] || "0"), // Tips is always column D (index 3)
           payments,
         };
       });
@@ -127,11 +163,27 @@ export async function POST(req: NextRequest) {
       quickStats,
       dailyRevenue,
       paymentMethods: paymentMethodsList,
+      schemaOutdated: paymentMethodsChanged, // Flag if payment methods don't match
+      expectedPaymentMethods: paymentMethodsList, // What we expect
+      currentPaymentMethods: existingPaymentHeaders, // What's currently in the sheet
     });
   } catch (error) {
     console.error("Error fetching insights data:", error);
+
+    // Check if error is related to column mismatch
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    const isColumnError =
+      errorMessage.includes("column") || errorMessage.includes("range");
+
     return NextResponse.json(
-      { error: "Failed to fetch insights data" },
+      {
+        error: "Failed to fetch insights data",
+        details: errorMessage,
+        suggestion: isColumnError
+          ? "Your Insights sheet may need to be refreshed. Try clicking the 'Refresh Insights Schema' button."
+          : undefined,
+      },
       { status: 500 }
     );
   }

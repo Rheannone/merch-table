@@ -19,7 +19,8 @@ interface POSInterfaceProps {
     total: number,
     actualAmount: number,
     paymentMethod: PaymentMethod,
-    discount?: number
+    discount?: number,
+    tipAmount?: number
   ) => Promise<void>;
   onUpdateProduct: (product: Product) => Promise<void>;
 }
@@ -48,6 +49,9 @@ export default function POSInterface({
   const [cashReceived, setCashReceived] = useState(0);
   const [isHookup, setIsHookup] = useState(false);
   const [hookupAmount, setHookupAmount] = useState<string>(""); // Amount for hookup/discount
+  const [isTipEnabled, setIsTipEnabled] = useState(false);
+  const [tipAmount, setTipAmount] = useState<string>(""); // Tip amount
+  const [showTipJar, setShowTipJar] = useState(true); // Setting from backend
   const [sizeSelectionProduct, setSizeSelectionProduct] =
     useState<Product | null>(null);
   const [showJumpButton, setShowJumpButton] = useState(false);
@@ -86,6 +90,7 @@ export default function POSInterface({
           (s: PaymentSetting) => s.enabled
         );
         setPaymentSettings(enabled);
+        setShowTipJar(data.showTipJar !== false); // Default to true if not set
 
         // Set first enabled payment as default
         if (enabled.length > 0) {
@@ -202,7 +207,8 @@ export default function POSInterface({
   };
 
   const calculateChange = () => {
-    return cashReceived - calculateTotal();
+    const tip = isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0;
+    return cashReceived - (calculateTotal() + tip);
   };
 
   const initiatePayment = () => {
@@ -239,6 +245,7 @@ export default function POSInterface({
     if (cart.length === 0) return;
 
     const total = calculateTotal();
+    const tip = isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0;
 
     setIsProcessing(true);
     try {
@@ -264,7 +271,8 @@ export default function POSInterface({
         total,
         finalAmount,
         selectedPaymentMethod,
-        discountAmount
+        discountAmount,
+        tip > 0 ? tip : undefined
       );
 
       // Reset state
@@ -276,6 +284,8 @@ export default function POSInterface({
       setCashReceived(0);
       setIsHookup(false);
       setHookupAmount("");
+      setIsTipEnabled(false);
+      setTipAmount("");
 
       // Show success toast
       setToast({
@@ -300,12 +310,14 @@ export default function POSInterface({
     if (cart.length === 0) return;
 
     const total = calculateTotal();
-    let actualAmount = total;
+    const tip = isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0;
+    let actualAmount = total + tip; // Add tip to the base total
     let discount = 0;
 
-    // Apply transaction fee if applicable
+    // Apply transaction fee if applicable (on total + tip)
     if (selectedPaymentSetting?.transactionFee) {
-      actualAmount = total * (1 + selectedPaymentSetting.transactionFee);
+      actualAmount =
+        (total + tip) * (1 + selectedPaymentSetting.transactionFee);
     }
 
     // Determine actual amount based on payment method and hookup status
@@ -334,6 +346,20 @@ export default function POSInterface({
           });
           return;
         }
+      } else if (isTipEnabled) {
+        // Cash payment with tip - must have enough cash for total + tip
+        const requiredAmount = selectedPaymentSetting?.transactionFee
+          ? (total + tip) * (1 + selectedPaymentSetting.transactionFee)
+          : total + tip;
+
+        if (cashReceived < requiredAmount) {
+          setToast({
+            message: "Not enough cash received (including tip)!",
+            type: "error",
+          });
+          return;
+        }
+        actualAmount = requiredAmount;
       } else {
         // Regular cash payment - must have enough cash
         const requiredAmount = selectedPaymentSetting?.transactionFee
@@ -369,10 +395,10 @@ export default function POSInterface({
         }
         discount = total - hookupValue;
       } else {
-        // Regular non-cash payment - apply transaction fee if applicable
+        // Regular non-cash payment - apply transaction fee if applicable (total + tip)
         actualAmount = selectedPaymentSetting?.transactionFee
-          ? total * (1 + selectedPaymentSetting.transactionFee)
-          : total;
+          ? (total + tip) * (1 + selectedPaymentSetting.transactionFee)
+          : total + tip;
       }
     }
 
@@ -928,6 +954,16 @@ export default function POSInterface({
                       ${total.toFixed(2)}
                     </span>
                   </div>
+                  {isTipEnabled &&
+                    tipAmount &&
+                    Number.parseFloat(tipAmount) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-green-300">Tips added:</span>
+                        <span className="font-semibold text-green-400">
+                          ${Number.parseFloat(tipAmount).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                   <div className="border-t border-theme pt-2 mt-2">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-theme-secondary">
@@ -952,7 +988,7 @@ export default function POSInterface({
             )}
 
             {/* Transaction Fee Info */}
-            {selectedPaymentSetting?.transactionFee && (
+            {selectedPaymentSetting?.transactionFee && !isHookup && (
               <div className="p-3 bg-blue-900/20 border border-blue-600/30 rounded-lg">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-blue-300">Cart Total:</span>
@@ -960,6 +996,16 @@ export default function POSInterface({
                     ${total.toFixed(2)}
                   </span>
                 </div>
+                {isTipEnabled &&
+                  tipAmount &&
+                  Number.parseFloat(tipAmount) > 0 && (
+                    <div className="flex justify-between items-center text-sm mt-1">
+                      <span className="text-green-300">Tips added:</span>
+                      <span className="text-green-400 font-semibold">
+                        ${Number.parseFloat(tipAmount).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 <div className="flex justify-between items-center text-sm mt-1">
                   <span className="text-blue-300">
                     Transaction Fee (
@@ -968,7 +1014,13 @@ export default function POSInterface({
                   </span>
                   <span className="text-blue-400 font-semibold">
                     $
-                    {(total * selectedPaymentSetting.transactionFee).toFixed(2)}
+                    {(
+                      (total +
+                        (isTipEnabled && tipAmount
+                          ? Number.parseFloat(tipAmount)
+                          : 0)) *
+                      selectedPaymentSetting.transactionFee
+                    ).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-base mt-2 pt-2 border-t border-blue-600/30">
@@ -978,7 +1030,10 @@ export default function POSInterface({
                   <span className="text-blue-400 font-bold text-lg">
                     $
                     {(
-                      total *
+                      (total +
+                        (isTipEnabled && tipAmount
+                          ? Number.parseFloat(tipAmount)
+                          : 0)) *
                       (1 + selectedPaymentSetting.transactionFee)
                     ).toFixed(2)}
                   </span>
@@ -994,7 +1049,9 @@ export default function POSInterface({
                     setIsHookup(newHookupState);
 
                     if (newHookupState) {
-                      // Enabling hookup
+                      // Enabling hookup - disable tip
+                      setIsTipEnabled(false);
+                      setTipAmount("");
                       // If cash payment and cash has been received, auto-fill with cash amount
                       if (
                         selectedPaymentMethod === "cash" &&
@@ -1043,6 +1100,59 @@ export default function POSInterface({
                       Discount: $
                       {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
                     </p>
+                  )}
+                </div>
+              )}
+
+              {/* Tip Jar - Only show if enabled in settings and hookup is NOT active */}
+              {showTipJar && !isHookup && (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      const newTipState = !isTipEnabled;
+                      setIsTipEnabled(newTipState);
+                      if (!newTipState) {
+                        setTipAmount("");
+                      }
+                    }}
+                    className={`w-full px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${
+                      isTipEnabled
+                        ? "bg-green-600 text-theme"
+                        : "bg-theme-tertiary text-theme-secondary hover:bg-theme-tertiary"
+                    }`}
+                  >
+                    {isTipEnabled ? "💰 Tip Added" : "💰 Add a Tip"}
+                  </button>
+
+                  {/* Tip Amount Input */}
+                  {isTipEnabled && (
+                    <div className="p-3 bg-green-900/20 border border-green-600/50 rounded-lg">
+                      <label className="block text-sm font-medium text-green-300 mb-2">
+                        Tip Amount
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted font-bold">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={tipAmount}
+                          onChange={(e) => setTipAmount(e.target.value)}
+                          placeholder="0.00"
+                          autoFocus
+                          className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                      {tipAmount && Number.parseFloat(tipAmount) > 0 && (
+                        <p className="text-xs text-green-300 mt-1">
+                          Total with tip: $
+                          {(total + Number.parseFloat(tipAmount)).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

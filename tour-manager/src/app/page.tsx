@@ -515,8 +515,16 @@ export default function Home() {
     total: number,
     actualAmount: number,
     paymentMethod: PaymentMethod,
-    discount?: number
+    discount?: number,
+    tipAmount?: number
   ) => {
+    // Normalize payment method to Title Case for consistency
+    const normalizedPaymentMethod = paymentMethod
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
     const sale: Sale = {
       id: `sale-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -530,9 +538,10 @@ export default function Home() {
       total,
       actualAmount,
       discount,
-      paymentMethod,
+      paymentMethod: normalizedPaymentMethod,
       synced: false,
       isHookup: discount !== undefined && discount > 0, // For backward compatibility
+      tipAmount,
     };
 
     await saveSale(sale);
