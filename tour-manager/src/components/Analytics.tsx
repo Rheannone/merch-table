@@ -356,6 +356,36 @@ export default function Analytics() {
 
         {/* Main Content */}
         <div className="bg-theme-secondary rounded-lg p-8">
+          {/* What's New Banner - Oct 28, 2025 */}
+          <div className="mb-6 p-4 bg-blue-500/10 border-2 border-blue-500 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <span className="inline-block px-2 py-1 text-xs font-bold bg-blue-500 text-white rounded">
+                  NEW
+                </span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-blue-400 mb-2">
+                  🎉 Updates - Oct 28, 2025
+                </p>
+                <ul className="text-sm text-theme-secondary space-y-1">
+                  <li>
+                    • <strong>Tips Support:</strong> Track tips separately in
+                    column D of Insights
+                  </li>
+                  <li>
+                    • <strong>Payment Methods:</strong> Cleaner headers (no more
+                    emojis) and auto-normalization
+                  </li>
+                  <li>
+                    • <strong>Schema Detection:</strong> Automatic warnings when
+                    Insights needs updating
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           {/* Experimental Warning Banner */}
           <div className="mb-6 p-4 bg-theme-tertiary border border-theme rounded-lg opacity-70">
             <div className="flex items-start gap-3">
