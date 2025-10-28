@@ -89,7 +89,7 @@ export default function Settings({}: SettingsProps) {
 
       if (response.ok) {
         setToast({
-          message: "✅ Settings saved successfully!",
+          message: "Settings saved successfully!",
           type: "success",
         });
       } else {
@@ -132,14 +132,14 @@ export default function Settings({}: SettingsProps) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-900 p-6">
+    <div className="min-h-screen bg-zinc-900 p-3 sm:p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-white">⚙️ Settings</h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">⚙️ Settings</h1>
           <button
             onClick={saveSettings}
             disabled={isSaving}
-            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isSaving ? "Saving..." : "💾 Save Settings"}
           </button>

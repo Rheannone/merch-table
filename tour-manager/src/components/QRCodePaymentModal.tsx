@@ -128,7 +128,7 @@ export default function QRCodePaymentModal({
           onClick={handleComplete}
           className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold text-lg rounded-lg transition-all active:scale-95"
         >
-          ✅ Complete Sale
+          Complete Sale
         </button>
       </div>
     </div>

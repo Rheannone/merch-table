@@ -28,6 +28,7 @@ import {
   ShoppingBagIcon,
   ArchiveBoxIcon,
   ChartBarIcon,
+  ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 
 export default function Home() {
@@ -140,7 +141,7 @@ export default function Home() {
             message.charAt(0).toUpperCase() + message.slice(1);
 
           setToast({
-            message: `✅ ${formattedMessage}`,
+            message: formattedMessage,
             type: "success",
           });
         }
@@ -659,10 +660,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-900">
-      <header className="bg-black border-b border-zinc-700 p-4">
+      <header className="bg-black border-b border-zinc-700 p-3 sm:p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">🎸 Merch Table</h1>
-          <div className="flex items-center gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">🎸 Merch Table</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm text-zinc-400">Signed in as</p>
               <p className="text-sm font-medium text-white">
@@ -671,7 +672,7 @@ export default function Home() {
             </div>
             <button
               onClick={() => setActiveTab("settings")}
-              className={`px-4 py-2 rounded border transition-all ${
+              className={`p-2 sm:px-4 sm:py-2 rounded border transition-all ${
                 activeTab === "settings"
                   ? "bg-zinc-700 border-zinc-600 text-white"
                   : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border-zinc-700"
@@ -682,9 +683,11 @@ export default function Home() {
             </button>
             <button
               onClick={() => signOut()}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded border border-zinc-700 text-sm transition-all"
+              className="p-2 sm:px-4 sm:py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded border border-zinc-700 text-sm transition-all flex items-center gap-2"
+              title="Sign Out"
             >
-              Sign Out
+              <ArrowRightOnRectangleIcon className="w-5 h-5" />
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>
@@ -696,36 +699,36 @@ export default function Home() {
         <div className="flex">
           <button
             onClick={() => setActiveTab("pos")}
-            className={`flex-1 py-4 px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+            className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
               activeTab === "pos"
                 ? "border-b-2 border-red-500 text-red-400"
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <ShoppingBagIcon className="w-5 h-5" />
-            Point of Sale
+            <ShoppingBagIcon className="w-5 h-5 flex-shrink-0" />
+            <span className="hidden sm:inline">Point of Sale</span>
           </button>
           <button
             onClick={() => setActiveTab("setup")}
-            className={`flex-1 py-4 px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+            className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
               activeTab === "setup"
                 ? "border-b-2 border-red-500 text-red-400"
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <ArchiveBoxIcon className="w-5 h-5" />
-            Inventory
+            <ArchiveBoxIcon className="w-5 h-5 flex-shrink-0" />
+            <span className="hidden sm:inline">Inventory</span>
           </button>
           <button
             onClick={() => setActiveTab("analytics")}
-            className={`flex-1 py-4 px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+            className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
               activeTab === "analytics"
                 ? "border-b-2 border-red-500 text-red-400"
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <ChartBarIcon className="w-5 h-5" />
-            Analytics
+            <ChartBarIcon className="w-5 h-5 flex-shrink-0" />
+            <span className="hidden sm:inline">Analytics</span>
           </button>
         </div>
       </nav>
