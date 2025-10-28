@@ -17,25 +17,28 @@ interface QuickStats {
   totalRevenue: number;
   numberOfSales: number;
   averageSale: number;
+  topItem: string;
+  topSize: string;
 }
 
 interface DailyRevenueData {
   date: string;
   numberOfSales: number;
   actualRevenue: number;
-  topItem: string;
-  topSize: string;
+  payments: { [key: string]: number };
 }
 
 interface InsightsData {
   quickStats: QuickStats;
   dailyRevenue: DailyRevenueData[];
+  paymentMethods: string[];
 }
 
 export default function Analytics() {
   const [isCreatingInsights, setIsCreatingInsights] = useState(false);
   const [insightsEnabled, setInsightsEnabled] = useState(false);
   const [checkingInsights, setCheckingInsights] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
@@ -161,6 +164,74 @@ export default function Analytics() {
     }
   };
 
+  const handleMigrateInsights = async () => {
+    if (
+      !confirm(
+        "This will recreate your Insights sheet with the new format (payment breakdowns). Your Sales and Products sheets will NOT be affected. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    setIsMigrating(true);
+
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+
+      if (!spreadsheetId) {
+        setToast({
+          message: "No spreadsheet found. Please sync first.",
+          type: "error",
+        });
+        setIsMigrating(false);
+        return;
+      }
+
+      // Step 1: Delete the existing Insights sheet
+      const deleteResponse = await fetch("/api/sheets/delete-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      if (!deleteResponse.ok) {
+        throw new Error("Failed to delete old Insights sheet");
+      }
+
+      // Step 2: Create new Insights sheet with updated format
+      const createResponse = await fetch("/api/sheets/create-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      if (createResponse.ok) {
+        setToast({
+          message:
+            "Insights sheet migrated successfully! Now includes payment breakdowns.",
+          type: "success",
+        });
+        // Refresh the insights data
+        await fetchInsightsData();
+      } else {
+        const error = await createResponse.json();
+        setToast({
+          message: `Failed to migrate insights: ${error.error}`,
+          type: "error",
+        });
+      }
+    } catch (error) {
+      console.error("Error migrating insights:", error);
+      setToast({
+        message:
+          "Failed to migrate insights sheet. Please try again or recreate manually.",
+        type: "error",
+      });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const getButtonText = () => {
     if (isCreatingInsights) return "Creating Analytics Sheet...";
     if (checkingInsights) return "Checking Status...";
@@ -224,19 +295,22 @@ export default function Analytics() {
               <li className="flex items-start gap-3">
                 <span className="text-green-400 mt-1">✓</span>
                 <div>
-                  <p className="text-white font-medium">Sales Analytics</p>
+                  <p className="text-white font-medium">
+                    Payment Method Breakdowns
+                  </p>
                   <p className="text-sm text-zinc-400">
-                    Number of transactions, average sale value, and trends over
-                    time
+                    See daily totals by payment type (Cash, Venmo, Card, Other)
+                    for easy reconciliation
                   </p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-green-400 mt-1">✓</span>
                 <div>
-                  <p className="text-white font-medium">Product Insights</p>
+                  <p className="text-white font-medium">Sales Analytics</p>
                   <p className="text-sm text-zinc-400">
-                    Top selling items and popular sizes per day
+                    Number of transactions, average sale value, and top selling
+                    items
                   </p>
                 </div>
               </li>
@@ -276,6 +350,40 @@ export default function Analytics() {
               </>
             )}
           </button>
+
+          {/* Migration Button - Only show when insights are enabled */}
+          {insightsEnabled && (
+            <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+              <div className="mb-3">
+                <p className="text-sm font-medium text-blue-300 mb-1">
+                  🔄 Update Available: Payment Breakdowns
+                </p>
+                <p className="text-sm text-blue-400">
+                  Migrate your Insights sheet to the new format with daily
+                  payment method totals (Cash, Venmo, Card, Other). This will
+                  recreate the Insights tab only - your Sales and Products data
+                  will not be affected.
+                </p>
+              </div>
+              <button
+                onClick={handleMigrateInsights}
+                disabled={isMigrating}
+                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isMigrating ? (
+                  <>
+                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                    Migrating Insights Sheet...
+                  </>
+                ) : (
+                  <>
+                    <ArrowPathIcon className="w-5 h-5" />
+                    Migrate to New Format
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Live Insights Data Display */}
@@ -299,7 +407,7 @@ export default function Analytics() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-700">
                   <p className="text-sm text-zinc-400 mb-1">Total Revenue</p>
                   <p className="text-2xl font-bold text-green-400">
@@ -316,6 +424,18 @@ export default function Analytics() {
                   <p className="text-sm text-zinc-400 mb-1">Average Sale</p>
                   <p className="text-2xl font-bold text-purple-400">
                     ${insightsData.quickStats.averageSale.toFixed(2)}
+                  </p>
+                </div>
+                <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-700">
+                  <p className="text-sm text-zinc-400 mb-1">Top Item</p>
+                  <p className="text-xl font-bold text-red-400">
+                    {insightsData.quickStats.topItem}
+                  </p>
+                </div>
+                <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-700">
+                  <p className="text-sm text-zinc-400 mb-1">Top Size</p>
+                  <p className="text-xl font-bold text-yellow-400">
+                    {insightsData.quickStats.topSize}
                   </p>
                 </div>
               </div>
@@ -340,12 +460,18 @@ export default function Analytics() {
                       <th className="px-4 py-3 text-sm font-semibold text-zinc-300 text-right">
                         Revenue
                       </th>
-                      <th className="px-4 py-3 text-sm font-semibold text-zinc-300">
-                        Top Item
-                      </th>
-                      <th className="px-4 py-3 text-sm font-semibold text-zinc-300">
-                        Top Size
-                      </th>
+                      {insightsData.paymentMethods.map((method) => (
+                        <th
+                          key={method}
+                          className="px-4 py-3 text-sm font-semibold text-zinc-300 text-right"
+                        >
+                          {method === "Cash" && "💵 "}
+                          {method === "Venmo" && "📱 "}
+                          {method === "Card" && "💳 "}
+                          {method === "Other" && "🔧 "}
+                          {method}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -366,18 +492,23 @@ export default function Analytics() {
                           <td className="px-4 py-3 text-sm text-green-400 font-semibold text-right">
                             ${row.actualRevenue.toFixed(2)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-zinc-300">
-                            {row.topItem}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-zinc-400">
-                            {row.topSize}
-                          </td>
+                          {insightsData.paymentMethods.map((method) => {
+                            const amount = row.payments[method] || 0;
+                            return (
+                              <td
+                                key={method}
+                                className="px-4 py-3 text-sm text-zinc-300 text-right"
+                              >
+                                {amount > 0 ? `$${amount.toFixed(2)}` : "-"}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))
                     ) : (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={3 + insightsData.paymentMethods.length}
                           className="px-4 py-8 text-center text-zinc-500"
                         >
                           No sales data yet. Start making sales to see your

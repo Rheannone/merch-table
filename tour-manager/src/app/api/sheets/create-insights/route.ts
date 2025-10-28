@@ -71,7 +71,37 @@ export async function POST(req: NextRequest) {
       throw new Error("Failed to create Insights sheet");
     }
 
-    // SIMPLIFIED Insights sheet - just daily revenue tracking with product analytics
+    // Get unique payment methods from Sales sheet
+    const salesDataResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Sales!G2:G", // Payment Method column
+    });
+
+    const paymentMethods = Array.from(
+      new Set(
+        (salesDataResponse.data.values || [])
+          .flat()
+          .filter((method) => method && method.trim())
+      )
+    ).sort();
+
+    // If no sales yet, use default payment methods
+    const defaultPaymentMethods = ["Cash", "Venmo", "Card", "Other"];
+    const paymentMethodsList =
+      paymentMethods.length > 0 ? paymentMethods : defaultPaymentMethods;
+
+    // Build dynamic header row with payment methods
+    const paymentHeaders = paymentMethodsList.map((pm) => `${pm} Revenue`);
+    const headerRow = [
+      "Date",
+      "Number of Sales",
+      "Actual Revenue",
+      ...paymentHeaders,
+      "Top Item",
+      "Top Size",
+    ];
+
+    // DYNAMIC Insights sheet - payment methods based on actual sales data
     const insightsData = [
       // Header row
       ["📊 INSIGHTS"],
@@ -85,8 +115,8 @@ export async function POST(req: NextRequest) {
       [],
       [],
       // Daily breakdown - this is the main feature
-      ["📅 ACTUAL REVENUE BY DATE"],
-      ["Date", "Number of Sales", "Actual Revenue", "Top Item", "Top Size"],
+      ["📅 ACTUAL REVENUE BY DATE WITH PAYMENT BREAKDOWN"],
+      headerRow,
       // Row 12: This row will contain the QUERY formula in column A only
       // The QUERY will automatically populate Date, Number of Sales, and Actual Revenue
       [],
@@ -120,37 +150,53 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Add formulas for Top Item (D12) and Top Size (E12) that will reference their row's date
-    // Simple formula that shows first item/size sold on that date
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: "Insights!D12",
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [
-          [
-            // Top Item: Show first item sold on this date
-            '=IF(A12="","",IFERROR(INDEX(Sales!$I:$I,MATCH(A12,Sales!$B:$B,0)),""))',
-          ],
-        ],
-      },
+    // Add formulas for payment method breakdowns dynamically
+    // These use SUMIFS to sum actual revenue by date AND payment method
+    const paymentFormulas = paymentMethodsList.map((paymentMethod) => {
+      return `=IF(A12="","",SUMIFS(Sales!$E:$E,Sales!$B:$B,A12,Sales!$G:$G,"${paymentMethod}"))`;
     });
+
+    // Calculate the range for payment formulas (starts at column D, after "Actual Revenue")
+    const paymentStartColumn = "D";
+    const paymentEndColumnIndex = 3 + paymentMethodsList.length; // D=3, E=4, F=5, etc.
+    const paymentEndColumn = String.fromCharCode(65 + paymentEndColumnIndex); // Convert to letter
+    const paymentRange = `Insights!${paymentStartColumn}12:${paymentEndColumn}12`;
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: "Insights!E12",
+      range: paymentRange,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [paymentFormulas],
+      },
+    });
+
+    // Add formulas for Top Item and Top Size (after all payment columns)
+    const topItemStartColumn = String.fromCharCode(
+      65 + paymentEndColumnIndex + 1
+    ); // Next column after payments
+    const topSizeColumn = String.fromCharCode(65 + paymentEndColumnIndex + 2); // Column after Top Item
+    const topItemRange = `Insights!${topItemStartColumn}12:${topSizeColumn}12`;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: topItemRange,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
           [
-            // Top Size: Show first size sold on this date
+            // Top Item - Show first item sold on this date
+            '=IF(A12="","",IFERROR(INDEX(Sales!$I:$I,MATCH(A12,Sales!$B:$B,0)),""))',
+            // Top Size - Show first size sold on this date
             '=IF(A12="","",IFERROR(INDEX(Sales!$J:$J,MATCH(A12,Sales!$B:$B,0)),""))',
           ],
         ],
       },
     });
 
-    // Auto-copy the formulas down using copyPaste (copies D12:E12 down to rows 13-50)
+    // Auto-copy the formulas down using copyPaste (copies all payment columns + Top Item/Size down to rows 13-50)
+    const copyEndColumnIndex = paymentEndColumnIndex + 3; // Include Top Item and Top Size columns
+
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -161,15 +207,15 @@ export async function POST(req: NextRequest) {
                 sheetId: insightsSheetId,
                 startRowIndex: 11, // Row 12 (0-indexed)
                 endRowIndex: 12,
-                startColumnIndex: 3, // Column D
-                endColumnIndex: 5, // Column E (exclusive)
+                startColumnIndex: 3, // Column D (first payment column)
+                endColumnIndex: copyEndColumnIndex, // Last column with data (exclusive)
               },
               destination: {
                 sheetId: insightsSheetId,
                 startRowIndex: 12, // Row 13
                 endRowIndex: 50, // Copy down to row 50
                 startColumnIndex: 3,
-                endColumnIndex: 5,
+                endColumnIndex: copyEndColumnIndex,
               },
               pasteType: "PASTE_NORMAL",
             },
@@ -320,6 +366,36 @@ export async function POST(req: NextRequest) {
                 dimension: "COLUMNS",
                 startIndex: 2,
                 endIndex: 3,
+              },
+              properties: {
+                pixelSize: 150,
+              },
+              fields: "pixelSize",
+            },
+          },
+          // Payment method columns (D-G): 120px each
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: insightsSheetId,
+                dimension: "COLUMNS",
+                startIndex: 3, // Column D
+                endIndex: 7, // Through column G
+              },
+              properties: {
+                pixelSize: 120,
+              },
+              fields: "pixelSize",
+            },
+          },
+          // Top Item and Top Size columns (H-I): 150px each
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: insightsSheetId,
+                dimension: "COLUMNS",
+                startIndex: 7, // Column H
+                endIndex: 9, // Through column I
               },
               properties: {
                 pixelSize: 150,
