@@ -655,13 +655,13 @@ export default function Home() {
 
   if (isInitializingSheets) {
     return (
-      <div className="flex items-center justify-center h-screen bg-theme">
+      <div className="flex items-center justify-center h-screen bg-zinc-900">
         <div className="text-center max-w-md">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-theme text-lg font-semibold mb-2">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-white text-lg font-semibold mb-2">
             Setting up your Google Sheets...
           </p>
-          <p className="text-theme-muted text-sm">
+          <p className="text-zinc-400 text-sm">
             Creating Products and Sales sheets in your Google Drive
           </p>
         </div>
@@ -671,10 +671,10 @@ export default function Home() {
 
   if (!isInitialized) {
     return (
-      <div className="flex items-center justify-center h-screen bg-theme">
+      <div className="flex items-center justify-center h-screen bg-zinc-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-theme-muted">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-zinc-400">Loading...</p>
         </div>
       </div>
     );
@@ -683,10 +683,10 @@ export default function Home() {
   // Show loading state while checking authentication
   if (status === "loading" || status === "unauthenticated") {
     return (
-      <div className="min-h-screen bg-theme flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-theme-muted">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-zinc-400">
             {status === "loading" ? "Loading..." : "Redirecting to sign in..."}
           </p>
         </div>
@@ -695,16 +695,16 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-theme">
-      <header className="bg-theme-secondary border-b border-theme p-3 sm:p-4">
+    <div className="flex flex-col min-h-screen bg-zinc-900">
+      <header className="bg-black border-b border-zinc-700 p-3 sm:p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-bold text-theme">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">
             🎸 Merch Table
           </h1>
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm text-theme-muted">Signed in as</p>
-              <p className="text-sm font-medium text-theme">
+              <p className="text-sm text-zinc-400">Signed in as</p>
+              <p className="text-sm font-medium text-white">
                 {session?.user?.email}
               </p>
             </div>
@@ -712,8 +712,8 @@ export default function Home() {
               onClick={() => setActiveTab("settings")}
               className={`p-2 sm:px-4 sm:py-2 rounded border transition-all ${
                 activeTab === "settings"
-                  ? "bg-theme-tertiary border-theme text-theme"
-                  : "bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme border-theme"
+                  ? "bg-zinc-700 border-zinc-600 text-white"
+                  : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border-zinc-700"
               }`}
               title="Settings"
             >
@@ -721,7 +721,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => signOut()}
-              className="p-2 sm:px-4 sm:py-2 bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme rounded border border-theme text-sm transition-all flex items-center gap-2"
+              className="p-2 sm:px-4 sm:py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded border border-zinc-700 text-sm transition-all flex items-center gap-2"
               title="Sign Out"
             >
               <ArrowRightOnRectangleIcon className="w-5 h-5" />
@@ -733,14 +733,14 @@ export default function Home() {
 
       <SyncStatusBar status={syncStatus} onSync={syncSales} />
 
-      <nav className="bg-theme border-b border-theme">
+      <nav className="bg-zinc-900 border-b border-zinc-700">
         <div className="flex">
           <button
             onClick={() => setActiveTab("pos")}
             className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
               activeTab === "pos"
-                ? "border-b-2 border-primary text-primary"
-                : "text-theme-muted hover:text-theme-secondary"
+                ? "border-b-2 border-red-500 text-red-400"
+                : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <ShoppingBagIcon className="w-5 h-5 flex-shrink-0" />
@@ -750,8 +750,8 @@ export default function Home() {
             onClick={() => setActiveTab("setup")}
             className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
               activeTab === "setup"
-                ? "border-b-2 border-primary text-primary"
-                : "text-theme-muted hover:text-theme-secondary"
+                ? "border-b-2 border-red-500 text-red-400"
+                : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <ArchiveBoxIcon className="w-5 h-5 flex-shrink-0" />
@@ -761,8 +761,8 @@ export default function Home() {
             onClick={() => setActiveTab("analytics")}
             className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
               activeTab === "analytics"
-                ? "border-b-2 border-primary text-primary"
-                : "text-theme-muted hover:text-theme-secondary"
+                ? "border-b-2 border-red-500 text-red-400"
+                : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <ChartBarIcon className="w-5 h-5 flex-shrink-0" />
@@ -771,7 +771,7 @@ export default function Home() {
         </div>
       </nav>
 
-      <main className="flex-1 bg-theme">
+      <main className="flex-1 bg-zinc-900">
         {activeTab === "pos" && (
           <POSInterface
             products={products}

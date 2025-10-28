@@ -24,7 +24,7 @@ export default function OfflineIndicator() {
   if (isOnline) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-yellow-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-warning text-theme px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
       <SignalSlashIcon className="w-5 h-5" />
       <span className="font-semibold">Offline Mode</span>
       <span className="text-sm opacity-90">- Sales saved locally</span>

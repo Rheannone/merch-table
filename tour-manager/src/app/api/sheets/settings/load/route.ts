@@ -106,10 +106,27 @@ export async function POST(req: NextRequest) {
         ? categoryRows.map((row) => row[0]).filter((cat) => cat && cat.trim())
         : DEFAULT_CATEGORIES;
 
+    // Load theme from sheet (stored in column H)
+    let theme = "default"; // Default theme
+    try {
+      const themeData = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "POS Settings!H2", // Theme in column H, row 2
+      });
+
+      const themeValue = themeData.data.values?.[0]?.[0];
+      if (themeValue && typeof themeValue === "string") {
+        theme = themeValue;
+      }
+    } catch {
+      console.log("No theme found in settings, using default");
+    }
+
     return NextResponse.json({
       success: true,
       paymentSettings,
       categories: categories.length > 0 ? categories : DEFAULT_CATEGORIES,
+      theme,
       isDefault: false,
     });
   } catch (error) {

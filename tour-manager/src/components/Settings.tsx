@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 import { PaymentSetting } from "@/types";
 import Toast, { ToastType } from "./Toast";
+import { useTheme } from "./ThemeProvider";
+import { getAllThemes } from "@/lib/themes";
 
 // TypeScript declarations for Google Picker API
 declare global {
@@ -30,12 +32,30 @@ export default function Settings({}: SettingsProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
+  // Theme state
+  const { setTheme, themeId } = useTheme();
+  const [selectedThemeId, setSelectedThemeId] = useState(themeId);
+  const availableThemes = getAllThemes();
+
+  // Only sync selectedThemeId with themeId on initial load
+  // After that, user interactions control selectedThemeId
+  useEffect(() => {
+    // Only update if we haven't made a selection yet
+    if (selectedThemeId === themeId) {
+      return;
+    }
+    // This ensures we pick up the initial theme from context
+    setSelectedThemeId(themeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount
+
   // Collapsible section states (collapsed by default)
   const [isPaymentOptionsExpanded, setIsPaymentOptionsExpanded] =
     useState(false);
   const [isProductCategoriesExpanded, setIsProductCategoriesExpanded] =
     useState(false);
   const [isGoogleSheetsExpanded, setIsGoogleSheetsExpanded] = useState(false);
+  const [isThemeExpanded, setIsThemeExpanded] = useState(false);
 
   // Google Sheets state
   const [currentSheetId, setCurrentSheetId] = useState<string | null>(null);
@@ -120,6 +140,12 @@ export default function Settings({}: SettingsProps) {
       if (response.ok) {
         setPaymentSettings(data.paymentSettings);
         setCategories(data.categories || ["Apparel", "Merch", "Music"]);
+
+        // Load theme if provided - but only update if user hasn't selected a different theme to preview
+        // This prevents overwriting the user's preview selection
+        if (data.theme && selectedThemeId === themeId) {
+          setSelectedThemeId(data.theme);
+        }
       } else {
         setToast({
           message: `Failed to load settings: ${data.error}`,
@@ -153,7 +179,12 @@ export default function Settings({}: SettingsProps) {
       const response = await fetch("/api/sheets/settings/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId, paymentSettings, categories }),
+        body: JSON.stringify({
+          spreadsheetId,
+          paymentSettings,
+          categories,
+          theme: selectedThemeId,
+        }),
       });
 
       const data = await response.json();
@@ -265,53 +296,61 @@ export default function Settings({}: SettingsProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-zinc-900">
-        <p className="text-zinc-400">Loading settings...</p>
+      <div className="flex items-center justify-center min-h-screen bg-theme">
+        <p className="text-theme-muted">Loading settings...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-900 p-3 sm:p-6">
+    <div className="min-h-screen bg-theme p-3 sm:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-theme">
             ⚙️ Settings
           </h1>
           <button
             onClick={saveSettings}
             disabled={isSaving}
-            className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className={`w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-success text-theme font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
+              selectedThemeId !== themeId
+                ? "animate-pulse ring-2 ring-success"
+                : ""
+            }`}
           >
-            {isSaving ? "Saving..." : "💾 Save Settings"}
+            {isSaving
+              ? "Saving..."
+              : selectedThemeId !== themeId
+              ? "💾 Save Theme Changes"
+              : "💾 Save Settings"}
           </button>
         </div>
 
         {/* Payment Options Section */}
-        <div className="bg-zinc-800 rounded-lg mb-6 overflow-hidden">
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
           {/* Collapsible Header */}
           <button
             onClick={() =>
               setIsPaymentOptionsExpanded(!isPaymentOptionsExpanded)
             }
-            className="w-full p-6 flex items-center justify-between hover:bg-zinc-700/50 transition-colors"
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-white">
+              <h2 className="text-2xl font-bold text-theme">
                 💳 Payment Options
               </h2>
             </div>
             {isPaymentOptionsExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-zinc-400" />
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
             ) : (
-              <ChevronDownIcon className="w-6 h-6 text-zinc-400" />
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
             )}
           </button>
 
           {/* Collapsible Content */}
           {isPaymentOptionsExpanded && (
             <div className="px-6 pb-6">
-              <p className="text-sm text-zinc-400 mb-6">
+              <p className="text-sm text-theme-muted mb-6">
                 Configure which payment types are available in your POS system.
               </p>
 
@@ -319,7 +358,7 @@ export default function Settings({}: SettingsProps) {
                 {paymentSettings.map((setting, index) => (
                   <div
                     key={setting.paymentType}
-                    className="border border-zinc-700 rounded-lg p-4"
+                    className="border border-theme rounded-lg p-4"
                   >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
@@ -335,7 +374,7 @@ export default function Settings({}: SettingsProps) {
                           }
                           className="w-5 h-5"
                         />
-                        <span className="text-lg font-semibold text-white">
+                        <span className="text-lg font-semibold text-theme">
                           {setting.paymentType === "cash" && "💵 Cash"}
                           {setting.paymentType === "venmo" && "📱 Venmo"}
                           {setting.paymentType === "credit" && "💳 Credit Card"}
@@ -350,7 +389,7 @@ export default function Settings({}: SettingsProps) {
                       <div className="ml-8 space-y-3">
                         {/* Display Name */}
                         <div>
-                          <label className="block text-sm font-medium text-zinc-300 mb-1">
+                          <label className="block text-sm font-medium text-theme-secondary mb-1">
                             Button Label
                           </label>
                           <input
@@ -363,7 +402,7 @@ export default function Settings({}: SettingsProps) {
                                 e.target.value
                               )
                             }
-                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-white"
+                            className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme"
                             placeholder="e.g., Cash, Venmo, Credit Card"
                           />
                         </div>
@@ -372,10 +411,10 @@ export default function Settings({}: SettingsProps) {
                         {(setting.paymentType === "credit" ||
                           setting.paymentType.startsWith("custom")) && (
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label className="block text-sm font-medium text-theme-secondary mb-1">
                               Transaction Fee %
                               {setting.paymentType === "credit" && (
-                                <span className="text-xs text-zinc-500 ml-2">
+                                <span className="text-xs text-theme-muted ml-2">
                                   (This doesn&apos;t process the card - just
                                   shows the total you should charge)
                                 </span>
@@ -400,10 +439,10 @@ export default function Settings({}: SettingsProps) {
                                     : undefined
                                 )
                               }
-                              className="w-32 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-white"
+                              className="w-32 px-3 py-2 input-theme rounded"
                               placeholder="3.0"
                             />
-                            <span className="text-sm text-zinc-400 ml-2">
+                            <span className="text-sm text-theme-muted ml-2">
                               %
                             </span>
                           </div>
@@ -413,7 +452,7 @@ export default function Settings({}: SettingsProps) {
                         {(setting.paymentType === "venmo" ||
                           setting.paymentType.startsWith("custom")) && (
                           <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label className="block text-sm font-medium text-theme-secondary mb-1">
                               QR Code Image URL (optional)
                             </label>
                             <input
@@ -426,10 +465,10 @@ export default function Settings({}: SettingsProps) {
                                   e.target.value || undefined
                                 )
                               }
-                              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-white"
+                              className="w-full px-3 py-2 input-theme rounded"
                               placeholder="https://example.com/qr-code.png"
                             />
-                            <p className="text-xs text-zinc-500 mt-1">
+                            <p className="text-xs text-theme-muted mt-1">
                               If set, a popup with the QR code will be shown
                               during checkout
                             </p>
@@ -445,30 +484,30 @@ export default function Settings({}: SettingsProps) {
         </div>
 
         {/* Product Categories Section */}
-        <div className="bg-zinc-800 rounded-lg mb-6 overflow-hidden">
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
           {/* Collapsible Header */}
           <button
             onClick={() =>
               setIsProductCategoriesExpanded(!isProductCategoriesExpanded)
             }
-            className="w-full p-6 flex items-center justify-between hover:bg-zinc-700/50 transition-colors"
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-white">
+              <h2 className="text-2xl font-bold text-theme">
                 📦 Product Categories
               </h2>
             </div>
             {isProductCategoriesExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-zinc-400" />
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
             ) : (
-              <ChevronDownIcon className="w-6 h-6 text-zinc-400" />
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
             )}
           </button>
 
           {/* Collapsible Content */}
           {isProductCategoriesExpanded && (
             <div className="px-6 pb-6">
-              <p className="text-sm text-zinc-400 mb-6">
+              <p className="text-sm text-theme-muted mb-6">
                 Manage your product categories for inventory organization. The
                 order here determines how they display in the POS interface.
               </p>
@@ -489,7 +528,7 @@ export default function Settings({}: SettingsProps) {
                       }
                     }}
                     placeholder="Enter new category name..."
-                    className="flex-1 px-4 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:border-red-500"
+                    className="flex-1 px-4 py-2 input-theme rounded focus:border-primary"
                   />
                   <button
                     onClick={() => {
@@ -505,7 +544,7 @@ export default function Settings({}: SettingsProps) {
                       !newCategory.trim() ||
                       categories.includes(newCategory.trim())
                     }
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="px-4 py-2 bg-success text-theme font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     ➕ Add
                   </button>
@@ -516,7 +555,7 @@ export default function Settings({}: SettingsProps) {
                   {categories.map((category, index) => (
                     <div
                       key={category}
-                      className="flex items-center gap-2 bg-zinc-700 border border-zinc-600 rounded p-3"
+                      className="flex items-center gap-2 bg-theme-tertiary border border-theme rounded p-3"
                     >
                       {/* Order Controls */}
                       <div className="flex flex-col gap-1">
@@ -533,7 +572,7 @@ export default function Settings({}: SettingsProps) {
                             }
                           }}
                           disabled={index === 0}
-                          className="px-2 py-0.5 bg-zinc-600 hover:bg-zinc-500 text-white text-xs rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                          className="px-2 py-0.5 btn-theme text-theme text-xs rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                           title="Move up"
                         >
                           ▲
@@ -551,7 +590,7 @@ export default function Settings({}: SettingsProps) {
                             }
                           }}
                           disabled={index === categories.length - 1}
-                          className="px-2 py-0.5 bg-zinc-600 hover:bg-zinc-500 text-white text-xs rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                          className="px-2 py-0.5 btn-theme text-theme text-xs rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                           title="Move down"
                         >
                           ▼
@@ -559,7 +598,7 @@ export default function Settings({}: SettingsProps) {
                       </div>
 
                       {/* Category Name */}
-                      <span className="flex-1 text-white font-medium">
+                      <span className="flex-1 text-theme font-medium">
                         {index + 1}. {category}
                       </span>
 
@@ -570,7 +609,7 @@ export default function Settings({}: SettingsProps) {
                             categories.filter((c) => c !== category)
                           );
                         }}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded transition-all"
+                        className="px-3 py-1 bg-error text-theme text-sm font-medium rounded transition-all"
                       >
                         🗑️ Remove
                       </button>
@@ -579,7 +618,7 @@ export default function Settings({}: SettingsProps) {
                 </div>
 
                 {categories.length === 0 && (
-                  <p className="text-center text-zinc-500 py-4">
+                  <p className="text-center text-theme-muted py-4">
                     No categories yet. Add your first category above!
                   </p>
                 )}
@@ -589,28 +628,28 @@ export default function Settings({}: SettingsProps) {
         </div>
 
         {/* Google Sheets Section */}
-        <div className="bg-zinc-800 rounded-lg mb-6 overflow-hidden">
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
           {/* Collapsible Header */}
           <button
             onClick={() => setIsGoogleSheetsExpanded(!isGoogleSheetsExpanded)}
-            className="w-full p-6 flex items-center justify-between hover:bg-zinc-700/50 transition-colors"
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-white">
+              <h2 className="text-2xl font-bold text-theme">
                 📊 Google Sheets
               </h2>
             </div>
             {isGoogleSheetsExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-zinc-400" />
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
             ) : (
-              <ChevronDownIcon className="w-6 h-6 text-zinc-400" />
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
             )}
           </button>
 
           {/* Collapsible Content */}
           {isGoogleSheetsExpanded && (
             <div className="px-6 pb-6">
-              <p className="text-sm text-zinc-400 mb-6">
+              <p className="text-sm text-theme-muted mb-6">
                 Select which Google Sheet to use for your POS data. You can
                 switch between different sheets for different tours or events.
               </p>
@@ -618,14 +657,14 @@ export default function Settings({}: SettingsProps) {
               {currentSheetId ? (
                 <div className="space-y-4">
                   {/* Current Sheet Display */}
-                  <div className="bg-zinc-700 rounded-lg p-4 border border-zinc-600">
+                  <div className="bg-theme-tertiary rounded-lg p-4 border border-theme">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <label className="block text-xs font-medium text-zinc-400 mb-1">
+                        <label className="block text-xs font-medium text-theme-muted mb-1">
                           Current Sheet
                         </label>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-lg font-semibold text-white truncate">
+                          <span className="text-lg font-semibold text-theme truncate">
                             {currentSheetName}
                           </span>
                         </div>
@@ -633,14 +672,14 @@ export default function Settings({}: SettingsProps) {
                           href={`https://docs.google.com/spreadsheets/d/${currentSheetId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:text-blue-300 underline break-all"
+                          className="text-xs text-info hover:text-secondary underline break-all"
                         >
                           Open in Google Sheets →
                         </a>
                       </div>
                       <button
                         onClick={openSheetPicker}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-all whitespace-nowrap"
+                        className="px-4 py-2 bg-secondary text-theme font-semibold rounded transition-all whitespace-nowrap"
                       >
                         🔄 Change Sheet
                       </button>
@@ -648,8 +687,8 @@ export default function Settings({}: SettingsProps) {
                   </div>
 
                   {/* Info Box */}
-                  <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
-                    <p className="text-sm text-blue-300">
+                  <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
+                    <p className="text-sm text-info">
                       💡 <strong>Tip:</strong> Switching sheets will reload all
                       your data (products, sales, settings) from the newly
                       selected sheet.
@@ -658,12 +697,12 @@ export default function Settings({}: SettingsProps) {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-zinc-500 mb-4">
+                  <p className="text-theme-muted mb-4">
                     No sheet currently selected
                   </p>
                   <button
                     onClick={openSheetPicker}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-all"
+                    className="px-6 py-3 bg-secondary text-theme font-semibold rounded transition-all"
                   >
                     📊 Select a Sheet
                   </button>
@@ -673,14 +712,149 @@ export default function Settings({}: SettingsProps) {
           )}
         </div>
 
+        {/* Theme Selection Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsThemeExpanded(!isThemeExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-theme">🎨 Theme</h2>
+            </div>
+            {isThemeExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isThemeExpanded && (
+            <div className="px-6 pb-6">
+              <p className="text-sm text-theme-muted mb-6">
+                Choose a theme to customize the look and feel of your POS app.
+                Your selection will be saved and applied every time you log in.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {availableThemes.map((theme) => {
+                  const isSelected = selectedThemeId === theme.id;
+
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => {
+                        setSelectedThemeId(theme.id);
+                        setTheme(theme.id);
+
+                        // Only show toast if actually changing themes
+                        if (theme.id !== themeId) {
+                          setToast({
+                            message: `Previewing ${theme.name}. Click "Save Settings" below to keep it!`,
+                            type: "success",
+                          });
+                        }
+                      }}
+                      className={`
+                        relative p-6 rounded-lg border-2 text-left transition-all
+                        ${
+                          isSelected
+                            ? "border-success bg-success/10"
+                            : "border-theme hover:border-theme-hover bg-theme-secondary"
+                        }
+                      `}
+                    >
+                      {/* Selected Indicator */}
+                      {isSelected && (
+                        <div className="absolute top-3 right-3">
+                          <div className="bg-success text-theme rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
+                            ✓
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Theme Info */}
+                      <div className="mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-3xl">{theme.emoji}</span>
+                          <h3 className="text-xl font-bold text-theme">
+                            {theme.name}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-theme-secondary">
+                          {theme.description}
+                        </p>
+                      </div>
+
+                      {/* Color Preview */}
+                      <div className="flex gap-2 flex-wrap">
+                        <div
+                          className="w-10 h-10 rounded border"
+                          style={{
+                            backgroundColor: theme.colors.background,
+                            borderColor: "var(--color-border)",
+                          }}
+                          title="Background"
+                        />
+                        <div
+                          className="w-10 h-10 rounded border"
+                          style={{
+                            backgroundColor: theme.colors.primary,
+                            borderColor: "var(--color-border)",
+                          }}
+                          title="Primary"
+                        />
+                        <div
+                          className="w-10 h-10 rounded border"
+                          style={{
+                            backgroundColor: theme.colors.secondary,
+                            borderColor: "var(--color-border)",
+                          }}
+                          title="Secondary"
+                        />
+                        <div
+                          className="w-10 h-10 rounded border"
+                          style={{
+                            backgroundColor: theme.colors.success,
+                            borderColor: "var(--color-border)",
+                          }}
+                          title="Success"
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-theme-secondary border border-theme rounded-lg p-4 mt-6 opacity-70">
+                <p className="text-sm text-info">
+                  ✨ <strong>Preview Mode:</strong> You&apos;re seeing the theme
+                  in real-time! Click &quot;Save Settings&quot; below to make it
+                  permanent.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Save Button at bottom */}
         <div className="flex justify-end">
           <button
             onClick={saveSettings}
             disabled={isSaving}
-            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className={`px-6 py-3 bg-success text-theme font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
+              selectedThemeId !== themeId
+                ? "animate-pulse ring-2 ring-success"
+                : ""
+            }`}
           >
-            {isSaving ? "Saving..." : "💾 Save Settings"}
+            {isSaving
+              ? "Saving..."
+              : selectedThemeId !== themeId
+              ? "💾 Save Theme Changes"
+              : "💾 Save Settings"}
           </button>
         </div>
       </div>

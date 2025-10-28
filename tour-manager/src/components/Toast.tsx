@@ -26,7 +26,7 @@ export default function Toast({
   return (
     <div
       className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 rounded-lg shadow-2xl animate-slide-up ${
-        type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+        type === "success" ? "bg-success text-theme" : "bg-error text-theme"
       }`}
     >
       {type === "success" ? (

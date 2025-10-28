@@ -4,17 +4,17 @@ import { signIn } from "next-auth/react";
 
 export default function SignIn() {
   return (
-    <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-theme flex items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-8">
         {/* Hero Section */}
         <div className="text-center space-y-4">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-2 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-theme mb-2 leading-tight">
             🎸 Merch Table
           </h1>
-          <p className="text-lg sm:text-xl md:text-2xl text-red-400 font-bold">
+          <p className="text-lg sm:text-xl md:text-2xl text-primary font-bold">
             Point of Sale for DIY Tours
           </p>
-          <p className="text-base sm:text-lg text-zinc-400 max-w-xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-theme-muted max-w-xl mx-auto leading-relaxed">
             No big music corporations.
             <br />
             No data exploitation.
@@ -25,39 +25,39 @@ export default function SignIn() {
 
         {/* Feature Cards */}
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 text-center">
+          <div className="bg-theme-secondary border border-theme rounded-lg p-6 text-center">
             <div className="text-3xl mb-2">🔒</div>
-            <h3 className="font-bold text-white mb-2">Your Data</h3>
-            <p className="text-sm text-zinc-400">
+            <h3 className="font-bold text-theme mb-2">Your Data</h3>
+            <p className="text-sm text-theme-muted">
               All sales stored in{" "}
-              <span className="text-red-400">your own Google Drive</span>.
+              <span className="text-primary">your own Google Drive</span>.
               Complete custody and control.
             </p>
           </div>
 
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 text-center">
+          <div className="bg-theme-secondary border border-theme rounded-lg p-6 text-center">
             <div className="text-3xl mb-2">📱</div>
-            <h3 className="font-bold text-white mb-2">Offline First</h3>
-            <p className="text-sm text-zinc-400">
+            <h3 className="font-bold text-theme mb-2">Offline First</h3>
+            <p className="text-sm text-theme-muted">
               Works without internet. Syncs when you can. Perfect for basements
               and dive bars.
             </p>
           </div>
 
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 text-center">
+          <div className="bg-theme-secondary border border-theme rounded-lg p-6 text-center">
             <div className="text-3xl mb-2">🤝</div>
-            <h3 className="font-bold text-white mb-2">Hook Ups</h3>
-            <p className="text-sm text-zinc-400">
+            <h3 className="font-bold text-theme mb-2">Hook Ups</h3>
+            <p className="text-sm text-theme-muted">
               Track discounts and freebies for your crew.
             </p>
           </div>
         </div>
 
         {/* Sign In Box */}
-        <div className="bg-zinc-800 p-8 rounded-lg border border-zinc-700">
+        <div className="bg-theme-secondary p-8 rounded-lg border border-theme">
           <button
             onClick={() => signIn("google", { callbackUrl: "/" })}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-zinc-100 text-zinc-900 font-semibold py-4 px-6 rounded-lg transition-all active:scale-95 shadow-lg mb-4"
+            className="w-full flex items-center justify-center gap-3 bg-theme-tertiary hover:bg-theme text-theme font-semibold py-4 px-6 rounded-lg transition-all active:scale-95 shadow-lg mb-4"
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24">
               <path
@@ -80,11 +80,11 @@ export default function SignIn() {
             Sign in with Google
           </button>
 
-          <div className="text-center text-sm text-zinc-500 space-y-2">
+          <div className="text-center text-sm text-theme-muted space-y-2">
             <p>
               We only use Google for authentication and storing{" "}
-              <span className="text-zinc-400">your</span> data in{" "}
-              <span className="text-zinc-400">your</span> Drive.
+              <span className="text-theme-secondary">your</span> data in{" "}
+              <span className="text-theme-secondary">your</span> Drive.
             </p>
             <p className="text-xs">
               No tracking. No selling your info. No algorithmic manipulation.
@@ -93,10 +93,10 @@ export default function SignIn() {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-sm text-zinc-500">
+        <div className="text-center text-sm text-theme-muted">
           <p>
             Made with ❤️ in{" "}
-            <span className="text-red-400 font-semibold">Philadelphia</span>
+            <span className="text-primary font-semibold">Philadelphia</span>
           </p>
         </div>
       </div>

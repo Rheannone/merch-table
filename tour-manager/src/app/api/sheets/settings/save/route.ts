@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { spreadsheetId, paymentSettings, categories } = await req.json();
+    const { spreadsheetId, paymentSettings, categories, theme } =
+      await req.json();
 
     if (!spreadsheetId) {
       return NextResponse.json(
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
       // Add headers
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: "POS Settings!A1:G1",
+        range: "POS Settings!A1:H1",
         valueInputOption: "RAW",
         requestBody: {
           values: [
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
               "QR Code URL",
               "", // Empty column F
               "Categories",
+              "Theme", // Column H for theme
             ],
           ],
         },
@@ -161,6 +163,18 @@ export async function POST(req: NextRequest) {
         valueInputOption: "RAW",
         requestBody: {
           values: categoryRows,
+        },
+      });
+    }
+
+    // Write theme if provided
+    if (theme) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "POS Settings!H2",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [[theme]],
         },
       });
     }

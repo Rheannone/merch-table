@@ -1,8 +1,38 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Default theme colors - will be overridden by ThemeProvider */
+  --color-background: #18181b;
+  --color-background-secondary: #27272a;
+  --color-background-tertiary: #3f3f46;
+
+  --color-foreground: #fafafa;
+  --color-foreground-secondary: #e4e4e7;
+  --color-foreground-muted: #a1a1aa;
+
+  --color-primary: #dc2626;
+  --color-primary-hover: #b91c1c;
+  --color-secondary: #3b82f6;
+  --color-secondary-hover: #2563eb;
+
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-error: #dc2626;
+  --color-error-hover: #b91c1c;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  --color-border: #52525b;
+  --color-border-hover: #71717a;
+
+  --color-cart-background: #27272a;
+  --color-cart-border: #3f3f46;
+
+  --background-pattern: none;
+
+  /* Original CSS variables for compatibility */
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
 }
 
 @theme inline {
@@ -12,19 +42,144 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-background);
+  background-image: var(--background-pattern);
+  color: var(--color-foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Theme-aware utility classes */
+.bg-theme {
+  background-color: var(--color-background);
+}
+
+.bg-theme-secondary {
+  background-color: var(--color-background-secondary);
+}
+
+.bg-theme-tertiary {
+  background-color: var(--color-background-tertiary);
+}
+
+.text-theme {
+  color: var(--color-foreground);
+}
+
+.text-theme-secondary {
+  color: var(--color-foreground-secondary);
+}
+
+.text-theme-muted {
+  color: var(--color-foreground-muted);
+}
+
+.border-theme {
+  border-color: var(--color-border);
+}
+
+.border-theme-hover:hover {
+  border-color: var(--color-border-hover);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.bg-success {
+  background-color: var(--color-success);
+}
+
+.bg-success:hover {
+  background-color: var(--color-success-hover);
+}
+
+.bg-error {
+  background-color: var(--color-error);
+}
+
+.bg-error:hover {
+  background-color: var(--color-error-hover);
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+
+.bg-secondary:hover {
+  background-color: var(--color-secondary-hover);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+/* Input field theming */
+.input-theme {
+  background-color: var(--color-background-tertiary);
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+
+.input-theme:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.input-theme::placeholder {
+  color: var(--color-foreground-muted);
+}
+
+/* Button theming */
+.btn-theme {
+  background-color: var(--color-background-secondary);
+  color: var(--color-foreground);
+  border-color: var(--color-border);
+}
+
+.btn-theme:hover {
+  background-color: var(--color-background-tertiary);
+  border-color: var(--color-border-hover);
+}
+
+/* Special styling for Girlypop theme */
+[data-theme="girlypop"] {
+  /* Add subtle sparkle effect */
+  background-attachment: fixed;
+}
+
+[data-theme="girlypop"] .theme-card {
+  box-shadow: 0 4px 6px -1px rgba(236, 72, 153, 0.1),
+    0 2px 4px -1px rgba(236, 72, 153, 0.06);
+}
+
+[data-theme="girlypop"] button:not(:disabled):hover {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+
+/* Animations */
 @keyframes slide-up {
   from {
     opacity: 0;
@@ -38,4 +193,18 @@ body {
 
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
+}
+
+@keyframes sparkle {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+[data-theme="girlypop"] .sparkle {
+  animation: sparkle 2s ease-in-out infinite;
 }

@@ -39,6 +39,50 @@ export interface PaymentSetting {
 export interface POSSettings {
   paymentSettings: PaymentSetting[];
   categories: string[]; // Custom product categories
+  theme?: string; // Selected theme name (e.g., 'default', 'girlypop')
+}
+
+export interface Theme {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  colors: {
+    // Background colors
+    background: string;
+    backgroundSecondary: string;
+    backgroundTertiary: string;
+
+    // Text colors
+    foreground: string;
+    foregroundSecondary: string;
+    foregroundMuted: string;
+
+    // Accent colors
+    primary: string;
+    primaryHover: string;
+    secondary: string;
+    secondaryHover: string;
+
+    // Status colors
+    success: string;
+    successHover: string;
+    error: string;
+    errorHover: string;
+    warning: string;
+    info: string;
+
+    // Border and dividers
+    border: string;
+    borderHover: string;
+
+    // Cart and checkout
+    cartBackground: string;
+    cartBorder: string;
+  };
+  patterns?: {
+    backgroundPattern?: string; // CSS background pattern
+  };
 }
 
 export interface Sale {
