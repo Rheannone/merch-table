@@ -5,59 +5,179 @@ import { signIn } from "next-auth/react";
 export default function SignIn() {
   return (
     <div className="min-h-screen bg-theme flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full space-y-8">
+      <div className="max-w-3xl w-full space-y-8 py-8">
         {/* Hero Section */}
         <div className="text-center space-y-4">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-theme mb-2 leading-tight">
             🎸 Merch Table
           </h1>
           <p className="text-lg sm:text-xl md:text-2xl text-primary font-bold">
-            Point of Sale for DIY Tours
+            Point of Sale for Pop-Up Commerce
           </p>
-          <p className="text-base sm:text-lg text-theme-muted max-w-xl mx-auto leading-relaxed">
-            No big music corporations.
+          <p className="text-base sm:text-lg text-theme-secondary max-w-2xl mx-auto leading-relaxed">
+            Built for touring bands, craft vendors, and market sellers.
             <br />
-            No data exploitation.
-            <br />
-            Just you, your band, and your data.
+            Track sales offline. Own your data. Keep it simple.
           </p>
         </div>
 
-        {/* Feature Cards */}
+        {/* Social Proof */}
+        <div className="bg-theme-secondary border-2 border-primary rounded-lg p-4 text-center">
+          <p className="text-sm text-theme-muted">
+            <span className="text-primary font-semibold">
+              &ldquo;We&rsquo;re on day 3 of tour using this every night. Game changer.&rdquo;
+            </span>
+            <br />
+            <span className="text-xs opacity-75">— Band currently on the road</span>
+          </p>
+        </div>
+
+        {/* Why This Exists */}
+        <div className="bg-theme-secondary border border-theme rounded-lg p-6">
+          <h2 className="text-xl font-bold text-theme mb-3 text-center">
+            Why Merch Table Exists
+          </h2>
+          <p className="text-sm text-theme-muted leading-relaxed mb-4">
+            I watched friends lose money at shows because tracking sales with
+            paper and Venmo screenshots is chaos. Square costs too much and
+            doesn&rsquo;t work in basements. Big tech wants to own your customer data.
+          </p>
+          <p className="text-sm text-theme-secondary leading-relaxed font-medium">
+            So I built something different: a POS that works offline, stores
+            everything in <span className="text-primary">your</span> Google
+            Sheet, and costs less than one t-shirt sale per month.
+          </p>
+        </div>
+
+        {/* Feature Grid */}
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-theme-secondary border border-theme rounded-lg p-6 text-center">
-            <div className="text-3xl mb-2">🔒</div>
-            <h3 className="font-bold text-theme mb-2">Your Data</h3>
-            <p className="text-sm text-theme-muted">
-              All sales stored in{" "}
-              <span className="text-primary">your own Google Drive</span>.
-              Complete custody and control.
+          <div className="bg-theme-secondary border border-theme rounded-lg p-6">
+            <div className="text-3xl mb-3 text-center">�</div>
+            <h3 className="font-bold text-theme mb-2 text-center">
+              Your Data, Your Sheet
+            </h3>
+            <p className="text-sm text-theme-muted leading-relaxed">
+              Everything lives in <span className="text-primary font-semibold">your own Google Drive</span>. 
+              Export to Excel anytime. No lock-in. No proprietary formats.
             </p>
           </div>
 
-          <div className="bg-theme-secondary border border-theme rounded-lg p-6 text-center">
-            <div className="text-3xl mb-2">📱</div>
-            <h3 className="font-bold text-theme mb-2">Offline First</h3>
-            <p className="text-sm text-theme-muted">
-              Works without internet. Syncs when you can. Perfect for basements
-              and dive bars.
+          <div className="bg-theme-secondary border border-theme rounded-lg p-6">
+            <div className="text-3xl mb-3 text-center">📱</div>
+            <h3 className="font-bold text-theme mb-2 text-center">
+              Works Offline
+            </h3>
+            <p className="text-sm text-theme-muted leading-relaxed">
+              Basement shows. Remote markets. Zero wifi. No problem. Syncs
+              automatically when you&rsquo;re back online.
             </p>
           </div>
 
-          <div className="bg-theme-secondary border border-theme rounded-lg p-6 text-center">
-            <div className="text-3xl mb-2">🤝</div>
-            <h3 className="font-bold text-theme mb-2">Hook Ups</h3>
-            <p className="text-sm text-theme-muted">
-              Track discounts and freebies for your crew.
+          <div className="bg-theme-secondary border border-theme rounded-lg p-6">
+            <div className="text-3xl mb-3 text-center">💰</div>
+            <h3 className="font-bold text-theme mb-2 text-center">
+              Tips & Discounts
+            </h3>
+            <p className="text-sm text-theme-muted leading-relaxed">
+              Track tips separately. Give discounts to your crew. Accept cash,
+              Venmo, card - whatever your customers use.
             </p>
+          </div>
+        </div>
+
+        {/* What You Get */}
+        <div className="bg-theme-secondary border border-theme rounded-lg p-6">
+          <h2 className="text-xl font-bold text-theme mb-4 text-center">
+            What You Get
+          </h2>
+          <div className="space-y-3 max-w-2xl mx-auto">
+            <div className="flex items-start gap-3">
+              <span className="text-success text-lg flex-shrink-0 mt-0.5">✓</span>
+              <p className="text-sm text-theme-secondary">
+                <strong className="text-theme">Mobile-first POS</strong> - Add products, 
+                build cart, process sales in seconds
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-success text-lg flex-shrink-0 mt-0.5">✓</span>
+              <p className="text-sm text-theme-secondary">
+                <strong className="text-theme">Automatic Google Sheets sync</strong> - Every 
+                sale saved with timestamp, payment method, items sold
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-success text-lg flex-shrink-0 mt-0.5">✓</span>
+              <p className="text-sm text-theme-secondary">
+                <strong className="text-theme">Product management</strong> - Track inventory, 
+                sizes, categories, pricing
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-success text-lg flex-shrink-0 mt-0.5">✓</span>
+              <p className="text-sm text-theme-secondary">
+                <strong className="text-theme">Sales insights</strong> - Revenue by date, 
+                payment breakdown, top sellers, daily trends
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-success text-lg flex-shrink-0 mt-0.5">✓</span>
+              <p className="text-sm text-theme-secondary">
+                <strong className="text-theme">QR code payments</strong> - Show custom QR 
+                codes for Venmo, PayPal, CashApp
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-success text-lg flex-shrink-0 mt-0.5">✓</span>
+              <p className="text-sm text-theme-secondary">
+                <strong className="text-theme">No transaction fees</strong> - We don&rsquo;t 
+                process payments, so we don&rsquo;t take a cut
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Perfect For */}
+        <div className="bg-theme-tertiary border border-theme rounded-lg p-6">
+          <h2 className="text-lg font-bold text-theme mb-3 text-center">
+            Perfect For
+          </h2>
+          <div className="flex flex-wrap justify-center gap-2 text-sm">
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              🎸 Touring Bands
+            </span>
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              🎨 Craft Fair Vendors
+            </span>
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              🌽 Farmers Market Sellers
+            </span>
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              🪶 Pow Wow Vendors
+            </span>
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              🎪 Pop-Up Shops
+            </span>
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              📚 Book Fairs
+            </span>
+            <span className="bg-theme-secondary text-theme px-3 py-1 rounded-full border border-theme">
+              🏛️ Convention Vendors
+            </span>
           </div>
         </div>
 
         {/* Sign In Box */}
-        <div className="bg-theme-secondary p-8 rounded-lg border border-theme">
+        <div className="bg-theme-secondary p-8 rounded-lg border-2 border-primary shadow-lg">
+          <h2 className="text-2xl font-bold text-theme mb-4 text-center">
+            Get Started Free
+          </h2>
+          <p className="text-sm text-theme-muted text-center mb-6">
+            Try it at your next show or market. No credit card required.
+          </p>
+          
           <button
             onClick={() => signIn("google", { callbackUrl: "/" })}
-            className="w-full flex items-center justify-center gap-3 bg-theme-tertiary hover:bg-theme text-theme font-semibold py-4 px-6 rounded-lg transition-all active:scale-95 shadow-lg mb-4"
+            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-800 font-semibold py-4 px-6 rounded-lg transition-all active:scale-95 shadow-lg mb-6 border border-gray-300"
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24">
               <path
@@ -80,23 +200,36 @@ export default function SignIn() {
             Sign in with Google
           </button>
 
-          <div className="text-center text-sm text-theme-muted space-y-2">
-            <p>
+          <div className="text-center text-sm text-theme-muted space-y-2 border-t border-theme pt-4">
+            <p className="leading-relaxed">
               We only use Google for authentication and storing{" "}
-              <span className="text-theme-secondary">your</span> data in{" "}
-              <span className="text-theme-secondary">your</span> Drive.
+              <span className="text-primary font-semibold">your</span> data in{" "}
+              <span className="text-primary font-semibold">your</span> Google Drive.
             </p>
-            <p className="text-xs">
-              No tracking. No selling your info. No algorithmic manipulation.
+            <p className="text-xs opacity-75">
+              No tracking. No selling your data. No venture capital pressure to monetize you.
             </p>
           </div>
         </div>
 
+        {/* Values Statement */}
+        <div className="bg-theme-tertiary border border-theme rounded-lg p-6 text-center">
+          <p className="text-sm text-theme-secondary leading-relaxed">
+            <strong className="text-theme">Built by an independent developer who believes:</strong>
+            <br />
+            You should own your data. Software should serve you, not exploit you.
+            <br />
+            The best tools are simple, honest, and built for real people doing real work.
+          </p>
+        </div>
+
         {/* Footer */}
-        <div className="text-center text-sm text-theme-muted">
-          <p>
-            Made with ❤️ in{" "}
-            <span className="text-primary font-semibold">Philadelphia</span>
+        <div className="text-center text-sm text-theme-muted space-y-2">
+          <p className="font-medium">
+            Made with ❤️ for the DIY hustle
+          </p>
+          <p className="text-xs opacity-75">
+            Currently in beta • Serving touring bands and market vendors
           </p>
         </div>
       </div>
