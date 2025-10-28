@@ -662,7 +662,9 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-zinc-900">
       <header className="bg-black border-b border-zinc-700 p-3 sm:p-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">🎸 Merch Table</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">
+            🎸 Merch Table
+          </h1>
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm text-zinc-400">Signed in as</p>

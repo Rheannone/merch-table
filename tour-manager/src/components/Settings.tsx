@@ -135,7 +135,9 @@ export default function Settings({}: SettingsProps) {
     <div className="min-h-screen bg-zinc-900 p-3 sm:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">⚙️ Settings</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
+            ⚙️ Settings
+          </h1>
           <button
             onClick={saveSettings}
             disabled={isSaving}

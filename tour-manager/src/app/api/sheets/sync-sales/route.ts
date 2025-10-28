@@ -42,12 +42,16 @@ export async function POST(req: NextRequest) {
         .map((item) => item.size)
         .join(", ");
 
-      // Format date as YYYY-MM-DD for Google Sheets QUERY compatibility
-      const saleDate = new Date(sale.timestamp).toISOString().split("T")[0];
+      // Format date as YYYY-MM-DD in local timezone for Google Sheets
+      const saleDate = new Date(sale.timestamp);
+      const year = saleDate.getFullYear();
+      const month = String(saleDate.getMonth() + 1).padStart(2, "0");
+      const day = String(saleDate.getDate()).padStart(2, "0");
+      const formattedDate = `${year}-${month}-${day}`;
 
       return [
         sale.id,
-        saleDate, // Just the date, no time
+        formattedDate, // Local date in YYYY-MM-DD format
         sale.items
           .map((item) => {
             const sizeInfo = item.size ? ` (${item.size})` : "";

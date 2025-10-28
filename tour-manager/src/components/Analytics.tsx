@@ -139,7 +139,7 @@ export default function Analytics() {
           setInsightsEnabled(true);
           setToast({
             message:
-              "✅ Insights sheet created! Check your Google Sheets for analytics.",
+              "Insights sheet created! Check your Google Sheets for analytics.",
             type: "success",
           });
         }
