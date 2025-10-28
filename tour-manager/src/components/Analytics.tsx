@@ -5,6 +5,8 @@ import {
   ChartBarIcon,
   CheckCircleIcon,
   ArrowPathIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
@@ -21,11 +23,17 @@ interface QuickStats {
   topSize: string;
 }
 
+interface ProductBreakdown {
+  productName: string;
+  quantity: number;
+}
+
 interface DailyRevenueData {
   date: string;
   numberOfSales: number;
   actualRevenue: number;
   payments: { [key: string]: number };
+  productBreakdown?: ProductBreakdown[];
 }
 
 interface InsightsData {
@@ -42,6 +50,10 @@ export default function Analytics() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [loadingProducts, setLoadingProducts] = useState<Set<string>>(
+    new Set()
+  );
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -236,6 +248,72 @@ export default function Analytics() {
     if (isCreatingInsights) return "Creating Analytics Sheet...";
     if (checkingInsights) return "Checking Status...";
     return "Enable Advanced Insights";
+  };
+
+  const toggleProductBreakdown = async (date: string) => {
+    // If already expanded, just collapse it
+    if (expandedDates.has(date)) {
+      const newExpanded = new Set(expandedDates);
+      newExpanded.delete(date);
+      setExpandedDates(newExpanded);
+      return;
+    }
+
+    // Expand and fetch data if not already loaded
+    const newExpanded = new Set(expandedDates);
+    newExpanded.add(date);
+    setExpandedDates(newExpanded);
+
+    // Check if we already have product breakdown for this date
+    const dayData = insightsData?.dailyRevenue.find((d) => d.date === date);
+    if (dayData?.productBreakdown) {
+      // Already have data, just expand
+      return;
+    }
+
+    // Fetch product breakdown for this date
+    const newLoadingProducts = new Set(loadingProducts);
+    newLoadingProducts.add(date);
+    setLoadingProducts(newLoadingProducts);
+
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) return;
+
+      const response = await fetch("/api/sheets/get-daily-products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId, date }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Update insightsData with the product breakdown
+        if (insightsData) {
+          const updatedDailyRevenue = insightsData.dailyRevenue.map((day) => {
+            if (day.date === date) {
+              return {
+                ...day,
+                productBreakdown: data.productBreakdown,
+              };
+            }
+            return day;
+          });
+
+          setInsightsData({
+            ...insightsData,
+            dailyRevenue: updatedDailyRevenue,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching product breakdown:", error);
+    } finally {
+      const newLoadingProducts = new Set(loadingProducts);
+      newLoadingProducts.delete(date);
+      setLoadingProducts(newLoadingProducts);
+    }
   };
 
   return (
@@ -478,35 +556,113 @@ export default function Analytics() {
                   </thead>
                   <tbody>
                     {insightsData.dailyRevenue.length > 0 ? (
-                      insightsData.dailyRevenue.map((row) => (
-                        <tr
-                          key={row.date}
-                          className="border-b border-theme/50 hover:bg-theme-tertiary/30 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-sm text-theme font-medium">
-                            {row.date}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-theme-secondary text-center">
-                            <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-blue-900/30 text-blue-300">
-                              {row.numberOfSales}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-success font-semibold text-right">
-                            ${row.actualRevenue.toFixed(2)}
-                          </td>
-                          {insightsData.paymentMethods.map((method) => {
-                            const amount = row.payments[method] || 0;
-                            return (
-                              <td
-                                key={method}
-                                className="px-4 py-3 text-sm text-theme-secondary text-right"
-                              >
-                                {amount > 0 ? `$${amount.toFixed(2)}` : "-"}
+                      insightsData.dailyRevenue.map((row) => {
+                        const isExpanded = expandedDates.has(row.date);
+                        const isLoadingProducts = loadingProducts.has(row.date);
+
+                        return (
+                          <>
+                            <tr
+                              key={row.date}
+                              className="border-b border-theme/50 hover:bg-theme-tertiary/30 transition-colors"
+                            >
+                              <td className="px-4 py-3 text-sm text-theme font-medium">
+                                {row.date}
                               </td>
-                            );
-                          })}
-                        </tr>
-                      ))
+                              <td className="px-4 py-3 text-sm text-theme-secondary text-center">
+                                <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-blue-900/30 text-blue-300">
+                                  {row.numberOfSales}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-success font-semibold text-right">
+                                ${row.actualRevenue.toFixed(2)}
+                              </td>
+                              {insightsData.paymentMethods.map((method) => {
+                                const amount = row.payments[method] || 0;
+                                return (
+                                  <td
+                                    key={method}
+                                    className="px-4 py-3 text-sm text-theme-secondary text-right"
+                                  >
+                                    {amount > 0 ? `$${amount.toFixed(2)}` : "-"}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                            {/* Collapsible Product Insights Row */}
+                            <tr key={`${row.date}-expand`}>
+                              <td
+                                colSpan={3 + insightsData.paymentMethods.length}
+                                className="px-4 py-0 bg-theme-tertiary/20"
+                              >
+                                <button
+                                  onClick={() =>
+                                    toggleProductBreakdown(row.date)
+                                  }
+                                  className="w-full py-3 flex items-center justify-center gap-2 text-sm text-theme-secondary hover:text-theme transition-colors group"
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <ChevronUpIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                      Hide Daily Product Insights
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDownIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                      See Daily Product Insights
+                                    </>
+                                  )}
+                                </button>
+
+                                {/* Expanded Product Breakdown */}
+                                {isExpanded && (
+                                  <div className="pb-4 px-4">
+                                    {isLoadingProducts ? (
+                                      <div className="text-center py-4">
+                                        <ArrowPathIcon className="w-6 h-6 text-theme-muted mx-auto mb-2 animate-spin" />
+                                        <p className="text-sm text-theme-muted">
+                                          Loading product breakdown...
+                                        </p>
+                                      </div>
+                                    ) : row.productBreakdown &&
+                                      row.productBreakdown.length > 0 ? (
+                                      <div className="bg-theme rounded-lg p-4 border border-theme">
+                                        <h4 className="text-sm font-semibold text-theme mb-3 flex items-center gap-2">
+                                          🎸 Products Sold on {row.date}
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                          {row.productBreakdown.map(
+                                            (product) => (
+                                              <div
+                                                key={product.productName}
+                                                className="bg-theme-secondary rounded-lg p-3 border border-theme/50"
+                                              >
+                                                <p className="text-xs text-theme-muted mb-1">
+                                                  {product.productName}
+                                                </p>
+                                                <p className="text-lg font-bold text-primary">
+                                                  {product.quantity}
+                                                  <span className="text-xs text-theme-muted ml-1">
+                                                    sold
+                                                  </span>
+                                                </p>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-4 text-sm text-theme-muted">
+                                        No product data available
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          </>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td
