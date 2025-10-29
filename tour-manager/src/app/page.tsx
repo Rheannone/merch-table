@@ -21,7 +21,6 @@ import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
 import Analytics from "@/components/Analytics";
 import SyncStatusBar from "@/components/SyncStatusBar";
-import OfflineIndicator from "@/components/OfflineIndicator";
 import FeedbackButton from "@/components/FeedbackButton";
 import Toast, { ToastType } from "@/components/Toast";
 import {
@@ -806,7 +805,6 @@ export default function Home() {
         {activeTab === "settings" && <Settings />}
       </main>
 
-      <OfflineIndicator />
       <FeedbackButton />
 
       {/* Toast Notification */}
