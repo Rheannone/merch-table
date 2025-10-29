@@ -8,6 +8,8 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ExclamationTriangleIcon,
+  InformationCircleIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 
@@ -60,6 +62,7 @@ export default function Analytics() {
     new Set()
   );
   const [showSchemaBanner, setShowSchemaBanner] = useState(false);
+  const [showRevenueInfo, setShowRevenueInfo] = useState(false);
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -561,7 +564,16 @@ export default function Analytics() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-theme rounded-lg p-4 border border-theme">
-                  <p className="text-sm text-theme-muted mb-1">Total Revenue</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm text-theme-muted">Total Revenue</p>
+                    <button
+                      onClick={() => setShowRevenueInfo(true)}
+                      className="text-theme-muted hover:text-theme transition-colors"
+                      title="How is revenue calculated?"
+                    >
+                      <InformationCircleIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                   <p className="text-2xl font-bold text-success">
                     ${insightsData.quickStats.totalRevenue.toFixed(2)}
                   </p>
@@ -799,6 +811,98 @@ export default function Analytics() {
           </div>
         )}
       </div>
+
+      {/* Revenue Info Modal */}
+      {showRevenueInfo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full p-6 relative">
+            {/* Close button */}
+            <button
+              onClick={() => setShowRevenueInfo(false)}
+              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+
+            {/* Header */}
+            <h2 className="text-2xl font-bold text-theme mb-4 pr-8">
+              💰 How Revenue is Calculated
+            </h2>
+
+            {/* Content */}
+            <div className="space-y-4 text-theme">
+              <div>
+                <h3 className="font-semibold text-success mb-2">
+                  ✅ Included in Revenue:
+                </h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-theme-secondary ml-2">
+                  <li>
+                    The <strong>actual amount collected</strong> from customers
+                    (what they paid)
+                  </li>
+                  <li>All payment methods (cash, credit, Venmo, etc.)</li>
+                  <li>
+                    Sales with discounts (&quot;Hook Ups&quot;) - counted at the
+                    discounted price
+                  </li>
+                  <li>
+                    Transaction fees (e.g., 3% credit card fees) are included in
+                    the total
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-yellow-400 mb-2">
+                  ⚠️ NOT Included in Revenue:
+                </h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-theme-secondary ml-2">
+                  <li>
+                    <strong>Tips</strong> - Tips are tracked separately and not
+                    counted as product revenue
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-theme border border-theme rounded-lg p-4 mt-4">
+                <h3 className="font-semibold text-blue-400 mb-2">
+                  📊 Example:
+                </h3>
+                <div className="text-sm text-theme-secondary space-y-1">
+                  <p>
+                    Cart total: <span className="text-theme">$50.00</span>
+                  </p>
+                  <p>
+                    Hook up discount:{" "}
+                    <span className="text-yellow-400">-$10.00</span>
+                  </p>
+                  <p>
+                    Customer pays: <span className="text-theme">$40.00</span>
+                  </p>
+                  <p>
+                    Tip added: <span className="text-green-400">+$5.00</span>
+                  </p>
+                  <p className="pt-2 border-t border-theme mt-2">
+                    <strong>Revenue counted:</strong>{" "}
+                    <span className="text-success font-bold">$40.00</span>
+                  </p>
+                  <p className="text-xs text-theme-muted italic mt-1">
+                    (The $5 tip is tracked separately in the Tips column)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Close button at bottom */}
+            <button
+              onClick={() => setShowRevenueInfo(false)}
+              className="w-full mt-6 bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (

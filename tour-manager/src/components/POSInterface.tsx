@@ -959,9 +959,12 @@ export default function POSInterface({
                     Number.parseFloat(hookupAmount) > 0 &&
                     Number.parseFloat(hookupAmount) < total && (
                       <div className="flex justify-between">
-                        <span className="text-yellow-300">Hookup discount:</span>
+                        <span className="text-yellow-300">
+                          Hookup discount:
+                        </span>
                         <span className="font-semibold text-yellow-400">
-                          -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                          -$
+                          {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
                         </span>
                       </div>
                     )}
