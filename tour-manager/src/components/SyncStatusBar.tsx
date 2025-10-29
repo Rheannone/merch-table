@@ -3,7 +3,6 @@
 import { SyncStatus } from "@/types";
 import {
   CloudArrowUpIcon,
-  CheckCircleIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 
@@ -17,16 +16,22 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
     await onSync();
   };
 
+  // Only show if there's something to sync or actively syncing
+  const shouldShow =
+    status.isSyncing || status.pendingSales > 0 || status.pendingProductSync;
+
+  if (!shouldShow) return null;
+
   return (
-    <div className="bg-zinc-800 border-b border-zinc-700 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+    <div className="bg-theme-secondary border-b border-theme px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
       <div className="flex items-center gap-3 flex-wrap">
         {status.isSyncing ? (
-          <div className="flex items-center gap-2 text-blue-400">
+          <div className="flex items-center gap-2 text-primary">
             <CloudArrowUpIcon className="w-5 h-5 animate-pulse" />
             <span className="text-sm font-medium">Syncing...</span>
           </div>
-        ) : status.pendingSales > 0 || status.pendingProductSync ? (
-          <div className="flex items-center gap-2 text-amber-400">
+        ) : (
+          <div className="flex items-center gap-2 text-warning">
             <ExclamationTriangleIcon className="w-5 h-5" />
             <div className="flex flex-col sm:flex-row sm:gap-2">
               {status.pendingSales > 0 && (
@@ -42,35 +47,29 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
               )}
             </div>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 text-green-400">
-            <CheckCircleIcon className="w-5 h-5" />
-            <span className="text-sm font-medium">All synced</span>
-          </div>
         )}
 
         {status.totalSales > 0 && (
-          <span className="text-xs text-zinc-400 border-l border-zinc-700 pl-3">
+          <span className="text-xs text-theme-muted border-l border-theme pl-3">
             Total: {status.totalSales} sale{status.totalSales === 1 ? "" : "s"}
           </span>
         )}
 
         {status.lastSyncTime && (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-theme-muted">
             Last synced: {new Date(status.lastSyncTime).toLocaleString()}
           </span>
         )}
       </div>
 
-      {(status.pendingSales > 0 || status.pendingProductSync) &&
-        !status.isSyncing && (
-          <button
-            onClick={handleSync}
-            className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 active:scale-95 touch-manipulation"
-          >
-            Sync Now
-          </button>
-        )}
+      {!status.isSyncing && (
+        <button
+          onClick={handleSync}
+          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm rounded-lg active:scale-95 touch-manipulation transition-colors"
+        >
+          Sync Now
+        </button>
+      )}
     </div>
   );
 }

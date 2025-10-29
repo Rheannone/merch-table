@@ -37,18 +37,29 @@ export async function POST(req: NextRequest) {
 
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
-    // Check if POS Settings sheet exists
-    const spreadsheet = await sheets.spreadsheets.get({
-      spreadsheetId,
-    });
+    // Try to write directly - only check if sheet exists if we get an error
+    // This avoids unnecessary API reads and reduces rate limiting issues
+    let settingsSheetId: number | undefined;
+    let needsSheetCreation = false;
 
-    const settingsSheet = spreadsheet.data.sheets?.find(
-      (sheet) => sheet.properties?.title === "POS Settings"
-    );
+    // First, try to read just the headers to see if sheet exists
+    try {
+      await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "POS Settings!A1:H1",
+      });
+      // Sheet exists, we can proceed
+    } catch (error) {
+      // Sheet doesn't exist, we need to create it
+      const err = error as { code?: number; message?: string };
+      if (err.code === 400 || err.message?.includes("Unable to parse")) {
+        needsSheetCreation = true;
+      } else {
+        throw error;
+      }
+    }
 
-    let settingsSheetId: number;
-
-    if (!settingsSheet) {
+    if (needsSheetCreation) {
       // Create the POS Settings sheet
       const addSheetResponse = await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -117,21 +128,19 @@ export async function POST(req: NextRequest) {
           ],
         },
       });
-    } else {
-      settingsSheetId = settingsSheet.properties?.sheetId || 0;
-
-      // Clear existing data (keep headers)
-      await sheets.spreadsheets.values.clear({
-        spreadsheetId,
-        range: "POS Settings!A2:E100",
-      });
-
-      // Clear categories
-      await sheets.spreadsheets.values.clear({
-        spreadsheetId,
-        range: "POS Settings!G2:G100",
-      });
     }
+
+    // Clear existing data (keep headers) - do this whether sheet was just created or already existed
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: "POS Settings!A2:E100",
+    });
+
+    // Clear categories
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: "POS Settings!G2:G100",
+    });
 
     // Prepare payment settings data rows
     const rows = (paymentSettings as PaymentSetting[]).map((setting) => [

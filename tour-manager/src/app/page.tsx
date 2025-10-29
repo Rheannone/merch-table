@@ -22,6 +22,7 @@ import Settings from "@/components/Settings";
 import Analytics from "@/components/Analytics";
 import SyncStatusBar from "@/components/SyncStatusBar";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import FeedbackButton from "@/components/FeedbackButton";
 import Toast, { ToastType } from "@/components/Toast";
 import {
   Cog6ToothIcon,
@@ -706,17 +707,21 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-theme">
       <header className="bg-theme-secondary border-b border-theme p-3 sm:p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl sm:text-2xl font-bold text-theme">
             🎸 Merch Table
           </h1>
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm text-theme-muted">Signed in as</p>
-              <p className="text-sm font-medium text-theme">
-                {session?.user?.email}
-              </p>
-            </div>
+            {session?.user?.email && (
+              <div className="text-right">
+                <p className="text-xs sm:text-sm text-theme-muted hidden sm:block">
+                  Signed in as
+                </p>
+                <p className="text-xs sm:text-sm font-medium text-theme truncate max-w-[120px] sm:max-w-none">
+                  {session.user.email}
+                </p>
+              </div>
+            )}
             <button
               onClick={() => setActiveTab("settings")}
               className={`p-2 sm:px-4 sm:py-2 rounded border transition-all ${
@@ -802,6 +807,7 @@ export default function Home() {
       </main>
 
       <OfflineIndicator />
+      <FeedbackButton />
 
       {/* Toast Notification */}
       {toast && (

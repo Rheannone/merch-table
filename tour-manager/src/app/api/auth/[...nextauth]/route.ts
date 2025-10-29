@@ -69,13 +69,13 @@ export const authOptions: AuthOptions = {
   ],
   callbacks: {
     async jwt({ token, account }) {
-      // Initial sign in
+      // Initial sign in - preserve user info from token
       if (account) {
         return {
+          ...token, // Keep email, name, picture, sub from the token
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at! * 1000, // Convert to milliseconds
-          user: token.user,
         };
       }
 
@@ -93,6 +93,15 @@ export const authOptions: AuthOptions = {
       session.accessToken = token.accessToken as string;
       session.refreshToken = token.refreshToken as string;
       session.error = token.error as string | undefined;
+
+      // Ensure user info is included
+      if (token.email) {
+        session.user = session.user || {};
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
+        session.user.image = token.picture as string;
+      }
+
       return session;
     },
   },

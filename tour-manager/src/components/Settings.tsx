@@ -751,6 +751,9 @@ export default function Settings({}: SettingsProps) {
           >
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold text-theme">🎨 Theme</h2>
+              <span className="px-2 py-1 text-xs font-bold bg-warning/20 text-warning border border-warning/30 rounded uppercase">
+                Beta
+              </span>
             </div>
             {isThemeExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -762,6 +765,17 @@ export default function Settings({}: SettingsProps) {
           {/* Collapsible Content */}
           {isThemeExpanded && (
             <div className="px-6 pb-6">
+              {/* Beta Warning */}
+              <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6">
+                <p className="text-sm text-warning font-medium mb-2">
+                  ⚠️ Beta Feature
+                </p>
+                <p className="text-xs text-theme-muted leading-relaxed">
+                  Theme selection is in beta. You may occasionally see errors when saving. 
+                  Your theme preference will be more reliable once we migrate to our database system.
+                </p>
+              </div>
+
               <p className="text-sm text-theme-muted mb-6">
                 Choose a theme to customize the look and feel of your POS app.
                 Your selection will be saved and applied every time you log in.
