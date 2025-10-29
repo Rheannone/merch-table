@@ -9,6 +9,8 @@ interface QRCodePaymentModalProps {
   paymentMethodName: string;
   onComplete: (actualAmount: number, discount?: number) => void;
   onCancel: () => void;
+  initialHookup?: boolean;
+  initialHookupAmount?: string;
 }
 
 export default function QRCodePaymentModal({
@@ -17,9 +19,11 @@ export default function QRCodePaymentModal({
   paymentMethodName,
   onComplete,
   onCancel,
+  initialHookup = false,
+  initialHookupAmount = "",
 }: QRCodePaymentModalProps) {
-  const [isHookup, setIsHookup] = useState(false);
-  const [hookupAmount, setHookupAmount] = useState<string>("");
+  const [isHookup, setIsHookup] = useState(initialHookup);
+  const [hookupAmount, setHookupAmount] = useState<string>(initialHookupAmount);
 
   // hookupAmount is what the customer is actually paying (after discount)
   const hookupValue = Number.parseFloat(hookupAmount) || 0;

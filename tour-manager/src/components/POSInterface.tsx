@@ -954,6 +954,17 @@ export default function POSInterface({
                       ${total.toFixed(2)}
                     </span>
                   </div>
+                  {isHookup &&
+                    hookupAmount &&
+                    Number.parseFloat(hookupAmount) > 0 &&
+                    Number.parseFloat(hookupAmount) < total && (
+                      <div className="flex justify-between">
+                        <span className="text-yellow-300">Hookup discount:</span>
+                        <span className="font-semibold text-yellow-400">
+                          -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                   {isTipEnabled &&
                     tipAmount &&
                     Number.parseFloat(tipAmount) > 0 && (
@@ -967,17 +978,23 @@ export default function POSInterface({
                   <div className="border-t border-theme pt-2 mt-2">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-theme-secondary">
-                        Change:
+                        {isHookup ? "Final Total:" : "Change:"}
                       </span>
                       <span
                         className={`font-bold text-xl ${
-                          change >= 0 ? "text-green-400" : "text-primary"
+                          isHookup
+                            ? "text-yellow-400"
+                            : change >= 0
+                            ? "text-green-400"
+                            : "text-primary"
                         }`}
                       >
-                        ${Math.abs(change).toFixed(2)}
+                        {isHookup && hookupAmount
+                          ? `$${Number.parseFloat(hookupAmount).toFixed(2)}`
+                          : `$${Math.abs(change).toFixed(2)}`}
                       </span>
                     </div>
-                    {change < 0 && (
+                    {!isHookup && change < 0 && (
                       <p className="text-xs text-primary mt-1 text-right">
                         Need ${Math.abs(change).toFixed(2)} more
                       </p>
@@ -988,7 +1005,7 @@ export default function POSInterface({
             )}
 
             {/* Transaction Fee Info */}
-            {selectedPaymentSetting?.transactionFee && !isHookup && (
+            {selectedPaymentSetting?.transactionFee && (
               <div className="p-3 bg-blue-900/20 border border-blue-600/30 rounded-lg">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-blue-300">Cart Total:</span>
@@ -996,6 +1013,17 @@ export default function POSInterface({
                     ${total.toFixed(2)}
                   </span>
                 </div>
+                {isHookup &&
+                  hookupAmount &&
+                  Number.parseFloat(hookupAmount) > 0 &&
+                  Number.parseFloat(hookupAmount) < total && (
+                    <div className="flex justify-between items-center text-sm mt-1">
+                      <span className="text-yellow-300">Hookup discount:</span>
+                      <span className="text-yellow-400 font-semibold">
+                        -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 {isTipEnabled &&
                   tipAmount &&
                   Number.parseFloat(tipAmount) > 0 && (
@@ -1015,7 +1043,9 @@ export default function POSInterface({
                   <span className="text-blue-400 font-semibold">
                     $
                     {(
-                      (total +
+                      ((isHookup && hookupAmount
+                        ? Number.parseFloat(hookupAmount)
+                        : total) +
                         (isTipEnabled && tipAmount
                           ? Number.parseFloat(tipAmount)
                           : 0)) *
@@ -1030,7 +1060,9 @@ export default function POSInterface({
                   <span className="text-blue-400 font-bold text-lg">
                     $
                     {(
-                      (total +
+                      ((isHookup && hookupAmount
+                        ? Number.parseFloat(hookupAmount)
+                        : total) +
                         (isTipEnabled && tipAmount
                           ? Number.parseFloat(tipAmount)
                           : 0)) *
@@ -1054,7 +1086,8 @@ export default function POSInterface({
                       setTipAmount("");
                       // If cash payment and cash has been received, auto-fill with cash amount
                       if (
-                        selectedPaymentMethod === "cash" &&
+                        (selectedPaymentMethod.toLowerCase() === "cash" ||
+                          selectedPaymentSetting?.paymentType === "cash") &&
                         cashReceived > 0
                       ) {
                         setHookupAmount(cashReceived.toFixed(2));
@@ -1187,6 +1220,8 @@ export default function POSInterface({
           paymentMethodName={selectedPaymentSetting.displayName}
           onComplete={handleQRCodeComplete}
           onCancel={() => setShowQRCodeModal(false)}
+          initialHookup={isHookup}
+          initialHookupAmount={hookupAmount}
         />
       )}
 
