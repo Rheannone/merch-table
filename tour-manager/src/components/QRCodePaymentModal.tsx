@@ -11,6 +11,8 @@ interface QRCodePaymentModalProps {
   onCancel: () => void;
   initialHookup?: boolean;
   initialHookupAmount?: string;
+  cartTotal?: number;
+  tipAmount?: number;
 }
 
 export default function QRCodePaymentModal({
@@ -21,6 +23,8 @@ export default function QRCodePaymentModal({
   onCancel,
   initialHookup = false,
   initialHookupAmount = "",
+  cartTotal,
+  tipAmount = 0,
 }: QRCodePaymentModalProps) {
   const [isHookup, setIsHookup] = useState(initialHookup);
   const [hookupAmount, setHookupAmount] = useState<string>(initialHookupAmount);
@@ -61,10 +65,27 @@ export default function QRCodePaymentModal({
 
         {/* Total */}
         <div className="mb-6">
-          <div className="flex justify-between items-center text-lg mb-2">
-            <span className="text-zinc-300">Cart Total:</span>
-            <span className="font-bold text-white">${total.toFixed(2)}</span>
-          </div>
+          {cartTotal && tipAmount > 0 ? (
+            <>
+              <div className="flex justify-between items-center text-sm mb-1">
+                <span className="text-zinc-400">Cart Total:</span>
+                <span className="text-white">${cartTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm mb-2">
+                <span className="text-green-400">Tip:</span>
+                <span className="text-green-400">+${tipAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-lg border-t border-zinc-700 pt-2">
+                <span className="text-zinc-300 font-semibold">Total with Tip:</span>
+                <span className="font-bold text-white">${total.toFixed(2)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between items-center text-lg mb-2">
+              <span className="text-zinc-300">Cart Total:</span>
+              <span className="font-bold text-white">${total.toFixed(2)}</span>
+            </div>
+          )}
 
           {/* Hookup Toggle */}
           <div className="mt-4 p-4 bg-zinc-900 border border-zinc-700 rounded-lg">

@@ -1215,7 +1215,8 @@ export default function POSInterface({
         <QRCodePaymentModal
           qrCodeUrl={selectedPaymentSetting.qrCodeUrl}
           total={
-            calculateTotal() *
+            (calculateTotal() +
+              (isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0)) *
             (selectedPaymentSetting.transactionFee
               ? 1 + selectedPaymentSetting.transactionFee
               : 1)
@@ -1225,6 +1226,10 @@ export default function POSInterface({
           onCancel={() => setShowQRCodeModal(false)}
           initialHookup={isHookup}
           initialHookupAmount={hookupAmount}
+          cartTotal={calculateTotal()}
+          tipAmount={
+            isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0
+          }
         />
       )}
 
