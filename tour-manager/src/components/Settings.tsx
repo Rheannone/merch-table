@@ -883,6 +883,32 @@ export default function Settings() {
               : "💾 Save Settings"}
           </button>
         </div>
+
+        {/* Legal Links */}
+        <div className="mt-8 pt-6 border-t border-theme">
+          <div className="flex flex-wrap gap-4 justify-center text-sm">
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-theme-muted hover:text-theme transition-colors"
+            >
+              Privacy Policy
+            </a>
+            <span className="text-theme-muted">•</span>
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-theme-muted hover:text-theme transition-colors"
+            >
+              Terms of Service
+            </a>
+          </div>
+          <p className="text-center text-xs text-theme-muted mt-3 opacity-60">
+            Band Merch POS • Made for musicians on tour
+          </p>
+        </div>
       </div>
 
       {/* Toast Notification */}

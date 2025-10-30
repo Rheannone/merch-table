@@ -30,7 +30,8 @@ export default function QRCodePaymentModal({
   const [hookupAmount, setHookupAmount] = useState<string>(initialHookupAmount);
 
   // hookupAmount is what the customer is actually paying (after discount)
-  const hookupValue = hookupAmount !== "" ? Number.parseFloat(hookupAmount) : null;
+  const hookupValue =
+    hookupAmount !== "" ? Number.parseFloat(hookupAmount) : null;
   const actualAmount = isHookup && hookupValue !== null ? hookupValue : total;
   const discount = isHookup && hookupValue !== null ? total - hookupValue : 0;
 
@@ -76,8 +77,12 @@ export default function QRCodePaymentModal({
                 <span className="text-green-400">+${tipAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-lg border-t border-zinc-700 pt-2">
-                <span className="text-zinc-300 font-semibold">Total with Tip:</span>
-                <span className="font-bold text-white">${total.toFixed(2)}</span>
+                <span className="text-zinc-300 font-semibold">
+                  Total with Tip:
+                </span>
+                <span className="font-bold text-white">
+                  ${total.toFixed(2)}
+                </span>
               </div>
             </>
           ) : (

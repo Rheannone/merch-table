@@ -1170,18 +1170,23 @@ export default function POSInterface({
                       className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-yellow-500"
                     />
                   </div>
-                  {hookupAmount !== "" && Number.parseFloat(hookupAmount) <= total && (
-                    <p className="text-xs text-yellow-300 mt-1">
-                      {Number.parseFloat(hookupAmount) === 0 ? (
-                        <span className="font-bold">🎉 100% FREE HOOKUP!</span>
-                      ) : (
-                        <>
-                          Discount: $
-                          {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
-                        </>
-                      )}
-                    </p>
-                  )}
+                  {hookupAmount !== "" &&
+                    Number.parseFloat(hookupAmount) <= total && (
+                      <p className="text-xs text-yellow-300 mt-1">
+                        {Number.parseFloat(hookupAmount) === 0 ? (
+                          <span className="font-bold">
+                            🎉 100% FREE HOOKUP!
+                          </span>
+                        ) : (
+                          <>
+                            Discount: $
+                            {(total - Number.parseFloat(hookupAmount)).toFixed(
+                              2
+                            )}
+                          </>
+                        )}
+                      </p>
+                    )}
                 </div>
               )}
 

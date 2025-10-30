@@ -58,6 +58,7 @@ export default function Home() {
     type: ToastType;
   } | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(true);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   // Check localStorage on client side only
   useEffect(() => {
@@ -732,6 +733,14 @@ export default function Home() {
               </div>
             )}
             <button
+              onClick={() => setShowWhatsNew(true)}
+              className="p-2 sm:px-4 sm:py-2 bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme rounded border border-theme text-sm transition-all flex items-center gap-2"
+              title="What's New"
+            >
+              <span className="text-base leading-none">✨</span>
+              <span className="hidden sm:inline">What&apos;s New</span>
+            </button>
+            <button
               onClick={() => setActiveTab("settings")}
               className={`p-2 sm:px-4 sm:py-2 rounded border transition-all ${
                 activeTab === "settings"
@@ -765,7 +774,9 @@ export default function Home() {
                   New Update: Tips & Hookups Fixed!
                 </p>
                 <p className="text-green-100 text-xs sm:text-sm mt-0.5">
-                  Tip calculations now work correctly for Venmo & all payment types. Hookup discounts properly factored into transaction fees.
+                  Tip calculations now work correctly for Venmo & all payment
+                  types. Hookup discounts properly factored into transaction
+                  fees.
                 </p>
               </div>
             </div>
@@ -845,6 +856,132 @@ export default function Home() {
       </main>
 
       <FeedbackButton />
+
+      {/* What's New Modal */}
+      {showWhatsNew && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-theme-secondary border border-theme rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6 relative">
+            {/* Close button */}
+            <button
+              onClick={() => setShowWhatsNew(false)}
+              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+
+            {/* Header */}
+            <h2 className="text-3xl font-bold text-theme mb-2 pr-8">
+              ✨ What&apos;s New
+            </h2>
+            <p className="text-theme-muted mb-6">Latest features and improvements</p>
+
+            {/* Changelog */}
+            <div className="space-y-6">
+              {/* October 30, 2025 */}
+              <div className="border-l-4 border-blue-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-blue-500 text-white rounded">
+                    NEW
+                  </span>
+                  <span className="text-sm text-theme-muted">October 30, 2025</span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  📦 Inventory Value Tracking
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Added Inventory Value card to Quick Stats</li>
+                  <li>• Shows total retail value of all unsold merchandise</li>
+                  <li>• Calculates from Google Sheets Products data</li>
+                  <li>• Click info icon for detailed calculation breakdown</li>
+                </ul>
+              </div>
+
+              {/* October 29, 2025 */}
+              <div className="border-l-4 border-green-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-green-500 text-white rounded">
+                    FIXED
+                  </span>
+                  <span className="text-sm text-theme-muted">October 29, 2025</span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  🎸 Hookup & Tip Improvements
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Fixed $0 hookups (100% free merchandise)</li>
+                  <li>• Hookup discounts now visible as line items</li>
+                  <li>• Tips properly included in Venmo/QR code totals</li>
+                  <li>• Hookup auto-fills with cash received amount</li>
+                  <li>• Transaction fees calculated on hookup amount</li>
+                </ul>
+              </div>
+
+              {/* October 28, 2025 */}
+              <div className="border-l-4 border-purple-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-purple-500 text-white rounded">
+                    NEW
+                  </span>
+                  <span className="text-sm text-theme-muted">October 28, 2025</span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  💰 Tips Support
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Added tip tracking for Venmo/QR payments</li>
+                  <li>• Tips shown separately in Insights (Column D)</li>
+                  <li>• Tips not included in revenue calculations</li>
+                  <li>• Daily tips breakdown in Revenue by Date table</li>
+                </ul>
+              </div>
+
+              {/* October 25, 2025 */}
+              <div className="border-l-4 border-yellow-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-yellow-500 text-black rounded">
+                    FEATURE
+                  </span>
+                  <span className="text-sm text-theme-muted">October 25, 2025</span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  🎨 Theme System
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Multiple app themes available in Settings</li>
+                  <li>• Live preview before saving</li>
+                  <li>• Persistent theme selection across sessions</li>
+                </ul>
+              </div>
+
+              {/* Earlier Features */}
+              <div className="border-l-4 border-zinc-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm text-theme-muted">Earlier Updates</span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  🚀 Core Features
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Offline-first POS with IndexedDB storage</li>
+                  <li>• Google Sheets integration for sales tracking</li>
+                  <li>• Custom payment methods with QR codes</li>
+                  <li>• Product breakdown by date in Insights</li>
+                  <li>• Dynamic schema updates for payment methods</li>
+                  <li>• Revenue calculation explainer</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Close button at bottom */}
+            <button
+              onClick={() => setShowWhatsNew(false)}
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (

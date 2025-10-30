@@ -24,6 +24,7 @@ interface QuickStats {
   averageSale: number;
   topItem: string;
   topSize: string;
+  inventoryValue: number;
 }
 
 interface ProductBreakdown {
@@ -63,6 +64,7 @@ export default function Analytics() {
   );
   const [showSchemaBanner, setShowSchemaBanner] = useState(false);
   const [showRevenueInfo, setShowRevenueInfo] = useState(false);
+  const [showInventoryInfo, setShowInventoryInfo] = useState(false);
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -562,7 +564,7 @@ export default function Analytics() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div className="bg-theme rounded-lg p-4 border border-theme">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm text-theme-muted">Total Revenue</p>
@@ -576,6 +578,21 @@ export default function Analytics() {
                   </div>
                   <p className="text-2xl font-bold text-success">
                     ${insightsData.quickStats.totalRevenue.toFixed(2)}
+                  </p>
+                </div>
+                <div className="bg-theme rounded-lg p-4 border border-theme">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm text-theme-muted">Inventory Value</p>
+                    <button
+                      onClick={() => setShowInventoryInfo(true)}
+                      className="text-theme-muted hover:text-theme transition-colors"
+                      title="How is inventory value calculated?"
+                    >
+                      <InformationCircleIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-2xl font-bold text-orange-400">
+                    ${insightsData.quickStats.inventoryValue.toFixed(2)}
                   </p>
                 </div>
                 <div className="bg-theme rounded-lg p-4 border border-theme">
@@ -896,6 +913,108 @@ export default function Analytics() {
             {/* Close button at bottom */}
             <button
               onClick={() => setShowRevenueInfo(false)}
+              className="w-full mt-6 bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Inventory Value Info Modal */}
+      {showInventoryInfo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full p-6 relative">
+            {/* Close button */}
+            <button
+              onClick={() => setShowInventoryInfo(false)}
+              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+
+            {/* Header */}
+            <h2 className="text-2xl font-bold text-theme mb-4 pr-8">
+              📦 How Inventory Value is Calculated
+            </h2>
+
+            {/* Content */}
+            <div className="space-y-4 text-theme">
+              <div>
+                <h3 className="font-semibold text-orange-400 mb-2">
+                  💡 What This Shows:
+                </h3>
+                <p className="text-sm text-theme-secondary">
+                  The total retail value of all unsold merchandise you currently
+                  have in stock. This helps you understand how much money you
+                  have &quot;sitting on the table.&quot;
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-success mb-2">
+                  🧮 Calculation Formula:
+                </h3>
+                <div className="bg-theme border border-theme rounded-lg p-3 text-sm text-theme-secondary">
+                  <code className="text-blue-400">
+                    Inventory Value = Σ (Product Price × Quantity)
+                  </code>
+                  <p className="mt-2 text-xs">
+                    For each product, we multiply its price by the total
+                    quantity across all sizes, then sum everything up.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-theme border border-theme rounded-lg p-4 mt-4">
+                <h3 className="font-semibold text-blue-400 mb-2">
+                  📊 Example Breakdown:
+                </h3>
+                <div className="text-sm text-theme-secondary space-y-2">
+                  <div>
+                    <p className="font-medium text-theme">T-Shirt ($25)</p>
+                    <p className="text-xs text-theme-muted ml-2">
+                      S: 3, M: 5, L: 2, XL: 1 = 11 total
+                    </p>
+                    <p className="ml-2">
+                      $25 × 11 = <span className="text-orange-400">$275</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-theme">Hoodie ($50)</p>
+                    <p className="text-xs text-theme-muted ml-2">
+                      M: 4, L: 2 = 6 total
+                    </p>
+                    <p className="ml-2">
+                      $50 × 6 = <span className="text-orange-400">$300</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-theme">Sticker ($3)</p>
+                    <p className="text-xs text-theme-muted ml-2">50 total</p>
+                    <p className="ml-2">
+                      $3 × 50 = <span className="text-orange-400">$150</span>
+                    </p>
+                  </div>
+                  <p className="pt-2 border-t border-theme mt-2">
+                    <strong>Total Inventory Value:</strong>{" "}
+                    <span className="text-orange-400 font-bold">$725</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3">
+                <p className="text-xs text-blue-300">
+                  <strong>💡 Note:</strong> This value is pulled directly from
+                  your Google Sheets Products tab and updates whenever you
+                  refresh the Insights data.
+                </p>
+              </div>
+            </div>
+
+            {/* Close button at bottom */}
+            <button
+              onClick={() => setShowInventoryInfo(false)}
               className="w-full mt-6 bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
             >
               Got it!

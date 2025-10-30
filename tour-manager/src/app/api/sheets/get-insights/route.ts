@@ -119,12 +119,47 @@ export async function POST(req: NextRequest) {
 
     const topItemsValues = topItemsResponse.data.values || [];
 
+    // Calculate inventory value from Products sheet
+    let inventoryValue = 0;
+    try {
+      const productsResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Products!A2:H", // ID, Name, Price, Category, Sizes, ImageURL, Description, Inventory
+      });
+
+      const productRows = productsResponse.data.values || [];
+      
+      productRows.forEach((row) => {
+        const price = Number.parseFloat(row[2]) || 0;
+        const inventoryJson = row[7]; // Inventory column (H)
+        
+        if (inventoryJson) {
+          try {
+            const inventory = JSON.parse(inventoryJson);
+            // Sum up all quantities across all sizes
+            Object.values(inventory).forEach((quantity) => {
+              if (typeof quantity === 'number') {
+                inventoryValue += price * quantity;
+              }
+            });
+          } catch (e) {
+            // Skip products with invalid inventory JSON
+            console.warn("Failed to parse inventory for product:", row[1], e);
+          }
+        }
+      });
+    } catch (error) {
+      console.warn("Failed to calculate inventory value:", error);
+      // Don't fail the entire request, just set inventory to 0
+    }
+
     const quickStats = {
       totalRevenue: Number.parseFloat(quickStatsValues[0]?.[0] || "0"),
       numberOfSales: Number.parseInt(quickStatsValues[1]?.[0] || "0", 10),
       averageSale: Number.parseFloat(quickStatsValues[2]?.[0] || "0"),
       topItem: topItemsValues[0]?.[0] || "N/A",
       topSize: topItemsValues[0]?.[1] || "N/A",
+      inventoryValue,
     };
 
     // Fetch Daily Revenue Data with Tips + dynamic payment columns
