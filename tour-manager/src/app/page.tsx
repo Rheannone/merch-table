@@ -57,11 +57,15 @@ export default function Home() {
     message: string;
     type: ToastType;
   } | null>(null);
-  const [showAnnouncement, setShowAnnouncement] = useState(() => {
-    // Check if user has dismissed this announcement version
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
+
+  // Check localStorage on client side only
+  useEffect(() => {
     const dismissed = localStorage.getItem("announcement-v1-dismissed");
-    return dismissed !== "true";
-  });
+    if (dismissed === "true") {
+      setShowAnnouncement(false);
+    }
+  }, []);
 
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
