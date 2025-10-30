@@ -327,7 +327,7 @@ export default function POSInterface({
     ) {
       if (isHookup) {
         // For cash + hookup, use the hookup amount if provided, otherwise use cash received
-        if (hookupAmount && Number.parseFloat(hookupAmount) > 0) {
+        if (hookupAmount !== "" && hookupAmount !== undefined) {
           const hookupValue = Number.parseFloat(hookupAmount);
           actualAmount = hookupValue;
           // Apply transaction fee after hookup if applicable
@@ -379,7 +379,7 @@ export default function POSInterface({
       // Other payment methods
       if (isHookup) {
         // For hookup with non-cash payment, require hookup amount
-        if (!hookupAmount || Number.parseFloat(hookupAmount) <= 0) {
+        if (hookupAmount === "" || hookupAmount === undefined) {
           setToast({
             message: "Please enter the hookup amount!",
             type: "error",
@@ -954,20 +954,14 @@ export default function POSInterface({
                       ${total.toFixed(2)}
                     </span>
                   </div>
-                  {isHookup &&
-                    hookupAmount &&
-                    Number.parseFloat(hookupAmount) > 0 &&
-                    Number.parseFloat(hookupAmount) < total && (
-                      <div className="flex justify-between">
-                        <span className="text-yellow-300">
-                          Hookup discount:
-                        </span>
-                        <span className="font-semibold text-yellow-400">
-                          -$
-                          {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
+                  {isHookup && hookupAmount !== "" && (
+                    <div className="flex justify-between">
+                      <span className="text-yellow-300">Hookup discount:</span>
+                      <span className="font-semibold text-yellow-400">
+                        -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                   {isTipEnabled &&
                     tipAmount &&
                     Number.parseFloat(tipAmount) > 0 && (
@@ -1016,17 +1010,14 @@ export default function POSInterface({
                     ${total.toFixed(2)}
                   </span>
                 </div>
-                {isHookup &&
-                  hookupAmount &&
-                  Number.parseFloat(hookupAmount) > 0 &&
-                  Number.parseFloat(hookupAmount) < total && (
-                    <div className="flex justify-between items-center text-sm mt-1">
-                      <span className="text-yellow-300">Hookup discount:</span>
-                      <span className="text-yellow-400 font-semibold">
-                        -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
+                {isHookup && hookupAmount !== "" && (
+                  <div className="flex justify-between items-center text-sm mt-1">
+                    <span className="text-yellow-300">Hookup discount:</span>
+                    <span className="text-yellow-400 font-semibold">
+                      -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 {isTipEnabled &&
                   tipAmount &&
                   Number.parseFloat(tipAmount) > 0 && (
@@ -1076,6 +1067,55 @@ export default function POSInterface({
               </div>
             )}
 
+            {/* Payment Summary for non-cash/non-transaction-fee methods */}
+            {!selectedPaymentSetting?.transactionFee &&
+              selectedPaymentMethod.toLowerCase() !== "cash" &&
+              selectedPaymentSetting?.paymentType !== "cash" &&
+              (isHookup || (isTipEnabled && tipAmount)) && (
+                <div className="p-3 bg-theme-tertiary border border-theme rounded-lg">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-theme-muted">Cart Total:</span>
+                    <span className="text-theme font-semibold">
+                      ${total.toFixed(2)}
+                    </span>
+                  </div>
+                  {isHookup && hookupAmount !== "" && (
+                    <div className="flex justify-between items-center text-sm mt-1">
+                      <span className="text-yellow-300">Hookup discount:</span>
+                      <span className="text-yellow-400 font-semibold">
+                        -${(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {isTipEnabled &&
+                    tipAmount &&
+                    Number.parseFloat(tipAmount) > 0 && (
+                      <div className="flex justify-between items-center text-sm mt-1">
+                        <span className="text-green-300">Tips added:</span>
+                        <span className="text-green-400 font-semibold">
+                          ${Number.parseFloat(tipAmount).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  <div className="flex justify-between items-center text-base mt-2 pt-2 border-t border-theme">
+                    <span className="text-theme-secondary font-medium">
+                      Total to Collect:
+                    </span>
+                    <span className="text-theme font-bold text-lg">
+                      $
+                      {(
+                        (isHookup && hookupAmount
+                          ? Number.parseFloat(hookupAmount)
+                          : total) +
+                        (isTipEnabled && tipAmount
+                          ? Number.parseFloat(tipAmount)
+                          : 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
             <div className="space-y-2">
               <div className="flex gap-2">
                 <button
@@ -1087,11 +1127,10 @@ export default function POSInterface({
                       // Enabling hookup - disable tip
                       setIsTipEnabled(false);
                       setTipAmount("");
-                      // If cash payment and cash has been received, auto-fill with cash amount
+                      // If cash payment, auto-fill with cash amount (even if $0 for free hookups)
                       if (
-                        (selectedPaymentMethod.toLowerCase() === "cash" ||
-                          selectedPaymentSetting?.paymentType === "cash") &&
-                        cashReceived > 0
+                        selectedPaymentMethod.toLowerCase() === "cash" ||
+                        selectedPaymentSetting?.paymentType === "cash"
                       ) {
                         setHookupAmount(cashReceived.toFixed(2));
                       }
@@ -1131,10 +1170,16 @@ export default function POSInterface({
                       className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-yellow-500"
                     />
                   </div>
-                  {hookupAmount && Number.parseFloat(hookupAmount) < total && (
+                  {hookupAmount !== "" && Number.parseFloat(hookupAmount) <= total && (
                     <p className="text-xs text-yellow-300 mt-1">
-                      Discount: $
-                      {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                      {Number.parseFloat(hookupAmount) === 0 ? (
+                        <span className="font-bold">🎉 100% FREE HOOKUP!</span>
+                      ) : (
+                        <>
+                          Discount: $
+                          {(total - Number.parseFloat(hookupAmount)).toFixed(2)}
+                        </>
+                      )}
                     </p>
                   )}
                 </div>

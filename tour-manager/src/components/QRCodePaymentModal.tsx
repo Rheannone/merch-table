@@ -30,9 +30,9 @@ export default function QRCodePaymentModal({
   const [hookupAmount, setHookupAmount] = useState<string>(initialHookupAmount);
 
   // hookupAmount is what the customer is actually paying (after discount)
-  const hookupValue = Number.parseFloat(hookupAmount) || 0;
-  const actualAmount = isHookup && hookupValue > 0 ? hookupValue : total;
-  const discount = isHookup && hookupValue > 0 ? total - hookupValue : 0;
+  const hookupValue = hookupAmount !== "" ? Number.parseFloat(hookupAmount) : null;
+  const actualAmount = isHookup && hookupValue !== null ? hookupValue : total;
+  const discount = isHookup && hookupValue !== null ? total - hookupValue : 0;
 
   const handleComplete = () => {
     onComplete(actualAmount, discount > 0 ? discount : undefined);
