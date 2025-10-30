@@ -29,6 +29,7 @@ import {
   ArchiveBoxIcon,
   ChartBarIcon,
   ArrowRightOnRectangleIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useTheme } from "@/components/ThemeProvider";
 
@@ -56,6 +57,11 @@ export default function Home() {
     message: string;
     type: ToastType;
   } | null>(null);
+  const [showAnnouncement, setShowAnnouncement] = useState(() => {
+    // Check if user has dismissed this announcement version
+    const dismissed = localStorage.getItem("announcement-v1-dismissed");
+    return dismissed !== "true";
+  });
 
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
@@ -743,6 +749,35 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Announcement Banner */}
+      {showAnnouncement && (
+        <div className="bg-gradient-to-r from-green-600 to-green-500 border-b border-green-700">
+          <div className="flex items-center justify-between gap-4 px-4 py-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <span className="text-2xl flex-shrink-0">🎉</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm sm:text-base">
+                  New Update: Tips & Hookups Fixed!
+                </p>
+                <p className="text-green-100 text-xs sm:text-sm mt-0.5">
+                  Tip calculations now work correctly for Venmo & all payment types. Hookup discounts properly factored into transaction fees.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowAnnouncement(false);
+                localStorage.setItem("announcement-v1-dismissed", "true");
+              }}
+              className="text-white hover:bg-green-700 transition-colors flex-shrink-0 p-2 rounded-lg bg-green-600/50 border border-green-400/30"
+              title="Dismiss"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <SyncStatusBar status={syncStatus} onSync={syncSales} />
 
