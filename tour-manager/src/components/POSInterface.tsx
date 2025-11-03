@@ -7,6 +7,7 @@ import {
   TrashIcon,
   PlusIcon,
   MinusIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 import QRCodePaymentModal from "./QRCodePaymentModal";
@@ -50,12 +51,18 @@ export default function POSInterface({
   const [isHookup, setIsHookup] = useState(false);
   const [hookupAmount, setHookupAmount] = useState<string>(""); // Amount for hookup/discount
   const [isTipEnabled, setIsTipEnabled] = useState(false);
-  const [tipAmount, setTipAmount] = useState<string>(""); // Tip amount
+  const [tipAmount, setTipAmount] = useState<string>(""); // Tip amount (keep for non-cash methods)
   const [showTipJar, setShowTipJar] = useState(true); // Setting from backend
   const [sizeSelectionProduct, setSizeSelectionProduct] =
     useState<Product | null>(null);
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  
+  // Review Order Modal States (for cash payments)
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewModalStep, setReviewModalStep] = useState<1 | 2>(1);
+  const [modalTipOption, setModalTipOption] = useState<'none' | '5' | '10' | '20' | 'custom'>('none');
+  const [modalCustomTipAmount, setModalCustomTipAmount] = useState<string>("");
 
   // US bill denominations
   const billDenominations = [100, 50, 20, 10, 5, 1];
@@ -306,6 +313,80 @@ export default function POSInterface({
     }
   };
 
+  // Modified version that accepts tip as parameter (for modal flow)
+  const processCompleteSaleWithTip = async (
+    finalAmount: number,
+    tipFromModal: number,
+    discountAmount?: number
+  ) => {
+    if (cart.length === 0) return;
+
+    const total = calculateTotal();
+    const tip = tipFromModal;
+
+    setIsProcessing(true);
+    try {
+      // Deduct inventory for each item sold
+      for (const cartItem of cart) {
+        const product = cartItem.product;
+        if (product && product.inventory) {
+          const sizeKey = cartItem.size || "default";
+          const currentQty = product.inventory[sizeKey] || 0;
+          const updatedInventory = {
+            ...product.inventory,
+            [sizeKey]: Math.max(0, currentQty - cartItem.quantity),
+          };
+          await onUpdateProduct({
+            ...product,
+            inventory: updatedInventory,
+          });
+        }
+      }
+
+      await onCompleteSale(
+        cart,
+        total,
+        finalAmount,
+        selectedPaymentMethod,
+        discountAmount,
+        tip > 0 ? tip : undefined
+      );
+
+      // Reset state including modal states
+      setCart([]);
+      if (paymentSettings.length > 0) {
+        setSelectedPaymentMethod(paymentSettings[0].displayName);
+        setSelectedPaymentSetting(paymentSettings[0]);
+      }
+      setCashReceived(0);
+      setIsHookup(false);
+      setHookupAmount("");
+      setIsTipEnabled(false);
+      setTipAmount("");
+      
+      // Reset modal states
+      setModalTipOption('none');
+      setModalCustomTipAmount('');
+
+      // Show success toast
+      setToast({
+        message:
+          discountAmount && discountAmount > 0
+            ? `✨ Hook up completed! Saved $${discountAmount.toFixed(2)}`
+            : "Sale completed successfully!",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Failed to complete sale:", error);
+      setToast({
+        message: "Failed to complete sale. Please try again.",
+        type: "error",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
 
@@ -408,16 +489,93 @@ export default function POSInterface({
     );
   };
 
-  const handleCompleteSaleClick = () => {
-    // Check if QR code should be shown
-    if (
-      selectedPaymentSetting?.qrCodeUrl &&
-      selectedPaymentSetting.qrCodeUrl.trim() !== ""
-    ) {
-      setShowQRCodeModal(true);
+  // Modified version that accepts tip as parameter (for modal flow - all payment types)
+  const handleCompleteSaleWithTip = async (tipFromModal: number) => {
+    if (cart.length === 0) return;
+
+    const total = calculateTotal();
+    const tip = tipFromModal;
+    let actualAmount = total; // Don't add tip to actualAmount - it goes in separate column
+    let discount = 0;
+
+    const isCashPayment = selectedPaymentMethod.toLowerCase() === "cash" || 
+                          selectedPaymentSetting?.paymentType === "cash";
+
+    // Determine actual amount based on payment method and hookup status
+    if (isCashPayment) {
+      // === CASH PAYMENTS ===
+      if (isHookup) {
+        // Cash + hookup
+        if (hookupAmount !== "" && hookupAmount !== undefined) {
+          const hookupValue = Number.parseFloat(hookupAmount);
+          actualAmount = hookupValue;
+          if (selectedPaymentSetting?.transactionFee) {
+            actualAmount = hookupValue * (1 + selectedPaymentSetting.transactionFee);
+          }
+          discount = total - hookupValue;
+        } else if (cashReceived > 0) {
+          actualAmount = cashReceived;
+          discount = total - cashReceived;
+        } else {
+          setToast({
+            message: "Please enter the hookup amount or cash received!",
+            type: "error",
+          });
+          return;
+        }
+      } else {
+        // Regular cash payment - validate sufficient cash
+        const requiredAmount = selectedPaymentSetting?.transactionFee
+          ? total * (1 + selectedPaymentSetting.transactionFee)
+          : total;
+
+        if (cashReceived < requiredAmount + tip) {
+          setToast({
+            message: "Not enough cash received (including tip)!",
+            type: "error",
+          });
+          return;
+        }
+        actualAmount = requiredAmount;
+      }
     } else {
-      handleCompleteSale();
+      // === NON-CASH PAYMENTS (Venmo, Card, Other, etc.) ===
+      if (isHookup) {
+        // Non-cash + hookup
+        if (hookupAmount === "" || hookupAmount === undefined) {
+          setToast({
+            message: "Please enter the hookup amount!",
+            type: "error",
+          });
+          return;
+        }
+        const hookupValue = Number.parseFloat(hookupAmount);
+        actualAmount = hookupValue;
+        if (selectedPaymentSetting?.transactionFee) {
+          actualAmount = hookupValue * (1 + selectedPaymentSetting.transactionFee);
+        }
+        discount = total - hookupValue;
+      } else {
+        // Regular non-cash payment
+        actualAmount = selectedPaymentSetting?.transactionFee
+          ? total * (1 + selectedPaymentSetting.transactionFee)
+          : total;
+      }
     }
+
+    await processCompleteSaleWithTip(
+      actualAmount,
+      tip,
+      discount > 0 ? discount : undefined
+    );
+  };
+
+  const handleCompleteSaleClick = () => {
+    // Open review modal for ALL payment methods
+    setReviewModalStep(1);
+    setModalTipOption('none');
+    setModalCustomTipAmount('');
+    setShowReviewModal(true);
   };
 
   const handlePaymentMethodChange = (method: PaymentMethod) => {
@@ -438,13 +596,9 @@ export default function POSInterface({
 
   const getCompleteButtonText = () => {
     if (isProcessing) return "Processing...";
-    if (
-      selectedPaymentSetting?.qrCodeUrl &&
-      selectedPaymentSetting.qrCodeUrl.trim() !== ""
-    ) {
-      return "Show QR Code";
-    }
-    return "Complete Sale";
+    
+    // All payment methods now use "Review Order" flow
+    return "Review Order";
   };
 
   // Get categories from products, then order them according to settings
@@ -1190,8 +1344,8 @@ export default function POSInterface({
                 </div>
               )}
 
-              {/* Tip Jar - Only show if enabled in settings and hookup is NOT active */}
-              {showTipJar && !isHookup && (
+              {/* Tip Jar - REMOVED: All payment methods now use modal for tips */}
+              {false && showTipJar && !isHookup && (
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => {
@@ -1260,6 +1414,410 @@ export default function POSInterface({
         )}
       </div>
 
+      {/* Review Order Modal (for Cash payments) */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full max-h-[90vh] flex flex-col">
+            {/* Step 1: Tip Collection */}
+            {reviewModalStep === 1 && (
+              <>
+                {/* Header */}
+                <div className="p-6 pb-4 border-b border-theme flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-theme">
+                    💰 Add a Tip?
+                  </h2>
+                  <button
+                    onClick={() => setShowReviewModal(false)}
+                    className="text-theme-muted hover:text-theme transition-colors"
+                  >
+                    <XMarkIcon className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  <p className="text-theme-secondary text-center mb-6">
+                    Would the customer like to add a tip?
+                  </p>
+
+                  {/* Tip Options Grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {/* No Tip */}
+                    <button
+                      onClick={() => {
+                        setModalTipOption('none');
+                        setModalCustomTipAmount('');
+                      }}
+                      className={`p-4 rounded-lg font-semibold text-lg transition-all ${
+                        modalTipOption === 'none'
+                          ? 'bg-primary text-theme border-2 border-primary'
+                          : 'bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme'
+                      }`}
+                    >
+                      No Tip
+                    </button>
+
+                    {/* 5% Tip */}
+                    <button
+                      onClick={() => {
+                        setModalTipOption('5');
+                        setModalCustomTipAmount('');
+                      }}
+                      className={`p-4 rounded-lg font-semibold text-lg transition-all ${
+                        modalTipOption === '5'
+                          ? 'bg-green-600 text-theme border-2 border-green-600'
+                          : 'bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme'
+                      }`}
+                    >
+                      <div>5%</div>
+                      <div className="text-sm font-normal">
+                        ${(() => {
+                          const base = isHookup && hookupAmount 
+                            ? Number.parseFloat(hookupAmount) 
+                            : calculateTotal();
+                          return (base * 0.05).toFixed(2);
+                        })()}
+                      </div>
+                    </button>
+
+                    {/* 10% Tip */}
+                    <button
+                      onClick={() => {
+                        setModalTipOption('10');
+                        setModalCustomTipAmount('');
+                      }}
+                      className={`p-4 rounded-lg font-semibold text-lg transition-all ${
+                        modalTipOption === '10'
+                          ? 'bg-green-600 text-theme border-2 border-green-600'
+                          : 'bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme'
+                      }`}
+                    >
+                      <div>10%</div>
+                      <div className="text-sm font-normal">
+                        ${(() => {
+                          const base = isHookup && hookupAmount 
+                            ? Number.parseFloat(hookupAmount) 
+                            : calculateTotal();
+                          return (base * 0.10).toFixed(2);
+                        })()}
+                      </div>
+                    </button>
+
+                    {/* 20% Tip */}
+                    <button
+                      onClick={() => {
+                        setModalTipOption('20');
+                        setModalCustomTipAmount('');
+                      }}
+                      className={`p-4 rounded-lg font-semibold text-lg transition-all ${
+                        modalTipOption === '20'
+                          ? 'bg-green-600 text-theme border-2 border-green-600'
+                          : 'bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme'
+                      }`}
+                    >
+                      <div>20%</div>
+                      <div className="text-sm font-normal">
+                        ${(() => {
+                          const base = isHookup && hookupAmount 
+                            ? Number.parseFloat(hookupAmount) 
+                            : calculateTotal();
+                          return (base * 0.20).toFixed(2);
+                        })()}
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Custom Tip Option */}
+                  <button
+                    onClick={() => setModalTipOption('custom')}
+                    className={`w-full p-4 rounded-lg font-semibold text-lg transition-all mb-3 ${
+                      modalTipOption === 'custom'
+                        ? 'bg-green-600 text-theme border-2 border-green-600'
+                        : 'bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme'
+                    }`}
+                  >
+                    Custom Amount
+                  </button>
+
+                  {/* Custom Tip Input */}
+                  {modalTipOption === 'custom' && (
+                    <div className="p-4 bg-green-900/20 border border-green-600/50 rounded-lg">
+                      <label className="block text-sm font-medium text-green-300 mb-2">
+                        Enter Custom Tip Amount
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted font-bold">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={modalCustomTipAmount}
+                          onChange={(e) => setModalCustomTipAmount(e.target.value)}
+                          placeholder="0.00"
+                          autoFocus
+                          className="w-full pl-8 pr-4 py-3 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-green-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer - Fixed */}
+                <div className="p-6 pt-4 border-t border-theme">
+                  <button
+                    onClick={() => setReviewModalStep(2)}
+                    disabled={modalTipOption === 'custom' && !modalCustomTipAmount}
+                    className="w-full bg-primary text-theme py-4 rounded-lg font-bold text-lg hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Order Review */}
+            {reviewModalStep === 2 && (
+              <>
+                {/* Header */}
+                <div className="p-6 pb-4 border-b border-theme">
+                  <h2 className="text-2xl font-bold text-theme">
+                    📋 Order Summary
+                  </h2>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  {/* Financial Breakdown */}
+                  <div className="bg-theme border border-theme rounded-lg p-4 mb-6">
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-theme-muted">Cart Total:</span>
+                      <span className="text-theme font-semibold">
+                        ${calculateTotal().toFixed(2)}
+                      </span>
+                    </div>
+
+                    {isHookup && hookupAmount && (
+                      <div className="flex justify-between items-center text-sm mb-2">
+                        <span className="text-yellow-300">Hook Up Discount:</span>
+                        <span className="text-yellow-400 font-semibold">
+                          -${(calculateTotal() - Number.parseFloat(hookupAmount)).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
+                    {modalTipOption !== 'none' && (
+                      <div className="flex justify-between items-center text-sm mb-2">
+                        <span className="text-green-300">Tip:</span>
+                        <span className="text-green-400 font-semibold">
+                          ${(() => {
+                            if (modalTipOption === 'custom' && modalCustomTipAmount) {
+                              return Number.parseFloat(modalCustomTipAmount).toFixed(2);
+                            }
+                            const base = isHookup && hookupAmount 
+                              ? Number.parseFloat(hookupAmount) 
+                              : calculateTotal();
+                            const percentage = Number.parseFloat(modalTipOption) / 100;
+                            return (base * percentage).toFixed(2);
+                          })()}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Show transaction fee if applicable */}
+                    {selectedPaymentSetting?.transactionFee && selectedPaymentSetting.transactionFee > 0 && (
+                      <div className="flex justify-between items-center text-sm mb-2">
+                        <span className="text-blue-300">
+                          Transaction Fee ({(selectedPaymentSetting.transactionFee * 100).toFixed(1)}%):
+                        </span>
+                        <span className="text-blue-400 font-semibold">
+                          ${(() => {
+                            const base = isHookup && hookupAmount 
+                              ? Number.parseFloat(hookupAmount) 
+                              : calculateTotal();
+                            let tip = 0;
+                            if (modalTipOption !== 'none') {
+                              if (modalTipOption === 'custom' && modalCustomTipAmount) {
+                                tip = Number.parseFloat(modalCustomTipAmount);
+                              } else {
+                                const percentage = Number.parseFloat(modalTipOption) / 100;
+                                tip = base * percentage;
+                              }
+                            }
+                            const subtotal = base + tip;
+                            const fee = subtotal * selectedPaymentSetting.transactionFee;
+                            return fee.toFixed(2);
+                          })()}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-lg font-bold pt-2 border-t border-theme mt-2">
+                      <span className="text-theme">Total to Collect:</span>
+                      <span className="text-success">
+                        ${(() => {
+                          const base = isHookup && hookupAmount 
+                            ? Number.parseFloat(hookupAmount) 
+                            : calculateTotal();
+                          let tip = 0;
+                          if (modalTipOption !== 'none') {
+                            if (modalTipOption === 'custom' && modalCustomTipAmount) {
+                              tip = Number.parseFloat(modalCustomTipAmount);
+                            } else {
+                              const percentage = Number.parseFloat(modalTipOption) / 100;
+                              tip = base * percentage;
+                            }
+                          }
+                          const subtotal = base + tip;
+                          // Add transaction fee if applicable
+                          const transactionFee = selectedPaymentSetting?.transactionFee || 0;
+                          const totalWithFee = subtotal * (1 + transactionFee);
+                          return totalWithFee.toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+
+                    {/* Show cash received and change only if sufficient */}
+                    {cashReceived > 0 && (() => {
+                      const base = isHookup && hookupAmount 
+                        ? Number.parseFloat(hookupAmount) 
+                        : calculateTotal();
+                      let tip = 0;
+                      if (modalTipOption !== 'none') {
+                        if (modalTipOption === 'custom' && modalCustomTipAmount) {
+                          tip = Number.parseFloat(modalCustomTipAmount);
+                        } else {
+                          const percentage = Number.parseFloat(modalTipOption) / 100;
+                          tip = base * percentage;
+                        }
+                      }
+                      const subtotal = base + tip;
+                      // Add transaction fee if applicable
+                      const transactionFee = selectedPaymentSetting?.transactionFee || 0;
+                      const totalToCollect = subtotal * (1 + transactionFee);
+                      const change = cashReceived - totalToCollect;
+                      
+                      // Only show cash received if they gave enough money
+                      if (change < 0) return null;
+                      
+                      return (
+                        <>
+                          <div className="flex justify-between items-center text-base pt-2 border-t border-theme mt-2">
+                            <span className="text-theme-muted">Cash Received:</span>
+                            <span className="text-theme font-semibold">
+                              ${cashReceived.toFixed(2)}
+                            </span>
+                          </div>
+                          {change > 0 ? (
+                            <div className="flex justify-between items-center text-lg font-bold mt-2">
+                              <span className="text-blue-300">Change Due:</span>
+                              <span className="text-blue-400 font-bold">
+                                ${change.toFixed(2)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex justify-between items-center text-sm mt-2">
+                              <span className="text-green-300">✓ Exact Amount</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* QR Code Display (if applicable) */}
+                  {selectedPaymentSetting?.qrCodeUrl && selectedPaymentSetting.qrCodeUrl.trim() !== "" && (
+                    <div className="bg-theme-secondary border border-theme rounded-lg p-4 mb-6">
+                      <h3 className="font-bold text-theme mb-3 text-lg text-center">
+                        📱 Scan to Pay
+                      </h3>
+                      <div className="bg-white p-4 rounded-lg">
+                        <img
+                          src={selectedPaymentSetting.qrCodeUrl}
+                          alt={`${selectedPaymentSetting.displayName} QR Code`}
+                          className="w-full h-auto max-w-xs mx-auto"
+                        />
+                      </div>
+                      <p className="text-center text-theme-muted text-sm mt-3">
+                        Show this QR code to the customer to complete payment
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Items to Grab */}
+                  <div className="bg-theme-secondary border border-theme rounded-lg p-4">
+                    <h3 className="font-bold text-theme mb-3 text-lg">
+                      🛍️ Items to Grab:
+                    </h3>
+                    <div className="space-y-2">
+                      {cart.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex justify-between items-center p-2 bg-theme rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <span className="text-theme font-medium">
+                              {item.product.name}
+                            </span>
+                            {item.size && (
+                              <span className="text-theme-muted ml-2">
+                                (Size: {item.size})
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-theme font-bold ml-4">
+                            x{item.quantity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer - Fixed */}
+                <div className="p-6 pt-4 border-t border-theme space-y-3">
+                  <button
+                    onClick={() => setReviewModalStep(1)}
+                    className="w-full bg-theme-tertiary text-theme py-3 rounded-lg font-semibold hover:bg-theme-tertiary transition-all"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // Calculate final tip amount
+                      let finalTip = 0;
+                      if (modalTipOption !== 'none') {
+                        if (modalTipOption === 'custom' && modalCustomTipAmount) {
+                          finalTip = Number.parseFloat(modalCustomTipAmount);
+                        } else {
+                          const base = isHookup && hookupAmount 
+                            ? Number.parseFloat(hookupAmount) 
+                            : calculateTotal();
+                          const percentage = Number.parseFloat(modalTipOption) / 100;
+                          finalTip = base * percentage;
+                        }
+                      }
+                      
+                      // Close modal
+                      setShowReviewModal(false);
+                      
+                      // Complete sale with the calculated tip
+                      await handleCompleteSaleWithTip(finalTip);
+                    }}
+                    disabled={isProcessing}
+                    className="w-full bg-success text-theme py-4 rounded-lg font-bold text-lg hover:bg-success/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+                  >
+                    {isProcessing ? "Processing..." : "Complete Sale ✓"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* QR Code Payment Modal */}
       {showQRCodeModal && selectedPaymentSetting?.qrCodeUrl && (
         <QRCodePaymentModal
@@ -1280,6 +1838,7 @@ export default function POSInterface({
           tipAmount={
             isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0
           }
+          cartItems={cart}
         />
       )}
 

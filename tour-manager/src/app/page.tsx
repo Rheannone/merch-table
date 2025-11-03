@@ -62,7 +62,7 @@ export default function Home() {
 
   // Check localStorage on client side only
   useEffect(() => {
-    const dismissed = localStorage.getItem("announcement-v1-dismissed");
+    const dismissed = localStorage.getItem("announcement-v2-dismissed");
     if (dismissed === "true") {
       setShowAnnouncement(false);
     }
@@ -765,27 +765,25 @@ export default function Home() {
 
       {/* Announcement Banner */}
       {showAnnouncement && (
-        <div className="bg-gradient-to-r from-green-600 to-green-500 border-b border-green-700">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-500 border-b border-purple-700">
           <div className="flex items-center justify-between gap-4 px-4 py-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <span className="text-2xl flex-shrink-0">🎉</span>
               <div className="flex-1 min-w-0">
                 <p className="text-white font-semibold text-sm sm:text-base">
-                  New Update: Tips & Hookups Fixed!
+                  New: Review Order Flow for All Payments!
                 </p>
-                <p className="text-green-100 text-xs sm:text-sm mt-0.5">
-                  Tip calculations now work correctly for Venmo & all payment
-                  types. Hookup discounts properly factored into transaction
-                  fees.
+                <p className="text-purple-100 text-xs sm:text-sm mt-0.5">
+                  Coffee shop-style checkout: Select tips, review your order with complete breakdown, and see transaction fees before completing any sale.
                 </p>
               </div>
             </div>
             <button
               onClick={() => {
                 setShowAnnouncement(false);
-                localStorage.setItem("announcement-v1-dismissed", "true");
+                localStorage.setItem("announcement-v2-dismissed", "true");
               }}
-              className="text-white hover:bg-green-700 transition-colors flex-shrink-0 p-2 rounded-lg bg-green-600/50 border border-green-400/30"
+              className="text-white hover:bg-purple-700 transition-colors flex-shrink-0 p-2 rounded-lg bg-purple-600/50 border border-purple-400/30"
               title="Dismiss"
             >
               <XMarkIcon className="w-6 h-6" />
@@ -873,17 +871,44 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-theme mb-2 pr-8">
               ✨ What&apos;s New
             </h2>
-            <p className="text-theme-muted mb-6">Latest features and improvements</p>
+            <p className="text-theme-muted mb-6">
+              Latest features and improvements
+            </p>
 
             {/* Changelog */}
             <div className="space-y-6">
+              {/* November 3, 2025 */}
+              <div className="border-l-4 border-purple-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-purple-500 text-white rounded">
+                    NEW
+                  </span>
+                  <span className="text-sm text-theme-muted">
+                    November 3, 2025
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  ☕ Review Order Flow
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Coffee shop-style 2-step checkout for ALL payment types</li>
+                  <li>• Step 1: Select tip percentage (5%, 10%, 20%) or custom amount</li>
+                  <li>• Step 2: Review complete order breakdown before completing</li>
+                  <li>• See transaction fees included in total to collect</li>
+                  <li>• Cash change calculation includes all fees and tips</li>
+                  <li>• Unified experience across Cash, Venmo, Card, and custom payments</li>
+                </ul>
+              </div>
+
               {/* October 30, 2025 */}
               <div className="border-l-4 border-blue-500 pl-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-2 py-0.5 text-xs font-bold bg-blue-500 text-white rounded">
                     NEW
                   </span>
-                  <span className="text-sm text-theme-muted">October 30, 2025</span>
+                  <span className="text-sm text-theme-muted">
+                    October 30, 2025
+                  </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
                   📦 Inventory Value Tracking
@@ -902,7 +927,9 @@ export default function Home() {
                   <span className="px-2 py-0.5 text-xs font-bold bg-green-500 text-white rounded">
                     FIXED
                   </span>
-                  <span className="text-sm text-theme-muted">October 29, 2025</span>
+                  <span className="text-sm text-theme-muted">
+                    October 29, 2025
+                  </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
                   🎸 Hookup & Tip Improvements
@@ -922,7 +949,9 @@ export default function Home() {
                   <span className="px-2 py-0.5 text-xs font-bold bg-purple-500 text-white rounded">
                     NEW
                   </span>
-                  <span className="text-sm text-theme-muted">October 28, 2025</span>
+                  <span className="text-sm text-theme-muted">
+                    October 28, 2025
+                  </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
                   💰 Tips Support
@@ -941,7 +970,9 @@ export default function Home() {
                   <span className="px-2 py-0.5 text-xs font-bold bg-yellow-500 text-black rounded">
                     FEATURE
                   </span>
-                  <span className="text-sm text-theme-muted">October 25, 2025</span>
+                  <span className="text-sm text-theme-muted">
+                    October 25, 2025
+                  </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
                   🎨 Theme System
@@ -956,7 +987,9 @@ export default function Home() {
               {/* Earlier Features */}
               <div className="border-l-4 border-zinc-500 pl-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm text-theme-muted">Earlier Updates</span>
+                  <span className="text-sm text-theme-muted">
+                    Earlier Updates
+                  </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
                   🚀 Core Features

@@ -65,6 +65,10 @@ export default function Analytics() {
   const [showSchemaBanner, setShowSchemaBanner] = useState(false);
   const [showRevenueInfo, setShowRevenueInfo] = useState(false);
   const [showInventoryInfo, setShowInventoryInfo] = useState(false);
+  const [revenueIncludedExpanded, setRevenueIncludedExpanded] = useState(true);
+  const [revenueExampleExpanded, setRevenueExampleExpanded] = useState(false);
+  const [inventoryFormulaExpanded, setInventoryFormulaExpanded] = useState(true);
+  const [inventoryExampleExpanded, setInventoryExampleExpanded] = useState(false);
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -361,36 +365,6 @@ export default function Analytics() {
 
         {/* Main Content */}
         <div className="bg-theme-secondary rounded-lg p-8">
-          {/* What's New Banner - Oct 28, 2025 */}
-          <div className="mb-6 p-4 bg-blue-500/10 border-2 border-blue-500 rounded-lg">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 mt-0.5">
-                <span className="inline-block px-2 py-1 text-xs font-bold bg-blue-500 text-white rounded">
-                  NEW
-                </span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-blue-400 mb-2">
-                  🎉 Updates - Oct 28, 2025
-                </p>
-                <ul className="text-sm text-theme-secondary space-y-1">
-                  <li>
-                    • <strong>Tips Support:</strong> Track tips separately in
-                    column D of Insights
-                  </li>
-                  <li>
-                    • <strong>Payment Methods:</strong> Cleaner headers (no more
-                    emojis) and auto-normalization
-                  </li>
-                  <li>
-                    • <strong>Schema Detection:</strong> Automatic warnings when
-                    Insights needs updating
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
           {/* Experimental Warning Banner */}
           <div className="mb-6 p-4 bg-theme-tertiary border border-theme rounded-lg opacity-70">
             <div className="flex items-start gap-3">
@@ -832,91 +806,128 @@ export default function Analytics() {
       {/* Revenue Info Modal */}
       {showRevenueInfo && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full p-6 relative">
+          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full max-h-[85vh] flex flex-col relative">
             {/* Close button */}
             <button
               onClick={() => setShowRevenueInfo(false)}
-              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
+              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors z-10"
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
 
-            {/* Header */}
-            <h2 className="text-2xl font-bold text-theme mb-4 pr-8">
-              💰 How Revenue is Calculated
-            </h2>
+            {/* Header - Fixed */}
+            <div className="p-6 pb-3">
+              <h2 className="text-2xl font-bold text-theme pr-8">
+                💰 How Revenue is Calculated
+              </h2>
+            </div>
 
-            {/* Content */}
-            <div className="space-y-4 text-theme">
-              <div>
-                <h3 className="font-semibold text-success mb-2">
-                  ✅ Included in Revenue:
-                </h3>
-                <ul className="list-disc list-inside space-y-1 text-sm text-theme-secondary ml-2">
-                  <li>
-                    The <strong>actual amount collected</strong> from customers
-                    (what they paid)
-                  </li>
-                  <li>All payment methods (cash, credit, Venmo, etc.)</li>
-                  <li>
-                    Sales with discounts (&quot;Hook Ups&quot;) - counted at the
-                    discounted price
-                  </li>
-                  <li>
-                    Transaction fees (e.g., 3% credit card fees) are included in
-                    the total
-                  </li>
-                </ul>
-              </div>
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto flex-1 px-6 pb-4">
+              <div className="space-y-3 text-theme">
+                {/* Included Section - Collapsible */}
+                <div className="border border-theme rounded-lg">
+                  <button
+                    onClick={() => setRevenueIncludedExpanded(!revenueIncludedExpanded)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-theme/50 transition-colors"
+                  >
+                    <h3 className="font-semibold text-success flex items-center gap-2">
+                      ✅ Included in Revenue
+                    </h3>
+                    {revenueIncludedExpanded ? (
+                      <ChevronUpIcon className="w-5 h-5 text-theme-muted" />
+                    ) : (
+                      <ChevronDownIcon className="w-5 h-5 text-theme-muted" />
+                    )}
+                  </button>
+                  {revenueIncludedExpanded && (
+                    <div className="px-3 pb-3">
+                      <ul className="list-disc list-inside space-y-1 text-sm text-theme-secondary ml-2">
+                        <li>
+                          The <strong>actual amount collected</strong> from customers
+                          (what they paid)
+                        </li>
+                        <li>All payment methods (cash, credit, Venmo, etc.)</li>
+                        <li>
+                          Sales with discounts (&quot;Hook Ups&quot;) - counted at the
+                          discounted price
+                        </li>
+                        <li>
+                          Transaction fees (e.g., 3% credit card fees) are included in
+                          the total
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
 
-              <div>
-                <h3 className="font-semibold text-yellow-400 mb-2">
-                  ⚠️ NOT Included in Revenue:
-                </h3>
-                <ul className="list-disc list-inside space-y-1 text-sm text-theme-secondary ml-2">
-                  <li>
-                    <strong>Tips</strong> - Tips are tracked separately and not
-                    counted as product revenue
-                  </li>
-                </ul>
-              </div>
+                {/* NOT Included Section - Always shown (it's short) */}
+                <div className="border border-yellow-400/30 rounded-lg p-3">
+                  <h3 className="font-semibold text-yellow-400 mb-2">
+                    ⚠️ NOT Included in Revenue:
+                  </h3>
+                  <ul className="list-disc list-inside text-sm text-theme-secondary ml-2">
+                    <li>
+                      <strong>Tips</strong> - Tips are tracked separately and not
+                      counted as product revenue
+                    </li>
+                  </ul>
+                </div>
 
-              <div className="bg-theme border border-theme rounded-lg p-4 mt-4">
-                <h3 className="font-semibold text-blue-400 mb-2">
-                  📊 Example:
-                </h3>
-                <div className="text-sm text-theme-secondary space-y-1">
-                  <p>
-                    Cart total: <span className="text-theme">$50.00</span>
-                  </p>
-                  <p>
-                    Hook up discount:{" "}
-                    <span className="text-yellow-400">-$10.00</span>
-                  </p>
-                  <p>
-                    Customer pays: <span className="text-theme">$40.00</span>
-                  </p>
-                  <p>
-                    Tip added: <span className="text-green-400">+$5.00</span>
-                  </p>
-                  <p className="pt-2 border-t border-theme mt-2">
-                    <strong>Revenue counted:</strong>{" "}
-                    <span className="text-success font-bold">$40.00</span>
-                  </p>
-                  <p className="text-xs text-theme-muted italic mt-1">
-                    (The $5 tip is tracked separately in the Tips column)
-                  </p>
+                {/* Example Section - Collapsible */}
+                <div className="bg-theme border border-theme rounded-lg">
+                  <button
+                    onClick={() => setRevenueExampleExpanded(!revenueExampleExpanded)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-theme-secondary/50 transition-colors"
+                  >
+                    <h3 className="font-semibold text-blue-400">
+                      📊 Example
+                    </h3>
+                    {revenueExampleExpanded ? (
+                      <ChevronUpIcon className="w-5 h-5 text-theme-muted" />
+                    ) : (
+                      <ChevronDownIcon className="w-5 h-5 text-theme-muted" />
+                    )}
+                  </button>
+                  {revenueExampleExpanded && (
+                    <div className="px-3 pb-3">
+                      <div className="text-sm text-theme-secondary space-y-1">
+                        <p>
+                          Cart total: <span className="text-theme">$50.00</span>
+                        </p>
+                        <p>
+                          Hook up discount:{" "}
+                          <span className="text-yellow-400">-$10.00</span>
+                        </p>
+                        <p>
+                          Customer pays: <span className="text-theme">$40.00</span>
+                        </p>
+                        <p>
+                          Tip added: <span className="text-green-400">+$5.00</span>
+                        </p>
+                        <p className="pt-2 border-t border-theme mt-2">
+                          <strong>Revenue counted:</strong>{" "}
+                          <span className="text-success font-bold">$40.00</span>
+                        </p>
+                        <p className="text-xs text-theme-muted italic mt-1">
+                          (The $5 tip is tracked separately in the Tips column)
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Close button at bottom */}
-            <button
-              onClick={() => setShowRevenueInfo(false)}
-              className="w-full mt-6 bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-            >
-              Got it!
-            </button>
+            {/* Footer - Fixed */}
+            <div className="p-6 pt-3 border-t border-theme">
+              <button
+                onClick={() => setShowRevenueInfo(false)}
+                className="w-full bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -924,101 +935,139 @@ export default function Analytics() {
       {/* Inventory Value Info Modal */}
       {showInventoryInfo && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full p-6 relative">
+          <div className="bg-theme-secondary border border-theme rounded-lg max-w-lg w-full max-h-[85vh] flex flex-col relative">
             {/* Close button */}
             <button
               onClick={() => setShowInventoryInfo(false)}
-              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
+              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors z-10"
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
 
-            {/* Header */}
-            <h2 className="text-2xl font-bold text-theme mb-4 pr-8">
-              📦 How Inventory Value is Calculated
-            </h2>
+            {/* Header - Fixed */}
+            <div className="p-6 pb-3">
+              <h2 className="text-2xl font-bold text-theme pr-8">
+                📦 How Inventory Value is Calculated
+              </h2>
+            </div>
 
-            {/* Content */}
-            <div className="space-y-4 text-theme">
-              <div>
-                <h3 className="font-semibold text-orange-400 mb-2">
-                  💡 What This Shows:
-                </h3>
-                <p className="text-sm text-theme-secondary">
-                  The total retail value of all unsold merchandise you currently
-                  have in stock. This helps you understand how much money you
-                  have &quot;sitting on the table.&quot;
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-success mb-2">
-                  🧮 Calculation Formula:
-                </h3>
-                <div className="bg-theme border border-theme rounded-lg p-3 text-sm text-theme-secondary">
-                  <code className="text-blue-400">
-                    Inventory Value = Σ (Product Price × Quantity)
-                  </code>
-                  <p className="mt-2 text-xs">
-                    For each product, we multiply its price by the total
-                    quantity across all sizes, then sum everything up.
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto flex-1 px-6 pb-4">
+              <div className="space-y-3 text-theme">
+                {/* What This Shows - Always visible (short) */}
+                <div className="border border-orange-400/30 rounded-lg p-3">
+                  <h3 className="font-semibold text-orange-400 mb-2">
+                    💡 What This Shows:
+                  </h3>
+                  <p className="text-sm text-theme-secondary">
+                    The total retail value of all unsold merchandise you currently
+                    have in stock. This helps you understand how much money you
+                    have &quot;sitting on the table.&quot;
                   </p>
                 </div>
-              </div>
 
-              <div className="bg-theme border border-theme rounded-lg p-4 mt-4">
-                <h3 className="font-semibold text-blue-400 mb-2">
-                  📊 Example Breakdown:
-                </h3>
-                <div className="text-sm text-theme-secondary space-y-2">
-                  <div>
-                    <p className="font-medium text-theme">T-Shirt ($25)</p>
-                    <p className="text-xs text-theme-muted ml-2">
-                      S: 3, M: 5, L: 2, XL: 1 = 11 total
-                    </p>
-                    <p className="ml-2">
-                      $25 × 11 = <span className="text-orange-400">$275</span>
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-theme">Hoodie ($50)</p>
-                    <p className="text-xs text-theme-muted ml-2">
-                      M: 4, L: 2 = 6 total
-                    </p>
-                    <p className="ml-2">
-                      $50 × 6 = <span className="text-orange-400">$300</span>
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-theme">Sticker ($3)</p>
-                    <p className="text-xs text-theme-muted ml-2">50 total</p>
-                    <p className="ml-2">
-                      $3 × 50 = <span className="text-orange-400">$150</span>
-                    </p>
-                  </div>
-                  <p className="pt-2 border-t border-theme mt-2">
-                    <strong>Total Inventory Value:</strong>{" "}
-                    <span className="text-orange-400 font-bold">$725</span>
+                {/* Formula Section - Collapsible */}
+                <div className="border border-theme rounded-lg">
+                  <button
+                    onClick={() => setInventoryFormulaExpanded(!inventoryFormulaExpanded)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-theme/50 transition-colors"
+                  >
+                    <h3 className="font-semibold text-success">
+                      🧮 Calculation Formula
+                    </h3>
+                    {inventoryFormulaExpanded ? (
+                      <ChevronUpIcon className="w-5 h-5 text-theme-muted" />
+                    ) : (
+                      <ChevronDownIcon className="w-5 h-5 text-theme-muted" />
+                    )}
+                  </button>
+                  {inventoryFormulaExpanded && (
+                    <div className="px-3 pb-3">
+                      <div className="bg-theme border border-theme rounded-lg p-3 text-sm text-theme-secondary">
+                        <code className="text-blue-400">
+                          Inventory Value = Σ (Product Price × Quantity)
+                        </code>
+                        <p className="mt-2 text-xs">
+                          For each product, we multiply its price by the total
+                          quantity across all sizes, then sum everything up.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Example Section - Collapsible */}
+                <div className="bg-theme border border-theme rounded-lg">
+                  <button
+                    onClick={() => setInventoryExampleExpanded(!inventoryExampleExpanded)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-theme-secondary/50 transition-colors"
+                  >
+                    <h3 className="font-semibold text-blue-400">
+                      📊 Example Breakdown
+                    </h3>
+                    {inventoryExampleExpanded ? (
+                      <ChevronUpIcon className="w-5 h-5 text-theme-muted" />
+                    ) : (
+                      <ChevronDownIcon className="w-5 h-5 text-theme-muted" />
+                    )}
+                  </button>
+                  {inventoryExampleExpanded && (
+                    <div className="px-3 pb-3">
+                      <div className="text-sm text-theme-secondary space-y-2">
+                        <div>
+                          <p className="font-medium text-theme">T-Shirt ($25)</p>
+                          <p className="text-xs text-theme-muted ml-2">
+                            S: 3, M: 5, L: 2, XL: 1 = 11 total
+                          </p>
+                          <p className="ml-2">
+                            $25 × 11 = <span className="text-orange-400">$275</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-theme">Hoodie ($50)</p>
+                          <p className="text-xs text-theme-muted ml-2">
+                            M: 4, L: 2 = 6 total
+                          </p>
+                          <p className="ml-2">
+                            $50 × 6 = <span className="text-orange-400">$300</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-theme">Sticker ($3)</p>
+                          <p className="text-xs text-theme-muted ml-2">50 total</p>
+                          <p className="ml-2">
+                            $3 × 50 = <span className="text-orange-400">$150</span>
+                          </p>
+                        </div>
+                        <p className="pt-2 border-t border-theme mt-2">
+                          <strong>Total Inventory Value:</strong>{" "}
+                          <span className="text-orange-400 font-bold">$725</span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Note */}
+                <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3">
+                  <p className="text-xs text-blue-300">
+                    <strong>💡 Note:</strong> This value is pulled directly from
+                    your Google Sheets Products tab and updates whenever you
+                    refresh the Insights data.
                   </p>
                 </div>
-              </div>
-
-              <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3">
-                <p className="text-xs text-blue-300">
-                  <strong>💡 Note:</strong> This value is pulled directly from
-                  your Google Sheets Products tab and updates whenever you
-                  refresh the Insights data.
-                </p>
               </div>
             </div>
 
-            {/* Close button at bottom */}
-            <button
-              onClick={() => setShowInventoryInfo(false)}
-              className="w-full mt-6 bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-            >
-              Got it!
-            </button>
+            {/* Footer - Fixed */}
+            <div className="p-6 pt-3 border-t border-theme">
+              <button
+                onClick={() => setShowInventoryInfo(false)}
+                className="w-full bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Got it!
+              </button>
+            </div>
           </div>
         </div>
       )}

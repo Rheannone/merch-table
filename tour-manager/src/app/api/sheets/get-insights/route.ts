@@ -128,17 +128,17 @@ export async function POST(req: NextRequest) {
       });
 
       const productRows = productsResponse.data.values || [];
-      
+
       productRows.forEach((row) => {
         const price = Number.parseFloat(row[2]) || 0;
         const inventoryJson = row[7]; // Inventory column (H)
-        
+
         if (inventoryJson) {
           try {
             const inventory = JSON.parse(inventoryJson);
             // Sum up all quantities across all sizes
             Object.values(inventory).forEach((quantity) => {
-              if (typeof quantity === 'number') {
+              if (typeof quantity === "number") {
                 inventoryValue += price * quantity;
               }
             });
