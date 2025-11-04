@@ -67,8 +67,10 @@ export default function Analytics() {
   const [showInventoryInfo, setShowInventoryInfo] = useState(false);
   const [revenueIncludedExpanded, setRevenueIncludedExpanded] = useState(true);
   const [revenueExampleExpanded, setRevenueExampleExpanded] = useState(false);
-  const [inventoryFormulaExpanded, setInventoryFormulaExpanded] = useState(true);
-  const [inventoryExampleExpanded, setInventoryExampleExpanded] = useState(false);
+  const [inventoryFormulaExpanded, setInventoryFormulaExpanded] =
+    useState(true);
+  const [inventoryExampleExpanded, setInventoryExampleExpanded] =
+    useState(false);
 
   // Check if Insights sheet already exists on component mount
   useEffect(() => {
@@ -828,7 +830,9 @@ export default function Analytics() {
                 {/* Included Section - Collapsible */}
                 <div className="border border-theme rounded-lg">
                   <button
-                    onClick={() => setRevenueIncludedExpanded(!revenueIncludedExpanded)}
+                    onClick={() =>
+                      setRevenueIncludedExpanded(!revenueIncludedExpanded)
+                    }
                     className="w-full flex items-center justify-between p-3 hover:bg-theme/50 transition-colors"
                   >
                     <h3 className="font-semibold text-success flex items-center gap-2">
@@ -844,17 +848,17 @@ export default function Analytics() {
                     <div className="px-3 pb-3">
                       <ul className="list-disc list-inside space-y-1 text-sm text-theme-secondary ml-2">
                         <li>
-                          The <strong>actual amount collected</strong> from customers
-                          (what they paid)
+                          The <strong>actual amount collected</strong> from
+                          customers (what they paid)
                         </li>
                         <li>All payment methods (cash, credit, Venmo, etc.)</li>
                         <li>
-                          Sales with discounts (&quot;Hook Ups&quot;) - counted at the
-                          discounted price
+                          Sales with discounts (&quot;Hook Ups&quot;) - counted
+                          at the discounted price
                         </li>
                         <li>
-                          Transaction fees (e.g., 3% credit card fees) are included in
-                          the total
+                          Transaction fees (e.g., 3% credit card fees) are
+                          included in the total
                         </li>
                       </ul>
                     </div>
@@ -868,8 +872,8 @@ export default function Analytics() {
                   </h3>
                   <ul className="list-disc list-inside text-sm text-theme-secondary ml-2">
                     <li>
-                      <strong>Tips</strong> - Tips are tracked separately and not
-                      counted as product revenue
+                      <strong>Tips</strong> - Tips are tracked separately and
+                      not counted as product revenue
                     </li>
                   </ul>
                 </div>
@@ -877,12 +881,12 @@ export default function Analytics() {
                 {/* Example Section - Collapsible */}
                 <div className="bg-theme border border-theme rounded-lg">
                   <button
-                    onClick={() => setRevenueExampleExpanded(!revenueExampleExpanded)}
+                    onClick={() =>
+                      setRevenueExampleExpanded(!revenueExampleExpanded)
+                    }
                     className="w-full flex items-center justify-between p-3 hover:bg-theme-secondary/50 transition-colors"
                   >
-                    <h3 className="font-semibold text-blue-400">
-                      📊 Example
-                    </h3>
+                    <h3 className="font-semibold text-blue-400">📊 Example</h3>
                     {revenueExampleExpanded ? (
                       <ChevronUpIcon className="w-5 h-5 text-theme-muted" />
                     ) : (
@@ -900,10 +904,12 @@ export default function Analytics() {
                           <span className="text-yellow-400">-$10.00</span>
                         </p>
                         <p>
-                          Customer pays: <span className="text-theme">$40.00</span>
+                          Customer pays:{" "}
+                          <span className="text-theme">$40.00</span>
                         </p>
                         <p>
-                          Tip added: <span className="text-green-400">+$5.00</span>
+                          Tip added:{" "}
+                          <span className="text-green-400">+$5.00</span>
                         </p>
                         <p className="pt-2 border-t border-theme mt-2">
                           <strong>Revenue counted:</strong>{" "}
@@ -960,16 +966,18 @@ export default function Analytics() {
                     💡 What This Shows:
                   </h3>
                   <p className="text-sm text-theme-secondary">
-                    The total retail value of all unsold merchandise you currently
-                    have in stock. This helps you understand how much money you
-                    have &quot;sitting on the table.&quot;
+                    The total retail value of all unsold merchandise you
+                    currently have in stock. This helps you understand how much
+                    money you have &quot;sitting on the table.&quot;
                   </p>
                 </div>
 
                 {/* Formula Section - Collapsible */}
                 <div className="border border-theme rounded-lg">
                   <button
-                    onClick={() => setInventoryFormulaExpanded(!inventoryFormulaExpanded)}
+                    onClick={() =>
+                      setInventoryFormulaExpanded(!inventoryFormulaExpanded)
+                    }
                     className="w-full flex items-center justify-between p-3 hover:bg-theme/50 transition-colors"
                   >
                     <h3 className="font-semibold text-success">
@@ -999,7 +1007,9 @@ export default function Analytics() {
                 {/* Example Section - Collapsible */}
                 <div className="bg-theme border border-theme rounded-lg">
                   <button
-                    onClick={() => setInventoryExampleExpanded(!inventoryExampleExpanded)}
+                    onClick={() =>
+                      setInventoryExampleExpanded(!inventoryExampleExpanded)
+                    }
                     className="w-full flex items-center justify-between p-3 hover:bg-theme-secondary/50 transition-colors"
                   >
                     <h3 className="font-semibold text-blue-400">
@@ -1015,12 +1025,15 @@ export default function Analytics() {
                     <div className="px-3 pb-3">
                       <div className="text-sm text-theme-secondary space-y-2">
                         <div>
-                          <p className="font-medium text-theme">T-Shirt ($25)</p>
+                          <p className="font-medium text-theme">
+                            T-Shirt ($25)
+                          </p>
                           <p className="text-xs text-theme-muted ml-2">
                             S: 3, M: 5, L: 2, XL: 1 = 11 total
                           </p>
                           <p className="ml-2">
-                            $25 × 11 = <span className="text-orange-400">$275</span>
+                            $25 × 11 ={" "}
+                            <span className="text-orange-400">$275</span>
                           </p>
                         </div>
                         <div>
@@ -1029,19 +1042,25 @@ export default function Analytics() {
                             M: 4, L: 2 = 6 total
                           </p>
                           <p className="ml-2">
-                            $50 × 6 = <span className="text-orange-400">$300</span>
+                            $50 × 6 ={" "}
+                            <span className="text-orange-400">$300</span>
                           </p>
                         </div>
                         <div>
                           <p className="font-medium text-theme">Sticker ($3)</p>
-                          <p className="text-xs text-theme-muted ml-2">50 total</p>
+                          <p className="text-xs text-theme-muted ml-2">
+                            50 total
+                          </p>
                           <p className="ml-2">
-                            $3 × 50 = <span className="text-orange-400">$150</span>
+                            $3 × 50 ={" "}
+                            <span className="text-orange-400">$150</span>
                           </p>
                         </div>
                         <p className="pt-2 border-t border-theme mt-2">
                           <strong>Total Inventory Value:</strong>{" "}
-                          <span className="text-orange-400 font-bold">$725</span>
+                          <span className="text-orange-400 font-bold">
+                            $725
+                          </span>
                         </p>
                       </div>
                     </div>

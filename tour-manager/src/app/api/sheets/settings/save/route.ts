@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { spreadsheetId, paymentSettings, categories, theme } =
+    const { spreadsheetId, paymentSettings, categories, theme, currency } =
       await req.json();
 
     if (!spreadsheetId) {
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       // Add headers
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: "POS Settings!A1:H1",
+        range: "POS Settings!A1:J1",
         valueInputOption: "RAW",
         requestBody: {
           values: [
@@ -98,6 +98,8 @@ export async function POST(req: NextRequest) {
               "", // Empty column F
               "Categories",
               "Theme", // Column H for theme
+              "Currency", // Column I for display currency
+              "Exchange Rate", // Column J for exchange rate
             ],
           ],
         },
@@ -184,6 +186,20 @@ export async function POST(req: NextRequest) {
         valueInputOption: "RAW",
         requestBody: {
           values: [[theme]],
+        },
+      });
+    }
+
+    // Write currency if provided
+    if (currency) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "POS Settings!I2:J2",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [
+            [currency.displayCurrency || "USD", currency.exchangeRate || 1.0],
+          ],
         },
       });
     }

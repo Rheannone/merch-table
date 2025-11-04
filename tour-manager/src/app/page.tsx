@@ -774,7 +774,9 @@ export default function Home() {
                   New: Review Order Flow for All Payments!
                 </p>
                 <p className="text-purple-100 text-xs sm:text-sm mt-0.5">
-                  Coffee shop-style checkout: Select tips, review your order with complete breakdown, and see transaction fees before completing any sale.
+                  Coffee shop-style checkout: Select tips, review your order
+                  with complete breakdown, and see transaction fees before
+                  completing any sale.
                 </p>
               </div>
             </div>
@@ -877,6 +879,45 @@ export default function Home() {
 
             {/* Changelog */}
             <div className="space-y-6">
+              {/* November 4, 2025 */}
+              <div className="border-l-4 border-emerald-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500 text-white rounded">
+                    NEW
+                  </span>
+                  <span className="text-sm text-theme-muted">
+                    November 4, 2025
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  💱 Multi-Currency Support
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>
+                    • Display prices in 7 currencies: USD, CAD, EUR, GBP, MXN,
+                    AUD, JPY
+                  </li>
+                  <li>
+                    • Perfect for touring bands - show local currency while
+                    keeping USD in sheets
+                  </li>
+                  <li>
+                    • Set custom exchange rates with live rate checker link
+                  </li>
+                  <li>
+                    • Currency-specific cash denominations (e.g., CA$5, CA$10,
+                    CA$20 for Canada)
+                  </li>
+                  <li>
+                    • All prices stored in USD for consistent reporting across
+                    tours
+                  </li>
+                  <li>
+                    • Settings persist to Google Sheets for multi-device sync
+                  </li>
+                </ul>
+              </div>
+
               {/* November 3, 2025 */}
               <div className="border-l-4 border-purple-500 pl-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -891,12 +932,22 @@ export default function Home() {
                   ☕ Review Order Flow
                 </h3>
                 <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Coffee shop-style 2-step checkout for ALL payment types</li>
-                  <li>• Step 1: Select tip percentage (5%, 10%, 20%) or custom amount</li>
-                  <li>• Step 2: Review complete order breakdown before completing</li>
+                  <li>
+                    • Coffee shop-style 2-step checkout for ALL payment types
+                  </li>
+                  <li>
+                    • Step 1: Select tip percentage (5%, 10%, 20%) or custom
+                    amount
+                  </li>
+                  <li>
+                    • Step 2: Review complete order breakdown before completing
+                  </li>
                   <li>• See transaction fees included in total to collect</li>
                   <li>• Cash change calculation includes all fees and tips</li>
-                  <li>• Unified experience across Cash, Venmo, Card, and custom payments</li>
+                  <li>
+                    • Unified experience across Cash, Venmo, Card, and custom
+                    payments
+                  </li>
                 </ul>
               </div>
 

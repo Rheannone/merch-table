@@ -7,6 +7,13 @@ import Toast, { ToastType } from "./Toast";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
 import { clearAllProducts } from "@/lib/db";
+import {
+  getCurrencySettings,
+  saveCurrencySettings,
+  CURRENCIES,
+  CurrencyCode,
+  formatPrice,
+} from "@/lib/currency";
 
 // TypeScript declarations for Google Picker API
 declare global {
@@ -54,6 +61,11 @@ export default function Settings() {
     useState(false);
   const [isGoogleSheetsExpanded, setIsGoogleSheetsExpanded] = useState(false);
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
+  const [isCurrencyExpanded, setIsCurrencyExpanded] = useState(false);
+
+  // Currency settings state
+  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>("USD");
+  const [exchangeRate, setExchangeRate] = useState<string>("1.0");
 
   // Google Sheets state
   const [currentSheetId, setCurrentSheetId] = useState<string | null>(null);
@@ -64,7 +76,62 @@ export default function Settings() {
     loadSettings();
     loadCurrentSheetInfo();
     loadGooglePickerScript();
+    loadCurrencySettings();
   }, []);
+
+  const loadCurrencySettings = () => {
+    const settings = getCurrencySettings();
+    setSelectedCurrency(settings.displayCurrency);
+    setExchangeRate(settings.exchangeRate.toString());
+  };
+
+  const handleCurrencyChange = (newCurrency: CurrencyCode) => {
+    setSelectedCurrency(newCurrency);
+    const currencyInfo = CURRENCIES[newCurrency];
+    setExchangeRate(currencyInfo.defaultRate.toString());
+  };
+
+  const handleSaveCurrency = async () => {
+    const currencyInfo = CURRENCIES[selectedCurrency];
+    const settings = {
+      displayCurrency: selectedCurrency,
+      exchangeRate: Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
+      symbol: currencyInfo.symbol,
+      code: selectedCurrency,
+    };
+
+    // Save to localStorage
+    saveCurrencySettings(settings);
+
+    // Also save to Google Sheets so it persists across devices
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (spreadsheetId) {
+        await fetch("/api/sheets/settings/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            spreadsheetId,
+            paymentSettings,
+            categories,
+            theme: selectedThemeId,
+            showTipJar,
+            currency: {
+              displayCurrency: selectedCurrency,
+              exchangeRate: Number.parseFloat(exchangeRate),
+            },
+          }),
+        });
+      }
+    } catch (error) {
+      console.error("Error saving currency to sheet:", error);
+    }
+
+    setToast({
+      message: `Currency set to ${currencyInfo.name}! Exchange rate: ${exchangeRate}`,
+      type: "success",
+    });
+  };
 
   // Load current sheet info from localStorage and fetch name if needed
   const loadCurrentSheetInfo = async () => {
@@ -145,6 +212,23 @@ export default function Settings() {
         if (data.theme && selectedThemeId === themeId) {
           setSelectedThemeId(data.theme);
         }
+
+        // Load currency settings from sheet if available
+        if (data.currency) {
+          const currencyCode = (data.currency.displayCurrency ||
+            "USD") as CurrencyCode;
+          setSelectedCurrency(currencyCode);
+          setExchangeRate((data.currency.exchangeRate || 1.0).toString());
+
+          // Update localStorage with currency from sheet
+          const currencyInfo = CURRENCIES[currencyCode];
+          saveCurrencySettings({
+            displayCurrency: currencyCode,
+            exchangeRate: data.currency.exchangeRate || 1.0,
+            symbol: currencyInfo.symbol,
+            code: currencyCode,
+          });
+        }
       } else {
         setToast({
           message: `Failed to load settings: ${data.error}`,
@@ -184,6 +268,10 @@ export default function Settings() {
           categories,
           theme: selectedThemeId,
           showTipJar,
+          currency: {
+            displayCurrency: selectedCurrency,
+            exchangeRate: Number.parseFloat(exchangeRate),
+          },
         }),
       });
 
@@ -504,6 +592,148 @@ export default function Settings() {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Currency Display Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsCurrencyExpanded(!isCurrencyExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-theme">
+                💱 Currency Display
+              </h2>
+            </div>
+            {isCurrencyExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isCurrencyExpanded && (
+            <div className="px-6 pb-6">
+              <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-300 mb-2">
+                  <strong>💡 How it works:</strong> All prices are stored in USD
+                  in your Google Sheets. This setting only changes how prices
+                  are displayed to customers.
+                </p>
+                <p className="text-sm text-blue-400">
+                  Perfect for touring! Show CAD prices in Canada, but all
+                  reporting stays in USD.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Currency Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-theme-secondary mb-2">
+                    Display Currency
+                  </label>
+                  <select
+                    value={selectedCurrency}
+                    onChange={(e) =>
+                      handleCurrencyChange(e.target.value as CurrencyCode)
+                    }
+                    className="w-full p-3 bg-theme border border-theme rounded-lg text-theme font-medium"
+                  >
+                    {Object.values(CURRENCIES).map((currency) => (
+                      <option key={currency.code} value={currency.code}>
+                        {currency.symbol} {currency.name} ({currency.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Exchange Rate */}
+                <div>
+                  <label className="block text-sm font-medium text-theme-secondary mb-2">
+                    Exchange Rate (1 USD =)
+                  </label>
+
+                  {/* Check Rates Link - Prominent */}
+                  <a
+                    href="https://www.xe.com/currencyconverter/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 mb-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/50 rounded-lg text-sm font-medium text-blue-300 hover:text-blue-200 transition-colors"
+                  >
+                    <span>🔄</span>
+                    Check Current Exchange Rates
+                    <span className="text-xs opacity-75">↗</span>
+                  </a>
+
+                  <div className="flex gap-3 items-center">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={exchangeRate}
+                      onChange={(e) => setExchangeRate(e.target.value)}
+                      className="flex-1 p-3 bg-theme border border-theme rounded-lg text-theme font-bold"
+                      placeholder="1.35"
+                    />
+                    <span className="text-theme-secondary font-medium">
+                      {CURRENCIES[selectedCurrency].symbol}
+                    </span>
+                  </div>
+                  <p className="text-xs text-theme-muted mt-2">
+                    Default: {CURRENCIES[selectedCurrency].defaultRate}{" "}
+                    (approximate Nov 2025 rate)
+                  </p>
+                </div>
+
+                {/* Preview */}
+                <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-4">
+                  <p className="text-sm text-green-300 mb-3 font-medium">
+                    💰 Preview:
+                  </p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-theme-muted">$10 USD →</span>
+                      <span className="text-theme font-bold">
+                        {formatPrice(10)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-theme-muted">$25 USD →</span>
+                      <span className="text-theme font-bold">
+                        {formatPrice(25)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-theme-muted">$50 USD →</span>
+                      <span className="text-theme font-bold">
+                        {formatPrice(50)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Apply Button */}
+                <button
+                  onClick={handleSaveCurrency}
+                  className="w-full bg-success hover:bg-success-hover text-theme font-semibold py-3 rounded-lg transition-colors"
+                >
+                  Apply Currency Settings
+                </button>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-theme-secondary border border-theme rounded-lg p-4 mt-6 opacity-70">
+                <p className="text-sm text-theme-secondary">
+                  <strong>Note:</strong> When entering product prices in
+                  Inventory, they will be displayed in your chosen currency but
+                  stored as USD. All Google Sheets data remains in USD for
+                  accurate reporting.
+                </p>
               </div>
             </div>
           )}

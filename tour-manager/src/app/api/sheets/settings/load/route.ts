@@ -122,11 +122,31 @@ export async function POST(req: NextRequest) {
       console.log("No theme found in settings, using default");
     }
 
+    // Load currency from sheet (stored in columns I and J)
+    let currency = { displayCurrency: "USD", exchangeRate: 1.0 };
+    try {
+      const currencyData = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "POS Settings!I2:J2", // Currency in columns I-J, row 2
+      });
+
+      const currencyValues = currencyData.data.values?.[0];
+      if (currencyValues && currencyValues.length >= 2) {
+        currency = {
+          displayCurrency: currencyValues[0] || "USD",
+          exchangeRate: Number.parseFloat(currencyValues[1]) || 1.0,
+        };
+      }
+    } catch {
+      console.log("No currency found in settings, using default USD");
+    }
+
     return NextResponse.json({
       success: true,
       paymentSettings,
       categories: categories.length > 0 ? categories : DEFAULT_CATEGORIES,
       theme,
+      currency,
       isDefault: false,
     });
   } catch (error) {
