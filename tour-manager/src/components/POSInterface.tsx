@@ -29,6 +29,7 @@ interface POSInterfaceProps {
 interface ToastState {
   message: string;
   type: ToastType;
+  duration?: number;
 }
 
 export default function POSInterface({
@@ -168,6 +169,7 @@ export default function POSInterface({
     setToast({
       message: `${itemName} added to cart!`,
       type: "success",
+      duration: 1000, // 1 second - quick dismiss so it doesn't block buttons
     });
   };
 
@@ -1882,6 +1884,7 @@ export default function POSInterface({
         <Toast
           message={toast.message}
           type={toast.type}
+          duration={toast.duration}
           onClose={() => setToast(null)}
         />
       )}
