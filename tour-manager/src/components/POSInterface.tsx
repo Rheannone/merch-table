@@ -524,19 +524,10 @@ export default function POSInterface({
           return;
         }
       } else {
-        // Regular cash payment - validate sufficient cash
-        const requiredAmount = selectedPaymentSetting?.transactionFee
+        // Regular cash payment
+        actualAmount = selectedPaymentSetting?.transactionFee
           ? total * (1 + selectedPaymentSetting.transactionFee)
           : total;
-
-        if (cashReceived < requiredAmount + tip) {
-          setToast({
-            message: "Not enough cash received (including tip)!",
-            type: "error",
-          });
-          return;
-        }
-        actualAmount = requiredAmount;
       }
     } else {
       // === NON-CASH PAYMENTS (Venmo, Card, Other, etc.) ===
