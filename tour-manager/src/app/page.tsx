@@ -916,6 +916,23 @@ export default function Home() {
                     • Settings persist to Google Sheets for multi-device sync
                   </li>
                 </ul>
+
+                <h3 className="text-lg font-bold text-theme mb-2 mt-4">
+                  📸 Image Upload
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>• Upload product images directly from your device</li>
+                  <li>
+                    • Auto-compression to ~50-100KB (perfect for sheets storage)
+                  </li>
+                  <li>
+                    • Images stored as base64 in Google Sheets - never expire or
+                    break
+                  </li>
+                  <li>• No external services or API keys required</li>
+                  <li>• Works offline - fits touring band lifestyle</li>
+                  <li>• Upload button in both Add and Edit product forms</li>
+                </ul>
               </div>
 
               {/* November 3, 2025 */}

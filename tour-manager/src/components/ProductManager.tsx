@@ -2,8 +2,14 @@
 
 import { Product } from "@/types";
 import { useState, useEffect, useCallback } from "react";
-import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  TrashIcon,
+  PencilIcon,
+  PhotoIcon,
+} from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
+import { compressImage, formatFileSize } from "@/lib/imageCompression";
 
 interface ProductManagerProps {
   products: Product[];
@@ -42,6 +48,8 @@ export default function ProductManager({
   }>({}); // Per-size quantities
   const [defaultQuantity, setDefaultQuantity] = useState("3"); // For non-sized products
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   const loadCategories = useCallback(async () => {
     try {
@@ -181,6 +189,79 @@ export default function ProductManager({
     setSizeQuantities(newQuantities);
   };
 
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setToast({
+        message: "Please select an image file",
+        type: "error",
+      });
+      return;
+    }
+
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setToast({
+        message: "Image must be less than 10MB",
+        type: "error",
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadProgress("Compressing image...");
+
+      // Compress image
+      const compressedFile = await compressImage(file);
+      const originalSize = formatFileSize(file.size);
+      const compressedSize = formatFileSize(compressedFile.size);
+
+      setUploadProgress(`Uploading... (${originalSize} → ${compressedSize})`);
+
+      // Upload to Imgur
+      const formData = new FormData();
+      formData.append("image", compressedFile);
+
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      // Update image URL
+      setNewProduct({ ...newProduct, imageUrl: data.url });
+
+      setToast({
+        message: "Image uploaded successfully!",
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      setToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to upload image. Please paste URL instead.",
+        type: "error",
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress("");
+      // Reset file input
+      e.target.value = "";
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto bg-theme min-h-screen">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -274,18 +355,48 @@ export default function ProductManager({
               <label className="block text-sm font-medium text-theme-secondary mb-1">
                 Image URL
               </label>
-              <input
-                type="url"
-                value={newProduct.imageUrl || ""}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, imageUrl: e.target.value })
-                }
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-2 bg-theme border border-theme text-theme rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-              <p className="text-xs text-theme-muted mt-1">
-                Optional - will be displayed as full image in POS button
-              </p>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={newProduct.imageUrl || ""}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, imageUrl: e.target.value })
+                  }
+                  placeholder="https://example.com/image.jpg"
+                  className="flex-1 px-4 py-2 bg-theme border border-theme text-theme rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+                <label className="relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={isUploading}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = e.currentTarget
+                        .previousElementSibling as HTMLInputElement;
+                      input?.click();
+                    }}
+                    disabled={isUploading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 text-white rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-2"
+                  >
+                    <PhotoIcon className="w-5 h-5" />
+                    {isUploading ? "Uploading..." : "Upload"}
+                  </button>
+                </label>
+              </div>
+              {uploadProgress && (
+                <p className="text-xs text-blue-400 mt-1">{uploadProgress}</p>
+              )}
+              {!uploadProgress && (
+                <p className="text-xs text-theme-muted mt-1">
+                  Optional - Upload an image or paste a URL
+                </p>
+              )}
 
               {/* Show text on button checkbox - only if image URL exists */}
               {newProduct.imageUrl && newProduct.imageUrl.trim().length > 0 && (
@@ -652,22 +763,53 @@ export default function ProductManager({
                           <label className="block text-sm font-medium text-theme-secondary mb-1">
                             Image URL
                           </label>
-                          <input
-                            type="url"
-                            value={newProduct.imageUrl || ""}
-                            onChange={(e) =>
-                              setNewProduct({
-                                ...newProduct,
-                                imageUrl: e.target.value,
-                              })
-                            }
-                            className="w-full px-3 py-2 bg-theme border border-theme rounded-lg text-theme focus:outline-none focus:border-red-500"
-                            placeholder="https://example.com/image.jpg"
-                          />
-                          <p className="text-xs text-theme-muted mt-1">
-                            Optional - will be displayed as full image in POS
-                            button
-                          </p>
+                          <div className="flex gap-2">
+                            <input
+                              type="url"
+                              value={newProduct.imageUrl || ""}
+                              onChange={(e) =>
+                                setNewProduct({
+                                  ...newProduct,
+                                  imageUrl: e.target.value,
+                                })
+                              }
+                              className="flex-1 px-3 py-2 bg-theme border border-theme rounded-lg text-theme focus:outline-none focus:border-red-500"
+                              placeholder="https://example.com/image.jpg"
+                            />
+                            <label className="relative">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                disabled={isUploading}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  const input = e.currentTarget
+                                    .previousElementSibling as HTMLInputElement;
+                                  input?.click();
+                                }}
+                                disabled={isUploading}
+                                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 text-white rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-2"
+                              >
+                                <PhotoIcon className="w-5 h-5" />
+                                {isUploading ? "..." : "Upload"}
+                              </button>
+                            </label>
+                          </div>
+                          {uploadProgress && (
+                            <p className="text-xs text-blue-400 mt-1">
+                              {uploadProgress}
+                            </p>
+                          )}
+                          {!uploadProgress && (
+                            <p className="text-xs text-theme-muted mt-1">
+                              Optional - Upload an image or paste a URL
+                            </p>
+                          )}
                         </div>
 
                         <div>
