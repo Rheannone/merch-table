@@ -37,18 +37,29 @@ export async function POST(req: NextRequest) {
     });
 
     // Prepare data - including inventory, showTextOnButton, and currencyPrices
-    const values = (products as Product[]).map((p) => [
-      p.id,
-      p.name,
-      p.price,
-      p.category,
-      p.sizes?.join(", ") || "",
-      p.imageUrl || "",
-      p.description || "",
-      p.inventory ? JSON.stringify(p.inventory) : "",
-      p.showTextOnButton !== false ? "TRUE" : "FALSE", // Column I: Show text on button
-      p.currencyPrices ? JSON.stringify(p.currencyPrices) : "", // Column J: Currency price overrides
-    ]);
+    // Validate image URLs for Google Sheets cell limit (50,000 characters)
+    const values = (products as Product[]).map((p) => {
+      const imageUrl = p.imageUrl || "";
+      
+      // Check if image URL is too large for Google Sheets
+      if (imageUrl.length > 50000) {
+        console.error(`❌ Product "${p.name}" has an image that's too large: ${imageUrl.length} characters`);
+        throw new Error(`Product "${p.name}" has an image that's too large (${Math.round(imageUrl.length / 1000)}KB). Please use a smaller image or external URL.`);
+      }
+      
+      return [
+        p.id,
+        p.name,
+        p.price,
+        p.category,
+        p.sizes?.join(", ") || "",
+        imageUrl,
+        p.description || "",
+        p.inventory ? JSON.stringify(p.inventory) : "",
+        p.showTextOnButton !== false ? "TRUE" : "FALSE", // Column I: Show text on button
+        p.currencyPrices ? JSON.stringify(p.currencyPrices) : "", // Column J: Currency price overrides
+      ];
+    });
 
     if (values.length > 0) {
       await sheets.spreadsheets.values.append({

@@ -37,6 +37,7 @@ export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const initializingRef = useRef(false); // Prevent multiple initializations
+  const productSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce product syncs
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]); // Add category order state
   const [activeTab, setActiveTab] = useState<
@@ -220,7 +221,13 @@ export default function Home() {
     };
 
     globalThis.addEventListener("online", handleOnline);
-    return () => globalThis.removeEventListener("online", handleOnline);
+    return () => {
+      globalThis.removeEventListener("online", handleOnline);
+      // Clean up any pending product sync timeouts
+      if (productSyncTimeoutRef.current) {
+        clearTimeout(productSyncTimeoutRef.current);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -614,9 +621,21 @@ export default function Home() {
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
 
-    // Mark products as needing sync and try to sync immediately
+    // Mark products as needing sync
     setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-    await syncProductsToSheet();
+    
+    // Debounce sync to avoid showing sync bar for rapid changes
+    // Clear any existing timeout
+    if (productSyncTimeoutRef.current) {
+      clearTimeout(productSyncTimeoutRef.current);
+    }
+    
+    // Sync will happen after 1.5 seconds of inactivity, or on page load/online event
+    productSyncTimeoutRef.current = setTimeout(() => {
+      if (navigator.onLine) {
+        syncProductsToSheet();
+      }
+    }, 1500);
   };
 
   const handleUpdateProduct = async (product: Product) => {
@@ -624,9 +643,19 @@ export default function Home() {
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
 
-    // Mark products as needing sync and try to sync immediately
+    // Mark products as needing sync
     setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-    await syncProductsToSheet();
+    
+    // Debounce sync to avoid showing sync bar for rapid changes
+    if (productSyncTimeoutRef.current) {
+      clearTimeout(productSyncTimeoutRef.current);
+    }
+    
+    productSyncTimeoutRef.current = setTimeout(() => {
+      if (navigator.onLine) {
+        syncProductsToSheet();
+      }
+    }, 1500);
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -635,9 +664,19 @@ export default function Home() {
       const updatedProducts = await getProducts();
       setProducts(updatedProducts);
 
-      // Mark products as needing sync and try to sync immediately
+      // Mark products as needing sync
       setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-      await syncProductsToSheet();
+      
+      // Debounce sync to avoid showing sync bar for rapid changes
+      if (productSyncTimeoutRef.current) {
+        clearTimeout(productSyncTimeoutRef.current);
+      }
+      
+      productSyncTimeoutRef.current = setTimeout(() => {
+        if (navigator.onLine) {
+          syncProductsToSheet();
+        }
+      }, 1500);
     }
   };
 

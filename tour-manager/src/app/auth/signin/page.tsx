@@ -2,8 +2,44 @@
 
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import { useState } from "react";
 
 export default function SignIn() {
+  // Beta interest form state
+  const [betaEmail, setBetaEmail] = useState("");
+  const [betaName, setBetaName] = useState("");
+  const [betaSubmitting, setBetaSubmitting] = useState(false);
+  const [betaMessage, setBetaMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  
+  // Handle beta interest form submission
+  const handleBetaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBetaSubmitting(true);
+    setBetaMessage(null);
+    
+    try {
+      const response = await fetch("/api/beta-interest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: betaEmail, name: betaName }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setBetaMessage({ text: data.message || "Thanks! We'll be in touch soon.", type: "success" });
+        setBetaEmail("");
+        setBetaName("");
+      } else {
+        setBetaMessage({ text: data.error || "Something went wrong. Please try again.", type: "error" });
+      }
+    } catch (error) {
+      setBetaMessage({ text: "Failed to submit. Please try again.", type: "error" });
+    } finally {
+      setBetaSubmitting(false);
+    }
+  };
+  
   return (
     <div className="min-h-screen bg-theme flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6">
@@ -88,6 +124,57 @@ export default function SignIn() {
               <span>Your data, your control - export anytime</span>
             </div>
           </div>
+        </div>
+
+        {/* Beta Interest Form */}
+        <div className="bg-theme-secondary border-2 border-primary rounded-lg p-6">
+          <h3 className="text-lg font-bold text-theme mb-3 text-center">
+            🎸 Questions or Want Early Access?
+          </h3>
+          <p className="text-sm text-center text-theme-muted mb-4">
+            Drop your email and we&apos;ll reach out!
+          </p>
+          
+          <form onSubmit={handleBetaSubmit} className="space-y-3">
+            <input
+              type="text"
+              value={betaName}
+              onChange={(e) => setBetaName(e.target.value)}
+              placeholder="Name or band name (optional)"
+              className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={betaSubmitting}
+            />
+            
+            <input
+              type="email"
+              value={betaEmail}
+              onChange={(e) => setBetaEmail(e.target.value)}
+              placeholder="your@email.com"
+              required
+              className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={betaSubmitting}
+            />
+            
+            {betaMessage && (
+              <div
+                className={`p-3 rounded text-sm ${
+                  betaMessage.type === "success"
+                    ? "bg-success/20 border border-success text-success"
+                    : "bg-error/20 border border-error text-error"
+                }`}
+              >
+                {betaMessage.text}
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={betaSubmitting}
+              className="w-full px-4 py-2 bg-primary text-on-primary font-semibold rounded hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {betaSubmitting ? "Submitting..." : "Get in Touch"}
+            </button>
+          </form>
         </div>
 
         {/* Footer */}

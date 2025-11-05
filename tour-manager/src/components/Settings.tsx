@@ -14,6 +14,7 @@ import {
   CurrencyCode,
   formatPrice,
 } from "@/lib/currency";
+import { processImageForUpload } from "@/lib/imageCompression";
 
 // TypeScript declarations for Google Picker API
 declare global {
@@ -26,6 +27,7 @@ declare global {
 interface ToastState {
   message: string;
   type: ToastType;
+  duration?: number;
 }
 
 export default function Settings() {
@@ -71,6 +73,9 @@ export default function Settings() {
   const [currentSheetId, setCurrentSheetId] = useState<string | null>(null);
   const [currentSheetName, setCurrentSheetName] = useState<string>("");
   const [isPickerLoaded, setIsPickerLoaded] = useState(false);
+
+  // QR Code upload state
+  const [uploadingQRCode, setUploadingQRCode] = useState<string | null>(null); // payment type being uploaded
 
   useEffect(() => {
     loadSettings();
@@ -203,6 +208,17 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
+        // Log loaded QR codes
+        data.paymentSettings.forEach((setting: PaymentSetting) => {
+          if (setting.qrCodeUrl) {
+            console.log(`Loaded ${setting.displayName} QR code:`, 
+              setting.qrCodeUrl.startsWith('data:') 
+                ? `Base64 (${setting.qrCodeUrl.length} chars)` 
+                : `URL: ${setting.qrCodeUrl}`
+            );
+          }
+        });
+        
         setPaymentSettings(data.paymentSettings);
         setCategories(data.categories || ["Apparel", "Merch", "Music"]);
         setShowTipJar(data.showTipJar !== false); // Default to true if not set
@@ -259,6 +275,17 @@ export default function Settings() {
         return;
       }
 
+      // Log QR codes before saving
+      paymentSettings.forEach((setting, i) => {
+        if (setting.qrCodeUrl) {
+          console.log(`Saving ${setting.displayName} QR code:`, 
+            setting.qrCodeUrl.startsWith('data:') 
+              ? `Base64 (${setting.qrCodeUrl.length} chars)` 
+              : `URL: ${setting.qrCodeUrl}`
+          );
+        }
+      });
+
       const response = await fetch("/api/sheets/settings/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -311,6 +338,63 @@ export default function Settings() {
       (updated[index] as Record<string, any>)[field] = value;
     }
     setPaymentSettings(updated);
+  };
+
+  // Handle QR code image upload (convert to base64 with compression)
+  const handleQRCodeUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setToast({
+        message: "Please select an image file",
+        type: "error",
+      });
+      return;
+    }
+
+    // Validate file size (5MB limit for QR codes)
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({
+        message: "Image must be less than 5MB",
+        type: "error",
+      });
+      return;
+    }
+
+    try {
+      const paymentType = paymentSettings[index].paymentType;
+      setUploadingQRCode(paymentType);
+
+      // Use unified image processing utility
+      const { base64, originalSize, compressedSize } = await processImageForUpload(file);
+      
+      console.log(`✅ QR code compressed for ${paymentType}: ${originalSize} → ${compressedSize} (${base64.length} chars)`);
+      
+      updatePaymentSetting(index, "qrCodeUrl", base64);
+      setUploadingQRCode(null);
+      setToast({
+        message: `QR code uploaded (${originalSize} → ${compressedSize})! Click 'Save Settings' to persist.`,
+        type: "success",
+        duration: 4000,
+      });
+      
+      // Reset the file input so the same file can be re-uploaded if needed
+      e.target.value = '';
+    } catch (error) {
+      setUploadingQRCode(null);
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload QR code";
+      setToast({
+        message: errorMessage,
+        type: "error",
+        duration: 5000,
+      });
+      e.target.value = '';
+    }
   };
 
   // Open Google Picker to select a spreadsheet
@@ -562,16 +646,73 @@ export default function Settings() {
                           </div>
                         )}
 
-                        {/* QR Code URL (for venmo and custom) */}
+                        {/* QR Code Image (for venmo, other, and custom) */}
                         {(setting.paymentType === "venmo" ||
+                          setting.paymentType === "other" ||
                           setting.paymentType.startsWith("custom")) && (
-                          <div>
+                          <div className="space-y-3">
                             <label className="block text-sm font-medium text-theme-secondary mb-1">
-                              QR Code Image URL (optional)
+                              QR Code Image (optional)
                             </label>
+
+                            {/* Preview current QR code if exists */}
+                            {setting.qrCodeUrl && (
+                              <div className="mb-3">
+                                <div className="bg-white p-3 rounded-lg inline-block">
+                                  <img
+                                    src={setting.qrCodeUrl}
+                                    alt="QR Code Preview"
+                                    className="w-32 h-32 object-contain"
+                                  />
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    updatePaymentSetting(
+                                      index,
+                                      "qrCodeUrl",
+                                      undefined
+                                    )
+                                  }
+                                  className="ml-3 px-3 py-1 text-sm bg-red-900/40 hover:bg-red-900/60 text-primary rounded"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Upload button */}
+                            <div className="flex gap-2">
+                              <label className="flex-1 px-4 py-2 bg-secondary text-on-secondary rounded-lg font-medium cursor-pointer hover:bg-secondary/90 transition-all text-center">
+                                {uploadingQRCode === setting.paymentType
+                                  ? "Uploading..."
+                                  : setting.qrCodeUrl
+                                  ? "Change QR Code"
+                                  : "Upload QR Code"}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) =>
+                                    handleQRCodeUpload(e, index)
+                                  }
+                                  disabled={
+                                    uploadingQRCode === setting.paymentType
+                                  }
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+
+                            {/* Alternative: URL input */}
+                            <div className="text-center text-xs text-theme-muted">
+                              — or enter URL —
+                            </div>
                             <input
                               type="url"
-                              value={setting.qrCodeUrl || ""}
+                              value={
+                                setting.qrCodeUrl?.startsWith("data:")
+                                  ? ""
+                                  : setting.qrCodeUrl || ""
+                              }
                               onChange={(e) =>
                                 updatePaymentSetting(
                                   index,
@@ -581,10 +722,13 @@ export default function Settings() {
                               }
                               className="w-full px-3 py-2 input-theme rounded"
                               placeholder="https://example.com/qr-code.png"
+                              disabled={
+                                uploadingQRCode === setting.paymentType
+                              }
                             />
-                            <p className="text-xs text-theme-muted mt-1">
-                              If set, a popup with the QR code will be shown
-                              during checkout
+                            <p className="text-xs text-theme-muted">
+                              Upload an image or paste a URL. A popup with the
+                              QR code will be shown during checkout.
                             </p>
                           </div>
                         )}
@@ -1146,6 +1290,7 @@ export default function Settings() {
         <Toast
           message={toast.message}
           type={toast.type}
+          duration={toast.duration}
           onClose={() => setToast(null)}
         />
       )}

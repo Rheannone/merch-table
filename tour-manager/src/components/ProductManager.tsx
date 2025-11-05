@@ -9,7 +9,7 @@ import {
   PhotoIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
-import { compressImage, formatFileSize } from "@/lib/imageCompression";
+import { processImageForUpload } from "@/lib/imageCompression";
 import { CURRENCIES, type CurrencyCode } from "@/lib/currency";
 
 interface ProductManagerProps {
@@ -233,7 +233,7 @@ export default function ProductManager({
       return;
     }
 
-    // Validate file size (10MB limit)
+    // Validate file size (10MB limit before compression)
     if (file.size > 10 * 1024 * 1024) {
       setToast({
         message: "Image must be less than 10MB",
@@ -246,35 +246,20 @@ export default function ProductManager({
       setIsUploading(true);
       setUploadProgress("Compressing image...");
 
-      // Compress image
-      const compressedFile = await compressImage(file);
-      const originalSize = formatFileSize(file.size);
-      const compressedSize = formatFileSize(compressedFile.size);
+      // Use unified image processing utility
+      const { base64, originalSize, compressedSize } = await processImageForUpload(file);
 
-      setUploadProgress(`Uploading... (${originalSize} → ${compressedSize})`);
+      setUploadProgress(`Processed (${originalSize} → ${compressedSize})`);
 
-      // Upload to Imgur
-      const formData = new FormData();
-      formData.append("image", compressedFile);
-
-      const response = await fetch("/api/upload-image", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Upload failed");
-      }
-
-      // Update image URL
-      setNewProduct({ ...newProduct, imageUrl: data.url });
+      // Update image URL with base64
+      setNewProduct({ ...newProduct, imageUrl: base64 });
 
       setToast({
-        message: "Image uploaded successfully!",
+        message: `Image uploaded! (${originalSize} → ${compressedSize})`,
         type: "success",
       });
+      
+      console.log(`✅ Product image compressed: ${originalSize} → ${compressedSize} (${base64.length} chars)`);
     } catch (error) {
       console.error("Upload error:", error);
       setToast({
