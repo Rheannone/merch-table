@@ -1,4 +1,4 @@
-# 🧡 FOLDING TABLE
+# 🧡 MERCH TABLE
 
 **Road-ready POS for bands on tour.**
 

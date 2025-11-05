@@ -1,11 +1,11 @@
 {
-  "name": "FOLDING TABLE",
-  "short_name": "FOLDING TABLE",
+  "name": "MERCH TABLE",
+  "short_name": "MERCH TABLE",
   "description": "Road-ready POS for bands on tour. Track sales, manage inventory, stay focused on the show.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#111111",
-  "theme_color": "#ff6a00",
+  "theme_color": "#111111",
   "orientation": "portrait",
   "icons": [
     {

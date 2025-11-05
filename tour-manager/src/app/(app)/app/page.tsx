@@ -323,7 +323,7 @@ export default function Home() {
               storedProductsSheetId = findData.spreadsheetId;
               storedSalesSheetId = findData.spreadsheetId;
               console.log(
-                "✅ Found existing FOLDING TABLE spreadsheet!",
+                "✅ Found existing MERCH TABLE spreadsheet!",
                 findData.spreadsheetId
               );
             } else {
@@ -919,7 +919,7 @@ export default function Home() {
 
             {/* Changelog */}
             <div className="space-y-6">
-              {/* November 5, 2025 - FOLDING TABLE Rebrand */}
+              {/* November 5, 2025 - MERCH TABLE Rebrand */}
               <div className="border-l-4 border-primary pl-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-2 py-0.5 text-xs font-bold bg-primary text-black rounded">
@@ -930,7 +930,7 @@ export default function Home() {
                   </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
-                  🧡 Welcome to FOLDING TABLE
+                  🧡 Welcome to MERCH TABLE
                 </h3>
                 <ul className="space-y-1 text-sm text-theme-secondary">
                   <li>
@@ -953,7 +953,7 @@ export default function Home() {
                     • All functionality stays the same - just looks better
                   </li>
                   <li>
-                    • Multiple themes still available in Settings (Folding
+                    • Multiple themes still available in Settings (Merch
                     Table, Default, Girlypop)
                   </li>
                 </ul>

@@ -2,7 +2,7 @@
 
 ## Overview
 
-FOLDING TABLE uses a fully dynamic theming system that allows for easy theme switching and future customization. All colors are defined through CSS variables and theme utility classes, not hardcoded hex values.
+MERCH TABLE uses a fully dynamic theming system that allows for easy theme switching and future customization. All colors are defined through CSS variables and theme utility classes, not hardcoded hex values.
 
 ## How It Works
 
@@ -31,8 +31,8 @@ Instead of using arbitrary hex values like `text-[#111111]`, we use semantic cla
 - `.bg-theme` - Main background
 - `.bg-theme-secondary` - Surface/card backgrounds
 - `.bg-theme-tertiary` - Hover states
-- `.bg-primary` - Primary action color (Safety Orange in FOLDING TABLE)
-- `.bg-secondary` - Secondary action color (Indigo purple in FOLDING TABLE)
+- `.bg-primary` - Primary action color (Safety Orange in MERCH TABLE)
+- `.bg-secondary` - Secondary action color (Indigo purple in MERCH TABLE)
 - `.bg-success` - Success states (Bright green)
 - `.bg-error` - Error states (Bright red)
 
@@ -58,7 +58,7 @@ Instead of using arbitrary hex values like `text-[#111111]`, we use semantic cla
 - `.border-secondary` - Secondary color borders
 - `.border-accent-light` - Light accent borders
 
-## FOLDING TABLE Theme Colors
+## MERCH TABLE Theme Colors
 
 ### Current Color Palette
 

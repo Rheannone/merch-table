@@ -1,14 +1,14 @@
-# 🧡 FOLDING TABLE Rebrand - November 5, 2025
+# 🧡 MERCH TABLE Rebrand - November 5, 2025
 
 ## Overview
 
-Complete visual rebrand from generic "Band Merch POS" to **FOLDING TABLE** - a road-ready brand identity for touring bands.
+Complete visual rebrand from generic "Band Merch POS" to **MERCH TABLE** - a road-ready brand identity for touring bands.
 
 ## Brand Identity
 
 ### Name
 
-**FOLDING TABLE** - Represents the literal folding tables bands set up at venues to sell merch. Direct, memorable, authentic to the touring experience.
+**MERCH TABLE** - Represents the literal folding tables bands set up at venues to sell merch. Direct, memorable, authentic to the touring experience.
 
 ### Colors
 
@@ -37,7 +37,7 @@ Complete visual rebrand from generic "Band Merch POS" to **FOLDING TABLE** - a r
 
 ### Core Configuration
 
-- ✅ `/src/app/globals.css` - Added CSS variables, FOLDING TABLE utilities, Google Fonts
+- ✅ `/src/app/globals.css` - Added CSS variables, MERCH TABLE utilities, Google Fonts
 - ✅ `/src/lib/themes.ts` - Added `foldingtable` theme, set as default
 - ✅ `/src/app/layout.tsx` - Updated metadata and app titles
 - ✅ `/public/manifest.json` - Updated PWA manifest with new branding
@@ -45,14 +45,14 @@ Complete visual rebrand from generic "Band Merch POS" to **FOLDING TABLE** - a r
 
 ### User-Facing Content
 
-- ✅ `/src/app/page.tsx` - Updated header to "FOLDING TABLE", added rebrand to What's New
+- ✅ `/src/app/page.tsx` - Updated header to "MERCH TABLE", added rebrand to What's New
 - ✅ `/src/components/Settings.tsx` - Updated footer tagline
-- ✅ `/public/offline.html` - Updated offline page with FOLDING TABLE branding
+- ✅ `/public/offline.html` - Updated offline page with MERCH TABLE branding
 - ✅ `/README.md` - Updated project description
 
 ### Console Messages
 
-- ✅ Updated spreadsheet detection message to reference FOLDING TABLE
+- ✅ Updated spreadsheet detection message to reference MERCH TABLE
 
 ## CSS Variables Added
 
@@ -125,7 +125,7 @@ New theme added to `/src/lib/themes.ts`:
 ```typescript
 foldingtable: {
   id: "foldingtable",
-  name: "Folding Table",
+  name: "Merch Table",
   description: "Road-ready, Safety Orange for bands on tour",
   emoji: "🧡",
   colors: {
@@ -166,7 +166,7 @@ foldingtable: {
 
 ### Theme System
 
-- ✅ Multiple themes still available (Folding Table, Default, Girlypop)
+- ✅ Multiple themes still available (Merch Table, Default, Girlypop)
 - ✅ Theme switching still works in Settings
 - ✅ Existing theme CSS variables maintained for compatibility
 - ✅ Theme persistence to Google Sheets unchanged
@@ -182,7 +182,7 @@ foldingtable: {
 
 ### Visual
 
-- [ ] Header displays "FOLDING TABLE" correctly
+- [ ] Header displays "MERCH TABLE" correctly
 - [ ] Safety Orange primary color shows on buttons
 - [ ] Dark background (#111111) applied correctly
 - [ ] Text contrast is readable
@@ -190,8 +190,8 @@ foldingtable: {
 
 ### Themes
 
-- [ ] FOLDING TABLE theme is default on first load
-- [ ] Can switch between Folding Table, Default, and Girlypop themes
+- [ ] MERCH TABLE theme is default on first load
+- [ ] Can switch between Merch Table, Default, and Girlypop themes
 - [ ] Theme selection persists to Google Sheets
 - [ ] Theme selection persists across page refreshes
 
@@ -221,7 +221,7 @@ foldingtable: {
 
 ### Logo/Wordmark
 
-- [ ] Design official FOLDING TABLE wordmark
+- [ ] Design official MERCH TABLE wordmark
 - [ ] Create simple line art of folding table with orange underline
 - [ ] Generate app icons (192x192, 512x512) with new logo
 - [ ] Add favicon
@@ -234,7 +234,7 @@ foldingtable: {
 
 ### Documentation
 
-- [ ] Update all documentation with FOLDING TABLE name
+- [ ] Update all documentation with MERCH TABLE name
 - [ ] Create brand guidelines document
 - [ ] Document color usage patterns
 

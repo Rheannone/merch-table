@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 :root {
-  /* FOLDING TABLE Brand Colors - Based on curated palette */
+  /* MERCH TABLE Brand Colors - Based on curated palette */
   --ft-bg: #111111; /* Night */
   --ft-surface: #181818; /* Eerie black */
   --ft-surface-hover: #1f1f1f;
@@ -27,7 +27,7 @@
   --ft-accent-purple-hover: #5a1a8f;
   --ft-overlay: rgba(17, 17, 17, 0.9);
 
-  /* Theme system compatibility - map FOLDING TABLE colors to existing theme variables */
+  /* Theme system compatibility - map MERCH TABLE colors to existing theme variables */
   --color-background: var(--ft-bg);
   --color-background-secondary: var(--ft-surface);
   --color-background-tertiary: var(--ft-surface-hover);
@@ -60,13 +60,13 @@
   --background: var(--color-background);
   --foreground: var(--color-foreground);
 
-  /* FOLDING TABLE Typography */
+  /* MERCH TABLE Typography */
   --font-display: "Bebas Neue", "Impact", sans-serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   --font-mono: "IBM Plex Mono", "Courier New", monospace;
 
-  /* FOLDING TABLE Spacing & Borders */
+  /* MERCH TABLE Spacing & Borders */
   --radius-ft: 0.75rem;
   --shadow-ft-panel: 0 8px 24px rgba(0, 0, 0, 0.25);
   --shadow-ft-button: 0 4px 12px rgba(255, 106, 0, 0.2);
@@ -245,7 +245,7 @@ body {
   transition: transform 0.2s ease;
 }
 
-/* FOLDING TABLE Brand Utilities */
+/* MERCH TABLE Brand Utilities */
 .ft-heading {
   font-family: var(--font-display);
   font-weight: 400;
@@ -340,7 +340,7 @@ body {
   color: var(--ft-text-muted);
 }
 
-/* FOLDING TABLE specific theme styling */
+/* MERCH TABLE specific theme styling */
 [data-theme="foldingtable"] {
   background-attachment: fixed;
 }

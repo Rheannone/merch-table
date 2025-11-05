@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CreditCardIcon,
+  CurrencyDollarIcon,
+  Square3Stack3DIcon,
+  TableCellsIcon,
+  CircleStackIcon,
+  PaintBrushIcon,
+  ArrowDownTrayIcon,
+} from "@heroicons/react/24/outline";
 import { PaymentSetting } from "@/types";
 import Toast, { ToastType } from "./Toast";
 import { useTheme } from "./ThemeProvider";
@@ -77,12 +87,88 @@ export default function Settings() {
   // QR Code upload state
   const [uploadingQRCode, setUploadingQRCode] = useState<string | null>(null); // payment type being uploaded
 
+  // Backup state
+  const [isBackupExpanded, setIsBackupExpanded] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+
+  // Unsaved changes tracking
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [originalPaymentSettings, setOriginalPaymentSettings] = useState<
+    PaymentSetting[]
+  >([]);
+  const [originalCategories, setOriginalCategories] = useState<string[]>([]);
+  const [originalShowTipJar, setOriginalShowTipJar] = useState(true);
+  const [originalCurrency, setOriginalCurrency] = useState<CurrencyCode>("USD");
+  const [originalExchangeRate, setOriginalExchangeRate] =
+    useState<string>("1.0");
+
   useEffect(() => {
     loadSettings();
     loadCurrentSheetInfo();
     loadGooglePickerScript();
     loadCurrencySettings();
   }, []);
+
+  // Detect changes
+  useEffect(() => {
+    const paymentChanged =
+      JSON.stringify(paymentSettings) !==
+      JSON.stringify(originalPaymentSettings);
+    const categoriesChanged =
+      JSON.stringify(categories) !== JSON.stringify(originalCategories);
+    const tipJarChanged = showTipJar !== originalShowTipJar;
+    const themeChanged = selectedThemeId !== themeId;
+    const currencyChanged = selectedCurrency !== originalCurrency;
+    const rateChanged = exchangeRate !== originalExchangeRate;
+
+    const hasChanges =
+      paymentChanged ||
+      categoriesChanged ||
+      tipJarChanged ||
+      themeChanged ||
+      currencyChanged ||
+      rateChanged;
+
+    setHasUnsavedChanges(hasChanges);
+  }, [
+    paymentSettings,
+    originalPaymentSettings,
+    categories,
+    originalCategories,
+    showTipJar,
+    originalShowTipJar,
+    selectedThemeId,
+    themeId,
+    selectedCurrency,
+    originalCurrency,
+    exchangeRate,
+    originalExchangeRate,
+  ]);
+
+  // Helper to check if specific section has changes
+  const sectionHasChanges = (section: string) => {
+    switch (section) {
+      case "payment":
+        return (
+          JSON.stringify(paymentSettings) !==
+            JSON.stringify(originalPaymentSettings) ||
+          showTipJar !== originalShowTipJar
+        );
+      case "currency":
+        return (
+          selectedCurrency !== originalCurrency ||
+          exchangeRate !== originalExchangeRate
+        );
+      case "categories":
+        return (
+          JSON.stringify(categories) !== JSON.stringify(originalCategories)
+        );
+      case "theme":
+        return selectedThemeId !== themeId;
+      default:
+        return false;
+    }
+  };
 
   const loadCurrencySettings = () => {
     const settings = getCurrencySettings();
@@ -94,48 +180,6 @@ export default function Settings() {
     setSelectedCurrency(newCurrency);
     const currencyInfo = CURRENCIES[newCurrency];
     setExchangeRate(currencyInfo.defaultRate.toString());
-  };
-
-  const handleSaveCurrency = async () => {
-    const currencyInfo = CURRENCIES[selectedCurrency];
-    const settings = {
-      displayCurrency: selectedCurrency,
-      exchangeRate: Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
-      symbol: currencyInfo.symbol,
-      code: selectedCurrency,
-    };
-
-    // Save to localStorage
-    saveCurrencySettings(settings);
-
-    // Also save to Google Sheets so it persists across devices
-    try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (spreadsheetId) {
-        await fetch("/api/sheets/settings/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            spreadsheetId,
-            paymentSettings,
-            categories,
-            theme: selectedThemeId,
-            showTipJar,
-            currency: {
-              displayCurrency: selectedCurrency,
-              exchangeRate: Number.parseFloat(exchangeRate),
-            },
-          }),
-        });
-      }
-    } catch (error) {
-      console.error("Error saving currency to sheet:", error);
-    }
-
-    setToast({
-      message: `Currency set to ${currencyInfo.name}! Exchange rate: ${exchangeRate}`,
-      type: "success",
-    });
   };
 
   // Load current sheet info from localStorage and fetch name if needed
@@ -224,6 +268,15 @@ export default function Settings() {
         setCategories(data.categories || ["Apparel", "Merch", "Music"]);
         setShowTipJar(data.showTipJar !== false); // Default to true if not set
 
+        // Store original values for change detection (deep clone to avoid reference issues)
+        setOriginalPaymentSettings(
+          JSON.parse(JSON.stringify(data.paymentSettings))
+        );
+        setOriginalCategories([
+          ...(data.categories || ["Apparel", "Merch", "Music"]),
+        ]);
+        setOriginalShowTipJar(data.showTipJar !== false);
+
         // Load theme if provided - but only update if user hasn't selected a different theme to preview
         // This prevents overwriting the user's preview selection
         if (data.theme && selectedThemeId === themeId) {
@@ -236,6 +289,12 @@ export default function Settings() {
             "USD") as CurrencyCode;
           setSelectedCurrency(currencyCode);
           setExchangeRate((data.currency.exchangeRate || 1.0).toString());
+
+          // Store original currency values
+          setOriginalCurrency(currencyCode);
+          setOriginalExchangeRate(
+            (data.currency.exchangeRate || 1.0).toString()
+          );
 
           // Update localStorage with currency from sheet
           const currencyInfo = CURRENCIES[currencyCode];
@@ -307,6 +366,23 @@ export default function Settings() {
       const data = await response.json();
 
       if (response.ok) {
+        // Update originals to match current state (deep clone to avoid reference issues)
+        setOriginalPaymentSettings(JSON.parse(JSON.stringify(paymentSettings)));
+        setOriginalCategories([...categories]);
+        setOriginalShowTipJar(showTipJar);
+        setOriginalCurrency(selectedCurrency);
+        setOriginalExchangeRate(exchangeRate);
+
+        // Save currency to localStorage so it persists across sessions
+        const currencyInfo = CURRENCIES[selectedCurrency];
+        saveCurrencySettings({
+          displayCurrency: selectedCurrency,
+          exchangeRate:
+            Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
+          symbol: currencyInfo.symbol,
+          code: selectedCurrency,
+        });
+
         setToast({
           message: "Settings saved successfully!",
           type: "success",
@@ -476,6 +552,49 @@ export default function Settings() {
     }
   };
 
+  // Create backup of current spreadsheet
+  const handleCreateBackup = async () => {
+    if (!currentSheetId) {
+      setToast({
+        message: "No spreadsheet found to backup.",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsCreatingBackup(true);
+    try {
+      const response = await fetch("/api/sheets/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId: currentSheetId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setToast({
+          message: `✅ Backup created successfully! "${data.backupName}"`,
+          type: "success",
+          duration: 5000,
+        });
+      } else {
+        throw new Error(data.error || "Failed to create backup");
+      }
+    } catch (error) {
+      console.error("Error creating backup:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to create backup";
+      setToast({
+        message: errorMessage,
+        type: "error",
+        duration: 5000,
+      });
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-theme">
@@ -486,26 +605,53 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-theme p-3 sm:p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-6">
+      {/* Sticky Unsaved Changes Bar */}
+      {hasUnsavedChanges && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-primary shadow-lg">
+          <div className="px-4 py-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 max-w-7xl mx-auto">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="bg-on-primary rounded-full p-1 flex-shrink-0">
+                  <svg
+                    className="w-4 h-4 text-primary"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <p className="text-on-primary font-bold text-sm">
+                  Unsaved changes
+                </p>
+              </div>
+              <button
+                onClick={saveSettings}
+                disabled={isSaving}
+                className="w-full sm:w-auto px-6 py-2.5 bg-black text-primary border-2 border-black font-bold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 hover:bg-black/90 flex items-center justify-center gap-2 shadow-lg"
+              >
+                {!isSaving && <ArrowDownTrayIcon className="w-5 h-5" />}
+                {isSaving ? "Saving..." : "Save Settings"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`max-w-4xl mx-auto ${
+          hasUnsavedChanges ? "pt-24 sm:pt-20" : ""
+        }`}
+      >
+        <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-theme">
-            ⚙️ Settings
+            Settings
           </h1>
-          <button
-            onClick={saveSettings}
-            disabled={isSaving}
-            className={`w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-success text-theme font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
-              selectedThemeId !== themeId
-                ? "animate-pulse ring-2 ring-success"
-                : ""
-            }`}
-          >
-            {isSaving
-              ? "Saving..."
-              : selectedThemeId !== themeId
-              ? "💾 Save Theme Changes"
-              : "💾 Save Settings"}
-          </button>
         </div>
 
         {/* Payment Options Section */}
@@ -518,9 +664,11 @@ export default function Settings() {
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-theme">
-                💳 Payment Options
-              </h2>
+              <CreditCardIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Payment Options</h2>
+              {sectionHasChanges("payment") && (
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
             </div>
             {isPaymentOptionsExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -751,9 +899,13 @@ export default function Settings() {
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
+              <CurrencyDollarIcon className="w-7 h-7 text-primary" />
               <h2 className="text-2xl font-bold text-theme">
-                💱 Currency Display
+                Currency Display
               </h2>
+              {sectionHasChanges("currency") && (
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
             </div>
             {isCurrencyExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -862,14 +1014,6 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
-
-                {/* Apply Button */}
-                <button
-                  onClick={handleSaveCurrency}
-                  className="w-full bg-success hover:bg-success-hover text-theme font-semibold py-3 rounded-lg transition-colors"
-                >
-                  Apply Currency Settings
-                </button>
               </div>
 
               {/* Info Box */}
@@ -895,9 +1039,13 @@ export default function Settings() {
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
+              <Square3Stack3DIcon className="w-7 h-7 text-primary" />
               <h2 className="text-2xl font-bold text-theme">
-                📦 Product Categories
+                Product Categories
               </h2>
+              {sectionHasChanges("categories") && (
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
             </div>
             {isProductCategoriesExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -1037,9 +1185,8 @@ export default function Settings() {
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-theme">
-                📊 Google Sheets
-              </h2>
+              <TableCellsIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Google Sheets</h2>
             </div>
             {isGoogleSheetsExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -1114,6 +1261,92 @@ export default function Settings() {
           )}
         </div>
 
+        {/* Backup Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsBackupExpanded(!isBackupExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <CircleStackIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Backup Data</h2>
+            </div>
+            {isBackupExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isBackupExpanded && (
+            <div className="px-6 pb-6">
+              <p className="text-sm text-theme-muted mb-6">
+                Create a complete backup of your current spreadsheet. The backup
+                will be saved as a new Google Sheet with all your data.
+              </p>
+
+              {currentSheetId ? (
+                <div className="space-y-4">
+                  {/* Backup Action */}
+                  <div className="bg-theme-tertiary rounded-lg p-6 border border-theme text-center">
+                    <div className="mb-4">
+                      <div className="text-4xl mb-3">💾</div>
+                      <h3 className="text-lg font-semibold text-theme mb-2">
+                        Create Backup
+                      </h3>
+                      <p className="text-sm text-theme-muted mb-4">
+                        Backup will be named:{" "}
+                        <span className="font-mono text-theme">
+                          {new Date().toISOString().split("T")[0]}
+                          -tour-manager-backup
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCreateBackup}
+                      disabled={isCreatingBackup}
+                      className="px-6 py-3 bg-success text-theme font-semibold rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-success/90 active:scale-95"
+                    >
+                      {isCreatingBackup
+                        ? "Creating Backup..."
+                        : "📦 Create Backup"}
+                    </button>
+                  </div>
+
+                  {/* Info Box */}
+                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+                    <p className="text-sm text-blue-300 mb-2">
+                      ℹ️ <strong>What gets backed up:</strong>
+                    </p>
+                    <ul className="text-sm text-blue-200 space-y-1 ml-4 list-disc">
+                      <li>All products and inventory</li>
+                      <li>All sales history</li>
+                      <li>Payment settings and categories</li>
+                      <li>Currency preferences</li>
+                    </ul>
+                    <p className="text-xs text-blue-300 mt-3">
+                      💡 The backup will appear in your Google Drive. You can
+                      switch to it anytime using the &quot;Change Sheet&quot;
+                      option above.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-theme-muted mb-2">
+                    No spreadsheet to backup
+                  </p>
+                  <p className="text-sm text-theme-muted">
+                    Please initialize or select a sheet first.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Theme Selection Section */}
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
           {/* Collapsible Header */}
@@ -1122,7 +1355,11 @@ export default function Settings() {
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
           >
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-theme">🎨 Theme</h2>
+              <PaintBrushIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Theme</h2>
+              {sectionHasChanges("theme") && (
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
             </div>
             {isThemeExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -1241,25 +1478,6 @@ export default function Settings() {
           )}
         </div>
 
-        {/* Save Button at bottom */}
-        <div className="flex justify-end">
-          <button
-            onClick={saveSettings}
-            disabled={isSaving}
-            className={`px-6 py-3 bg-success text-theme font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
-              selectedThemeId !== themeId
-                ? "animate-pulse ring-2 ring-success"
-                : ""
-            }`}
-          >
-            {isSaving
-              ? "Saving..."
-              : selectedThemeId !== themeId
-              ? "💾 Save Theme Changes"
-              : "💾 Save Settings"}
-          </button>
-        </div>
-
         {/* Legal Links */}
         <div className="mt-8 pt-6 border-t border-theme">
           <div className="flex flex-wrap gap-4 justify-center text-sm">
@@ -1282,7 +1500,7 @@ export default function Settings() {
             </a>
           </div>
           <p className="text-center text-xs text-theme-muted mt-3 opacity-60">
-            FOLDING TABLE • Road-ready POS for bands on tour
+            MERCH TABLE • Road-ready POS for bands on tour
           </p>
         </div>
       </div>
