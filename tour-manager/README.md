@@ -1,8 +1,8 @@
-# 🎸 Band Merch POSThis is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🧡 FOLDING TABLE
 
-# 🎸 Merch Table
+**Road-ready POS for bands on tour.**
 
-A modern, offline-first Point of Sale system for band merchandise sales on tour. Built with Next.js 16, React 19, and Google Sheets integration.## Getting Started
+A modern, offline-first Point of Sale system for band merchandise sales. Built with Next.js 16, React 19, and Google Sheets integration. Track sales, manage inventory, stay focused on the show.## Getting Started
 
 ## ✨ FeaturesFirst, run the development server:
 

@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
+import { CURRENCIES, type CurrencyCode } from "@/lib/currency";
 
 interface ProductManagerProps {
   products: Product[];
@@ -50,6 +51,9 @@ export default function ProductManager({
   const [toast, setToast] = useState<ToastState | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [currencyPrices, setCurrencyPrices] = useState<{
+    [currencyCode: string]: string;
+  }>({}); // Currency price overrides
 
   const loadCategories = useCallback(async () => {
     try {
@@ -108,6 +112,15 @@ export default function ProductManager({
       inventory.default = Number.parseInt(defaultQuantity) || 0;
     }
 
+    // Build currency price overrides
+    const currencyPriceOverrides: { [key: string]: number } = {};
+    Object.entries(currencyPrices).forEach(([code, priceStr]) => {
+      const price = Number.parseFloat(priceStr);
+      if (!Number.isNaN(price) && price > 0) {
+        currencyPriceOverrides[code] = price;
+      }
+    });
+
     const product: Product = {
       id:
         editingProduct?.id ||
@@ -122,6 +135,10 @@ export default function ProductManager({
       showTextOnButton: newProduct.showTextOnButton !== false, // default true
       sizes: sizesArray.length > 0 ? sizesArray : undefined,
       inventory,
+      currencyPrices:
+        Object.keys(currencyPriceOverrides).length > 0
+          ? currencyPriceOverrides
+          : undefined,
     };
 
     if (editingProduct) {
@@ -135,6 +152,7 @@ export default function ProductManager({
     setSizesInput("");
     setSizeQuantities({});
     setDefaultQuantity("3");
+    setCurrencyPrices({});
     setIsAdding(false);
   };
 
@@ -161,6 +179,17 @@ export default function ProductManager({
       }
     }
 
+    // Load currency price overrides
+    if (product.currencyPrices) {
+      const currencyPriceStrings: { [key: string]: string } = {};
+      Object.entries(product.currencyPrices).forEach(([code, price]) => {
+        currencyPriceStrings[code] = price.toString();
+      });
+      setCurrencyPrices(currencyPriceStrings);
+    } else {
+      setCurrencyPrices({});
+    }
+
     // Don't set isAdding(true) - we show inline instead
   };
 
@@ -170,6 +199,7 @@ export default function ProductManager({
     setSizesInput("");
     setSizeQuantities({});
     setDefaultQuantity("3");
+    setCurrencyPrices({});
     setIsAdding(false);
   };
 
@@ -491,12 +521,58 @@ export default function ProductManager({
                 </p>
               </div>
             )}
+
+            {/* Currency Price Overrides */}
+            <div className="md:col-span-2 border-t border-theme pt-4 mt-2">
+              <label className="block text-sm font-medium text-theme-secondary mb-2">
+                Currency Price Overrides (optional)
+              </label>
+              <p className="text-xs text-theme-muted mb-3">
+                Set specific prices for different currencies instead of using
+                automatic conversion. Leave blank to use automatic conversion
+                based on exchange rates.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {(Object.keys(CURRENCIES) as CurrencyCode[])
+                  .filter((code) => code !== "USD") // USD is the base price
+                  .map((code) => {
+                    const currency = CURRENCIES[code];
+                    return (
+                      <div key={code}>
+                        <label className="block text-xs text-theme-muted mb-1">
+                          {currency.symbol} {code}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={currencyPrices[code] || ""}
+                          onChange={(e) =>
+                            setCurrencyPrices({
+                              ...currencyPrices,
+                              [code]: e.target.value,
+                            })
+                          }
+                          placeholder={`Auto: ${(
+                            (newProduct.price || 0) * currency.defaultRate
+                          ).toFixed(2)}`}
+                          className="w-full px-3 py-2 bg-theme border border-theme text-theme rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+              <p className="text-xs text-theme-muted mt-2">
+                Example: If your $20 USD record should be $30 CAD (not $27
+                auto-converted), enter 30 in the CAD field.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3 mt-4">
             <button
               type="submit"
-              className="px-6 py-2 bg-primary text-theme rounded-lg hover:bg-primary touch-manipulation"
+              className="px-6 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary touch-manipulation"
             >
               Save Product
             </button>
@@ -884,10 +960,52 @@ export default function ProductManager({
                           </div>
                         )}
 
+                        {/* Currency Price Overrides */}
+                        <div className="border-t border-theme pt-4 mt-4">
+                          <label className="block text-sm font-medium text-theme-secondary mb-2">
+                            Currency Price Overrides (optional)
+                          </label>
+                          <p className="text-xs text-theme-muted mb-3">
+                            Set specific prices for different currencies instead
+                            of using automatic conversion.
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {(Object.keys(CURRENCIES) as CurrencyCode[])
+                              .filter((code) => code !== "USD")
+                              .map((code) => {
+                                const currency = CURRENCIES[code];
+                                return (
+                                  <div key={code}>
+                                    <label className="block text-xs text-theme-muted mb-1">
+                                      {currency.symbol} {code}
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      value={currencyPrices[code] || ""}
+                                      onChange={(e) =>
+                                        setCurrencyPrices({
+                                          ...currencyPrices,
+                                          [code]: e.target.value,
+                                        })
+                                      }
+                                      placeholder={`Auto: ${(
+                                        (newProduct.price || 0) *
+                                        currency.defaultRate
+                                      ).toFixed(2)}`}
+                                      className="w-full px-3 py-2 bg-theme border border-theme text-theme rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                                    />
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+
                         <div className="flex gap-3 mt-4">
                           <button
                             type="submit"
-                            className="px-6 py-2 bg-primary text-theme rounded-lg hover:bg-primary touch-manipulation"
+                            className="px-6 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary touch-manipulation"
                           >
                             Update Product
                           </button>

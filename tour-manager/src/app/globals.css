@@ -1,53 +1,85 @@
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 :root {
-  /* Default theme colors - will be overridden by ThemeProvider */
-  --color-background: #18181b;
-  --color-background-secondary: #27272a;
-  --color-background-tertiary: #3f3f46;
+  /* FOLDING TABLE Brand Colors - Based on curated palette */
+  --ft-bg: #111111; /* Night */
+  --ft-surface: #181818; /* Eerie black */
+  --ft-surface-hover: #1f1f1f;
+  --ft-primary: #ff6a00; /* Pumpkin */
+  --ft-primary-hover: #ff8533;
+  --ft-primary-pressed: #e55f00;
+  --ft-text: #f9f0e8; /* Linen - warmer off-white */
+  --ft-text-secondary: #b8b8b8;
+  --ft-text-muted: #808080;
+  --ft-border: #2a2a2a; /* Jet */
+  --ft-border-hover: #3a3a3a;
+  --ft-success: #00a832; /* Brighter green - better contrast on dark */
+  --ft-success-hover: #00c93d;
+  --ft-error: #ff4444; /* Brighter red - better visibility */
+  --ft-error-hover: #ff6666;
+  --ft-warning: #ffaa00;
+  --ft-info: #42106b; /* Indigo */
+  --ft-accent-yellow: #ffdd00;
+  --ft-accent-pink: #ff00ff;
+  --ft-accent-blue: #00ddff;
+  --ft-accent-purple: #42106b; /* Indigo - darker purple */
+  --ft-accent-purple-hover: #5a1a8f;
+  --ft-overlay: rgba(17, 17, 17, 0.9);
 
-  --color-foreground: #fafafa;
-  --color-foreground-secondary: #e4e4e7;
-  --color-foreground-muted: #a1a1aa;
+  /* Theme system compatibility - map FOLDING TABLE colors to existing theme variables */
+  --color-background: var(--ft-bg);
+  --color-background-secondary: var(--ft-surface);
+  --color-background-tertiary: var(--ft-surface-hover);
 
-  --color-primary: #dc2626;
-  --color-primary-hover: #b91c1c;
-  --color-secondary: #3b82f6;
-  --color-secondary-hover: #2563eb;
+  --color-foreground: var(--ft-text);
+  --color-foreground-secondary: #d4c5b8; /* Lighter version of linen for secondary text */
+  --color-foreground-muted: #9a8a7a; /* Muted warm gray */
 
-  --color-success: #16a34a;
-  --color-success-hover: #15803d;
-  --color-error: #dc2626;
-  --color-error-hover: #b91c1c;
-  --color-warning: #f59e0b;
-  --color-info: #3b82f6;
+  --color-primary: var(--ft-primary);
+  --color-primary-hover: var(--ft-primary-hover);
+  --color-secondary: var(--ft-accent-purple);
+  --color-secondary-hover: var(--ft-accent-purple-hover);
 
-  --color-border: #52525b;
-  --color-border-hover: #71717a;
+  --color-success: var(--ft-success);
+  --color-success-hover: var(--ft-success-hover);
+  --color-error: var(--ft-error);
+  --color-error-hover: var(--ft-error-hover);
+  --color-warning: var(--ft-warning);
+  --color-info: var(--ft-info);
 
-  --color-cart-background: #27272a;
-  --color-cart-border: #3f3f46;
+  --color-border: var(--ft-border);
+  --color-border-hover: var(--ft-border-hover);
+
+  --color-cart-background: var(--ft-surface);
+  --color-cart-border: var(--ft-border);
 
   --background-pattern: none;
 
   /* Original CSS variables for compatibility */
   --background: var(--color-background);
   --foreground: var(--color-foreground);
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* FOLDING TABLE Typography */
+  --font-display: "Bebas Neue", "Impact", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  /* FOLDING TABLE Spacing & Borders */
+  --radius-ft: 0.75rem;
+  --shadow-ft-panel: 0 8px 24px rgba(0, 0, 0, 0.25);
+  --shadow-ft-button: 0 4px 12px rgba(255, 106, 0, 0.2);
 }
 
 body {
   background: var(--color-background);
   background-image: var(--background-pattern);
   color: var(--color-foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
   transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Theme-aware utility classes */
@@ -81,6 +113,18 @@ body {
 
 .border-theme-hover:hover {
   border-color: var(--color-border-hover);
+}
+
+.border-secondary {
+  border-color: var(--color-secondary);
+}
+
+.border-primary {
+  border-color: var(--color-primary);
+}
+
+.border-accent-light {
+  border-color: #b565f2;
 }
 
 .bg-primary {
@@ -135,6 +179,28 @@ body {
   color: var(--color-info);
 }
 
+/* Text colors optimized for different button backgrounds */
+.text-on-primary {
+  color: #111111; /* Black text on orange buttons for contrast */
+}
+
+.text-on-secondary {
+  color: var(--color-foreground); /* Linen text on purple/dark buttons */
+}
+
+.text-on-success {
+  color: #111111; /* Black text on green buttons */
+}
+
+.text-on-dark {
+  color: var(--color-foreground); /* Linen text on dark backgrounds */
+}
+
+/* Accent text color for labels on dark backgrounds */
+.text-accent-light {
+  color: #b565f2; /* Light purple for visibility on dark backgrounds */
+}
+
 /* Input field theming */
 .input-theme {
   background-color: var(--color-background-tertiary);
@@ -177,6 +243,117 @@ body {
 [data-theme="girlypop"] button:not(:disabled):hover {
   transform: scale(1.02);
   transition: transform 0.2s ease;
+}
+
+/* FOLDING TABLE Brand Utilities */
+.ft-heading {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ft-body {
+  font-family: var(--font-body);
+}
+
+.ft-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.ft-panel {
+  background-color: var(--ft-surface);
+  border: 1px solid var(--ft-border);
+  border-radius: var(--radius-ft);
+  box-shadow: var(--shadow-ft-panel);
+}
+
+.ft-panel:hover {
+  border-color: var(--ft-border-hover);
+}
+
+.ft-button {
+  background-color: var(--ft-primary);
+  color: var(--ft-bg);
+  border-radius: var(--radius-ft);
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-size: 0.875rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  box-shadow: var(--shadow-ft-button);
+  transition: all 0.15s ease;
+}
+
+.ft-button:hover:not(:disabled) {
+  background-color: var(--ft-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 106, 0, 0.3);
+}
+
+.ft-button:active:not(:disabled) {
+  background-color: var(--ft-primary-pressed);
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 106, 0, 0.15);
+}
+
+.ft-button:disabled {
+  background-color: var(--ft-surface-hover);
+  color: var(--ft-text-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.ft-button-secondary {
+  background-color: var(--ft-surface);
+  color: var(--ft-text);
+  border: 1px solid var(--ft-border);
+  box-shadow: none;
+}
+
+.ft-button-secondary:hover:not(:disabled) {
+  background-color: var(--ft-surface-hover);
+  border-color: var(--ft-border-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.ft-input {
+  background-color: var(--ft-surface);
+  border: 1px solid var(--ft-border);
+  color: var(--ft-text);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-family: var(--font-body);
+  transition: border-color 0.15s ease;
+}
+
+.ft-input:focus {
+  border-color: var(--ft-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.1);
+}
+
+.ft-input::placeholder {
+  color: var(--ft-text-muted);
+}
+
+/* FOLDING TABLE specific theme styling */
+[data-theme="foldingtable"] {
+  background-attachment: fixed;
+}
+
+[data-theme="foldingtable"] .theme-card {
+  background-color: var(--ft-surface);
+  border: 1px solid var(--ft-border);
+  box-shadow: var(--shadow-ft-panel);
+}
+
+[data-theme="foldingtable"] button:not(:disabled):hover {
+  transform: translateY(-1px);
+  transition: transform 0.15s ease;
 }
 
 /* Animations */

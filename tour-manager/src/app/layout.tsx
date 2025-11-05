@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Merch Table",
-  description: "Point of Sale system for band merchandise on tour",
+  title: "FOLDING TABLE",
+  description:
+    "Road-ready POS for bands on tour. Track sales, manage inventory, stay focused on the show.",
   manifest: "/manifest.json",
   viewport: {
     width: "device-width",
@@ -26,8 +27,8 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "Merch POS",
+    statusBarStyle: "black",
+    title: "FOLDING TABLE",
   },
 };
 

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function TermsOfService() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-8">
@@ -399,12 +401,12 @@ export default function TermsOfService() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-zinc-700 flex gap-6">
-          <a href="/" className="text-blue-400 hover:underline">
-            ← Back to App
-          </a>
-          <a href="/privacy" className="text-blue-400 hover:underline">
+          <Link href="/" className="text-blue-400 hover:underline">
+            ← Back to Home
+          </Link>
+          <Link href="/privacy" className="text-blue-400 hover:underline">
             Privacy Policy
-          </a>
+          </Link>
         </div>
       </div>
     </div>

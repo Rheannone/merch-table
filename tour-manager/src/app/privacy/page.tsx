@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-8">
@@ -374,9 +376,9 @@ export default function PrivacyPolicy() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-zinc-700">
-          <a href="/" className="text-blue-400 hover:underline">
-            ← Back to App
-          </a>
+          <Link href="/" className="text-blue-400 hover:underline">
+            ← Back to Home
+          </Link>
         </div>
       </div>
     </div>

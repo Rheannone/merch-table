@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     // Read products from the sheet
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:I", // Updated to include showTextOnButton column
+      range: "Products!A2:J", // Updated to include currencyPrices column
     });
 
     const rows = response.data.values || [];
@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     // Convert rows to Product objects
     const products: Product[] = rows.map((row) => {
       let inventory: { [key: string]: number } | undefined;
+      let currencyPrices: { [currencyCode: string]: number } | undefined;
 
       // Parse inventory JSON if it exists
       if (row[7]) {
@@ -47,6 +48,19 @@ export async function POST(req: NextRequest) {
           inventory = JSON.parse(row[7]);
         } catch (e) {
           console.warn("Failed to parse inventory for product:", row[1], e);
+        }
+      }
+
+      // Parse currencyPrices JSON if it exists
+      if (row[9]) {
+        try {
+          currencyPrices = JSON.parse(row[9]);
+        } catch (e) {
+          console.warn(
+            "Failed to parse currencyPrices for product:",
+            row[1],
+            e
+          );
         }
       }
 
@@ -65,6 +79,7 @@ export async function POST(req: NextRequest) {
         description: row[6] || undefined,
         inventory,
         showTextOnButton: row[8] !== "FALSE", // Column I: defaults to true
+        currencyPrices, // Column J: Currency price overrides
       };
     });
 

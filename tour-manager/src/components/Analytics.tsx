@@ -376,7 +376,7 @@ export default function Analytics() {
                 </span>
               </div>
               <div className="flex-1">
-                <p className="text-sm text-info font-medium mb-1">
+                <p className="text-sm text-theme font-medium mb-1">
                   Experimental Feature
                 </p>
                 <p className="text-sm text-theme-secondary">
@@ -581,13 +581,13 @@ export default function Analytics() {
                 </div>
                 <div className="bg-theme rounded-lg p-4 border border-theme">
                   <p className="text-sm text-theme-muted mb-1">Average Sale</p>
-                  <p className="text-2xl font-bold text-purple-400">
+                  <p className="text-2xl font-bold text-theme">
                     ${insightsData.quickStats.averageSale.toFixed(2)}
                   </p>
                 </div>
                 <div className="bg-theme rounded-lg p-4 border border-theme">
                   <p className="text-sm text-theme-muted mb-1">Top Item</p>
-                  <p className="text-xl font-bold text-primary">
+                  <p className="text-xl font-bold text-theme">
                     {insightsData.quickStats.topItem}
                   </p>
                 </div>
@@ -723,7 +723,7 @@ export default function Analytics() {
                                                 <p className="text-xs text-theme-muted mb-1">
                                                   {product.productName}
                                                 </p>
-                                                <p className="text-lg font-bold text-primary">
+                                                <p className="text-lg font-bold text-theme">
                                                   {product.quantity}
                                                   <span className="text-xs text-theme-muted ml-1">
                                                     sold
@@ -929,7 +929,7 @@ export default function Analytics() {
             <div className="p-6 pt-3 border-t border-theme">
               <button
                 onClick={() => setShowRevenueInfo(false)}
-                className="w-full bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+                className="w-full bg-primary text-on-primary py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
               >
                 Got it!
               </button>
@@ -1082,7 +1082,7 @@ export default function Analytics() {
             <div className="p-6 pt-3 border-t border-theme">
               <button
                 onClick={() => setShowInventoryInfo(false)}
-                className="w-full bg-primary text-theme py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+                className="w-full bg-primary text-on-primary py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
               >
                 Got it!
               </button>

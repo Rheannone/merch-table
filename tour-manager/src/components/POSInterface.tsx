@@ -15,6 +15,9 @@ import {
   formatPrice,
   getBillDenominations,
   getCurrencySymbol,
+  getEffectivePrice,
+  formatDisplayPrice,
+  getCurrencyCode,
 } from "@/lib/currency";
 
 interface POSInterfaceProps {
@@ -218,10 +221,13 @@ export default function POSInterface({
   };
 
   const calculateTotal = () => {
-    return cart.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
-      0
-    );
+    return cart.reduce((sum, item) => {
+      const effectivePrice = getEffectivePrice(
+        item.product.price,
+        item.product.currencyPrices
+      );
+      return sum + effectivePrice * item.quantity;
+    }, 0);
   };
 
   const hasStock = (product: Product): boolean => {
@@ -415,16 +421,16 @@ export default function POSInterface({
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
 
-    const total = calculateTotal();
+    const total = calculateTotal(); // Effective total in display currency
     const tip = isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0;
-    let actualAmount = total + tip; // Add tip to the base total
-    let discount = 0;
 
-    // Apply transaction fee if applicable (on total + tip)
-    if (selectedPaymentSetting?.transactionFee) {
-      actualAmount =
-        (total + tip) * (1 + selectedPaymentSetting.transactionFee);
-    }
+    // Calculate USD base total (without currency conversion/overrides)
+    const usdBaseTotal = cart.reduce((sum, item) => {
+      return sum + item.product.price * item.quantity;
+    }, 0);
+
+    let actualAmount = usdBaseTotal; // Start with USD base total (for regular sales)
+    let discount = 0;
 
     // Determine actual amount based on payment method and hookup status
     if (
@@ -432,7 +438,7 @@ export default function POSInterface({
       selectedPaymentSetting?.paymentType === "cash"
     ) {
       if (isHookup) {
-        // For cash + hookup, use the hookup amount if provided, otherwise use cash received
+        // Cash + hookup - actualAmount is what they paid (hookup amount in display currency)
         if (hookupAmount !== "" && hookupAmount !== undefined) {
           const hookupValue = Number.parseFloat(hookupAmount);
           actualAmount = hookupValue;
@@ -453,7 +459,7 @@ export default function POSInterface({
           return;
         }
       } else if (isTipEnabled) {
-        // Cash payment with tip - must have enough cash for total + tip
+        // Cash payment with tip - validate they have enough
         const requiredAmount = selectedPaymentSetting?.transactionFee
           ? (total + tip) * (1 + selectedPaymentSetting.transactionFee)
           : total + tip;
@@ -465,9 +471,9 @@ export default function POSInterface({
           });
           return;
         }
-        actualAmount = requiredAmount;
+        // For regular cash with tip, actualAmount stays as usdBaseTotal
       } else {
-        // Regular cash payment - must have enough cash
+        // Regular cash payment - validate they have enough
         const requiredAmount = selectedPaymentSetting?.transactionFee
           ? total * (1 + selectedPaymentSetting.transactionFee)
           : total;
@@ -479,12 +485,12 @@ export default function POSInterface({
           });
           return;
         }
-        actualAmount = requiredAmount;
+        // For regular cash, actualAmount stays as usdBaseTotal
       }
     } else {
       // Other payment methods
       if (isHookup) {
-        // For hookup with non-cash payment, require hookup amount
+        // Non-cash + hookup - actualAmount is what they paid (hookup amount in display currency)
         if (hookupAmount === "" || hookupAmount === undefined) {
           setToast({
             message: "Please enter the hookup amount!",
@@ -500,12 +506,8 @@ export default function POSInterface({
             hookupValue * (1 + selectedPaymentSetting.transactionFee);
         }
         discount = total - hookupValue;
-      } else {
-        // Regular non-cash payment - apply transaction fee if applicable (total + tip)
-        actualAmount = selectedPaymentSetting?.transactionFee
-          ? (total + tip) * (1 + selectedPaymentSetting.transactionFee)
-          : total + tip;
       }
+      // For regular non-cash, actualAmount stays as usdBaseTotal
     }
 
     await processCompleteSale(
@@ -518,9 +520,15 @@ export default function POSInterface({
   const handleCompleteSaleWithTip = async (tipFromModal: number) => {
     if (cart.length === 0) return;
 
-    const total = calculateTotal();
+    const total = calculateTotal(); // Effective total in display currency
     const tip = tipFromModal;
-    let actualAmount = total; // Don't add tip to actualAmount - it goes in separate column
+
+    // Calculate USD base total (without currency conversion/overrides)
+    const usdBaseTotal = cart.reduce((sum, item) => {
+      return sum + item.product.price * item.quantity;
+    }, 0);
+
+    let actualAmount = usdBaseTotal; // Start with USD base total (for regular sales)
     let discount = 0;
 
     const isCashPayment =
@@ -531,7 +539,7 @@ export default function POSInterface({
     if (isCashPayment) {
       // === CASH PAYMENTS ===
       if (isHookup) {
-        // Cash + hookup
+        // Cash + hookup - actualAmount is what they paid (hookup amount in display currency)
         if (hookupAmount !== "" && hookupAmount !== undefined) {
           const hookupValue = Number.parseFloat(hookupAmount);
           actualAmount = hookupValue;
@@ -550,16 +558,12 @@ export default function POSInterface({
           });
           return;
         }
-      } else {
-        // Regular cash payment
-        actualAmount = selectedPaymentSetting?.transactionFee
-          ? total * (1 + selectedPaymentSetting.transactionFee)
-          : total;
       }
+      // For regular cash payment, actualAmount stays as usdBaseTotal
     } else {
       // === NON-CASH PAYMENTS (Venmo, Card, Other, etc.) ===
       if (isHookup) {
-        // Non-cash + hookup
+        // Non-cash + hookup - actualAmount is what they paid (hookup amount in display currency)
         if (hookupAmount === "" || hookupAmount === undefined) {
           setToast({
             message: "Please enter the hookup amount!",
@@ -574,12 +578,8 @@ export default function POSInterface({
             hookupValue * (1 + selectedPaymentSetting.transactionFee);
         }
         discount = total - hookupValue;
-      } else {
-        // Regular non-cash payment
-        actualAmount = selectedPaymentSetting?.transactionFee
-          ? total * (1 + selectedPaymentSetting.transactionFee)
-          : total;
       }
+      // For regular non-cash payment, actualAmount stays as usdBaseTotal
     }
 
     await processCompleteSaleWithTip(
@@ -590,11 +590,28 @@ export default function POSInterface({
   };
 
   const handleCompleteSaleClick = () => {
-    // Open review modal for ALL payment methods
-    setReviewModalStep(1);
-    setModalTipOption("none");
-    setModalCustomTipAmount("");
-    setShowReviewModal(true);
+    // Check if we should skip tip collection
+    // Skip tips for non-cash payments when currency is not USD
+    const isCashPayment =
+      selectedPaymentMethod.toLowerCase() === "cash" ||
+      selectedPaymentSetting?.paymentType === "cash";
+    const currentCurrency = getCurrencyCode();
+    const shouldSkipTips = !isCashPayment && currentCurrency !== "USD";
+
+    // Open review modal
+    if (shouldSkipTips) {
+      // Skip directly to step 2 (order review) without tip collection
+      setReviewModalStep(2);
+      setModalTipOption("none");
+      setModalCustomTipAmount("");
+      setShowReviewModal(true);
+    } else {
+      // Show tip collection step first
+      setReviewModalStep(1);
+      setModalTipOption("none");
+      setModalCustomTipAmount("");
+      setShowReviewModal(true);
+    }
   };
 
   const handlePaymentMethodChange = (method: PaymentMethod) => {
@@ -660,7 +677,7 @@ export default function POSInterface({
         <div className="fixed top-0 left-0 right-0 z-50 lg:hidden">
           <button
             onClick={scrollToPayment}
-            className="w-full bg-primary text-theme py-3 px-4 font-bold text-center shadow-lg hover:bg-primary transition-all"
+            className="w-full bg-primary text-on-primary py-3 px-4 font-bold text-center shadow-lg hover:bg-primary transition-all"
           >
             ↓ Jump to Payment
           </button>
@@ -679,7 +696,7 @@ export default function POSInterface({
                   </span>
                 </div>
                 <span className="font-bold text-theme">
-                  {formatPrice(total)}
+                  {formatDisplayPrice(total)}
                 </span>
               </div>
               {/* Mini cart items preview - Optimized for quick size identification */}
@@ -691,7 +708,7 @@ export default function POSInterface({
                   >
                     {/* Size badge - Large and prominent for quick identification */}
                     {item.size && (
-                      <span className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 bg-primary text-theme font-bold text-base rounded shadow-lg">
+                      <span className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 bg-primary text-on-primary font-bold text-base rounded shadow-lg">
                         {item.size}
                       </span>
                     )}
@@ -705,7 +722,12 @@ export default function POSInterface({
 
                     {/* Price */}
                     <span className="text-theme font-semibold text-sm whitespace-nowrap">
-                      {formatPrice(item.product.price * item.quantity)}
+                      {formatDisplayPrice(
+                        getEffectivePrice(
+                          item.product.price,
+                          item.product.currencyPrices
+                        ) * item.quantity
+                      )}
                     </span>
                   </div>
                 ))}
@@ -774,7 +796,10 @@ export default function POSInterface({
                               {inStock ? (
                                 <>
                                   <p className="text-xl font-bold text-primary drop-shadow-lg">
-                                    {formatPrice(product.price)}
+                                    {formatPrice(
+                                      product.price,
+                                      product.currencyPrices
+                                    )}
                                   </p>
                                   {product.sizes &&
                                     product.sizes.length > 0 && (
@@ -795,7 +820,10 @@ export default function POSInterface({
                               {inStock ? (
                                 <div className="bg-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
                                   <p className="text-lg font-bold text-primary">
-                                    {formatPrice(product.price)}
+                                    {formatPrice(
+                                      product.price,
+                                      product.currencyPrices
+                                    )}
                                   </p>
                                 </div>
                               ) : (
@@ -817,7 +845,10 @@ export default function POSInterface({
                           {inStock ? (
                             <>
                               <p className="text-2xl font-bold text-primary">
-                                {formatPrice(product.price)}
+                                {formatPrice(
+                                  product.price,
+                                  product.currencyPrices
+                                )}
                               </p>
                               {product.sizes && product.sizes.length > 0 && (
                                 <p className="text-xs text-theme-secondary mt-1">
@@ -874,11 +905,20 @@ export default function POSInterface({
                           {item.product.name}
                         </h4>
                         <p className="text-sm text-theme-muted">
-                          {formatPrice(item.product.price)} × {item.quantity}
+                          {formatPrice(
+                            item.product.price,
+                            item.product.currencyPrices
+                          )}{" "}
+                          × {item.quantity}
                         </p>
                       </div>
                       <div className="font-bold text-theme min-w-[60px] text-right flex-shrink-0">
-                        {formatPrice(item.product.price * item.quantity)}
+                        {formatDisplayPrice(
+                          getEffectivePrice(
+                            item.product.price,
+                            item.product.currencyPrices
+                          ) * item.quantity
+                        )}
                       </div>
                     </div>
 
@@ -886,7 +926,7 @@ export default function POSInterface({
                     <div className="flex items-center justify-between">
                       {item.size && (
                         <div className="flex-shrink-0">
-                          <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-primary text-theme font-bold text-xl rounded-lg shadow-lg">
+                          <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-primary text-on-primary font-bold text-xl rounded-lg shadow-lg">
                             {item.size}
                           </span>
                         </div>
@@ -932,11 +972,20 @@ export default function POSInterface({
                             {item.product.name}
                           </h4>
                           <p className="text-sm text-theme-muted">
-                            {formatPrice(item.product.price)} × {item.quantity}
+                            {formatPrice(
+                              item.product.price,
+                              item.product.currencyPrices
+                            )}{" "}
+                            × {item.quantity}
                           </p>
                         </div>
                         <div className="font-bold text-theme min-w-[60px] text-right flex-shrink-0">
-                          {formatPrice(item.product.price * item.quantity)}
+                          {formatDisplayPrice(
+                            getEffectivePrice(
+                              item.product.price,
+                              item.product.currencyPrices
+                            ) * item.quantity
+                          )}
                         </div>
                       </div>
 
@@ -944,7 +993,7 @@ export default function POSInterface({
                       <div className="flex items-center justify-between">
                         {item.size && (
                           <div className="flex-shrink-0">
-                            <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-primary text-theme font-bold text-xl rounded-lg shadow-lg">
+                            <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-primary text-on-primary font-bold text-xl rounded-lg shadow-lg">
                               {item.size}
                             </span>
                           </div>
@@ -984,7 +1033,7 @@ export default function POSInterface({
                       {/* Large size badge for easy visibility */}
                       {item.size && (
                         <div className="flex-shrink-0">
-                          <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-primary text-theme font-bold text-xl rounded-lg shadow-lg">
+                          <span className="inline-flex items-center justify-center min-w-[3rem] px-3 py-2 bg-primary text-on-primary font-bold text-xl rounded-lg shadow-lg">
                             {item.size}
                           </span>
                         </div>
@@ -995,7 +1044,11 @@ export default function POSInterface({
                           {item.product.name}
                         </h4>
                         <p className="text-sm text-theme-muted">
-                          {formatPrice(item.product.price)} × {item.quantity}
+                          {formatPrice(
+                            item.product.price,
+                            item.product.currencyPrices
+                          )}{" "}
+                          × {item.quantity}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -1043,7 +1096,7 @@ export default function POSInterface({
           >
             <div className="flex justify-between text-xl font-bold">
               <span className="text-theme">Total:</span>
-              <span className="text-primary">{formatPrice(total)}</span>
+              <span className="text-primary">{formatDisplayPrice(total)}</span>
             </div>
 
             <div>
@@ -1062,7 +1115,7 @@ export default function POSInterface({
                         }}
                         className={`py-3 px-2 rounded-lg font-medium transition-all touch-manipulation ${
                           selectedPaymentMethod === setting.displayName
-                            ? "bg-primary text-theme"
+                            ? "bg-primary text-on-primary"
                             : "bg-theme-tertiary text-theme-secondary hover:bg-theme-tertiary"
                         }`}
                       >
@@ -1076,7 +1129,7 @@ export default function POSInterface({
                         onClick={() => handlePaymentMethodChange(method)}
                         className={`py-3 px-2 rounded-lg font-medium capitalize transition-all touch-manipulation ${
                           selectedPaymentMethod === method
-                            ? "bg-primary text-theme"
+                            ? "bg-primary text-on-primary"
                             : "bg-theme-tertiary text-theme-secondary hover:bg-theme-tertiary"
                         }`}
                       >
@@ -1107,7 +1160,7 @@ export default function POSInterface({
                     <button
                       key={bill}
                       onClick={() => addCash(bill)}
-                      className="bg-green-700 hover:bg-success text-theme font-bold py-3 px-4 rounded-lg active:scale-95 transition-all touch-manipulation"
+                      className="bg-secondary hover:bg-secondary text-on-secondary font-bold py-3 px-4 rounded-lg active:scale-95 transition-all touch-manipulation"
                     >
                       {getCurrencySymbol()}
                       {bill}
@@ -1118,21 +1171,24 @@ export default function POSInterface({
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-theme-muted">Cash received:</span>
-                    <span className="font-bold text-green-400">
-                      {formatPrice(cashReceived)}
+                    <span className="font-bold text-primary">
+                      {formatDisplayPrice(cashReceived)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-theme-muted">Total due:</span>
                     <span className="font-bold text-theme">
-                      {formatPrice(total)}
+                      {formatDisplayPrice(total)}
                     </span>
                   </div>
                   {isHookup && hookupAmount !== "" && (
                     <div className="flex justify-between">
                       <span className="text-yellow-300">Hookup discount:</span>
                       <span className="font-semibold text-yellow-400">
-                        -{formatPrice(total - Number.parseFloat(hookupAmount))}
+                        -
+                        {formatDisplayPrice(
+                          total - Number.parseFloat(hookupAmount)
+                        )}
                       </span>
                     </div>
                   )}
@@ -1140,9 +1196,11 @@ export default function POSInterface({
                     tipAmount &&
                     Number.parseFloat(tipAmount) > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-green-300">Tips added:</span>
-                        <span className="font-semibold text-green-400">
-                          {formatPrice(Number.parseFloat(tipAmount))}
+                        <span className="text-theme-secondary">
+                          Tips added:
+                        </span>
+                        <span className="font-semibold text-primary">
+                          {formatDisplayPrice(Number.parseFloat(tipAmount))}
                         </span>
                       </div>
                     )}
@@ -1154,20 +1212,20 @@ export default function POSInterface({
                       <span
                         className={`font-bold text-xl ${
                           isHookup
-                            ? "text-yellow-400"
+                            ? "text-warning"
                             : change >= 0
-                            ? "text-green-400"
-                            : "text-primary"
+                            ? "text-primary"
+                            : "text-error"
                         }`}
                       >
                         {isHookup && hookupAmount
-                          ? formatPrice(Number.parseFloat(hookupAmount))
-                          : formatPrice(Math.abs(change))}
+                          ? formatDisplayPrice(Number.parseFloat(hookupAmount))
+                          : formatDisplayPrice(Math.abs(change))}
                       </span>
                     </div>
                     {!isHookup && change < 0 && (
                       <p className="text-xs text-primary mt-1 text-right">
-                        Need {formatPrice(Math.abs(change))} more
+                        Need {formatDisplayPrice(Math.abs(change))} more
                       </p>
                     )}
                   </div>
@@ -1181,14 +1239,17 @@ export default function POSInterface({
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-blue-300">Cart Total:</span>
                   <span className="text-theme font-semibold">
-                    {formatPrice(total)}
+                    {formatDisplayPrice(total)}
                   </span>
                 </div>
                 {isHookup && hookupAmount !== "" && (
                   <div className="flex justify-between items-center text-sm mt-1">
                     <span className="text-yellow-300">Hookup discount:</span>
                     <span className="text-yellow-400 font-semibold">
-                      -{formatPrice(total - Number.parseFloat(hookupAmount))}
+                      -
+                      {formatDisplayPrice(
+                        total - Number.parseFloat(hookupAmount)
+                      )}
                     </span>
                   </div>
                 )}
@@ -1196,9 +1257,9 @@ export default function POSInterface({
                   tipAmount &&
                   Number.parseFloat(tipAmount) > 0 && (
                     <div className="flex justify-between items-center text-sm mt-1">
-                      <span className="text-green-300">Tips added:</span>
-                      <span className="text-green-400 font-semibold">
-                        {formatPrice(Number.parseFloat(tipAmount))}
+                      <span className="text-theme-secondary">Tips added:</span>
+                      <span className="text-primary font-semibold">
+                        {formatDisplayPrice(Number.parseFloat(tipAmount))}
                       </span>
                     </div>
                   )}
@@ -1209,7 +1270,7 @@ export default function POSInterface({
                     %):
                   </span>
                   <span className="text-blue-400 font-semibold">
-                    {formatPrice(
+                    {formatDisplayPrice(
                       ((isHookup && hookupAmount
                         ? Number.parseFloat(hookupAmount)
                         : total) +
@@ -1225,7 +1286,7 @@ export default function POSInterface({
                     Total to Collect:
                   </span>
                   <span className="text-blue-400 font-bold text-lg">
-                    {formatPrice(
+                    {formatDisplayPrice(
                       ((isHookup && hookupAmount
                         ? Number.parseFloat(hookupAmount)
                         : total) +
@@ -1248,14 +1309,17 @@ export default function POSInterface({
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-theme-muted">Cart Total:</span>
                     <span className="text-theme font-semibold">
-                      {formatPrice(total)}
+                      {formatDisplayPrice(total)}
                     </span>
                   </div>
                   {isHookup && hookupAmount !== "" && (
                     <div className="flex justify-between items-center text-sm mt-1">
                       <span className="text-yellow-300">Hookup discount:</span>
                       <span className="text-yellow-400 font-semibold">
-                        -{formatPrice(total - Number.parseFloat(hookupAmount))}
+                        -
+                        {formatDisplayPrice(
+                          total - Number.parseFloat(hookupAmount)
+                        )}
                       </span>
                     </div>
                   )}
@@ -1263,8 +1327,10 @@ export default function POSInterface({
                     tipAmount &&
                     Number.parseFloat(tipAmount) > 0 && (
                       <div className="flex justify-between items-center text-sm mt-1">
-                        <span className="text-green-300">Tips added:</span>
-                        <span className="text-green-400 font-semibold">
+                        <span className="text-theme-secondary">
+                          Tips added:
+                        </span>
+                        <span className="text-primary font-semibold">
                           {formatPrice(Number.parseFloat(tipAmount))}
                         </span>
                       </div>
@@ -1274,7 +1340,7 @@ export default function POSInterface({
                       Total to Collect:
                     </span>
                     <span className="text-theme font-bold text-lg">
-                      {formatPrice(
+                      {formatDisplayPrice(
                         (isHookup && hookupAmount
                           ? Number.parseFloat(hookupAmount)
                           : total) +
@@ -1336,7 +1402,10 @@ export default function POSInterface({
                       min="0"
                       value={hookupAmount}
                       onChange={(e) => setHookupAmount(e.target.value)}
-                      placeholder={formatPrice(total).replace(/[^\d.]/g, "")}
+                      placeholder={formatDisplayPrice(total).replace(
+                        /[^\d.]/g,
+                        ""
+                      )}
                       className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-yellow-500"
                     />
                   </div>
@@ -1373,7 +1442,7 @@ export default function POSInterface({
                     }}
                     className={`w-full px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${
                       isTipEnabled
-                        ? "bg-green-600 text-theme"
+                        ? "bg-secondary text-on-secondary"
                         : "bg-theme-tertiary text-theme-secondary hover:bg-theme-tertiary"
                     }`}
                   >
@@ -1382,8 +1451,8 @@ export default function POSInterface({
 
                   {/* Tip Amount Input */}
                   {isTipEnabled && (
-                    <div className="p-3 bg-green-900/20 border border-green-600/50 rounded-lg">
-                      <label className="block text-sm font-medium text-green-300 mb-2">
+                    <div className="p-3 bg-theme-tertiary border border-[#b565f2]/40 rounded-lg">
+                      <label className="block text-sm font-medium text-accent-light mb-2">
                         Tip Amount
                       </label>
                       <div className="relative">
@@ -1399,11 +1468,11 @@ export default function POSInterface({
                           onChange={(e) => setTipAmount(e.target.value)}
                           placeholder="0.00"
                           autoFocus
-                          className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-green-500"
+                          className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-[#b565f2]"
                         />
                       </div>
                       {tipAmount && Number.parseFloat(tipAmount) > 0 && (
-                        <p className="text-xs text-green-300 mt-1">
+                        <p className="text-xs text-accent-light mt-1">
                           Total with tip: $
                           {(total + Number.parseFloat(tipAmount)).toFixed(2)}
                         </p>
@@ -1422,7 +1491,7 @@ export default function POSInterface({
                   !isHookup &&
                   cashReceived < total)
               }
-              className="w-full bg-primary text-theme py-4 rounded-lg font-bold text-lg hover:bg-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all touch-manipulation shadow-lg shadow-red-900/50"
+              className="w-full bg-primary text-on-primary py-4 rounded-lg font-bold text-lg hover:bg-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all touch-manipulation shadow-lg shadow-red-900/50"
             >
               {getCompleteButtonText()}
             </button>
@@ -1466,7 +1535,7 @@ export default function POSInterface({
                       }}
                       className={`p-4 rounded-lg font-semibold text-lg transition-all ${
                         modalTipOption === "none"
-                          ? "bg-primary text-theme border-2 border-primary"
+                          ? "bg-primary text-on-primary border-2 border-primary"
                           : "bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme"
                       }`}
                     >
@@ -1481,13 +1550,13 @@ export default function POSInterface({
                       }}
                       className={`p-4 rounded-lg font-semibold text-lg transition-all ${
                         modalTipOption === "5"
-                          ? "bg-green-600 text-theme border-2 border-green-600"
+                          ? "bg-secondary text-on-secondary border-2 border-secondary"
                           : "bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme"
                       }`}
                     >
                       <div>5%</div>
                       <div className="text-sm font-normal">
-                        {formatPrice(
+                        {formatDisplayPrice(
                           (() => {
                             const base =
                               isHookup && hookupAmount
@@ -1507,13 +1576,13 @@ export default function POSInterface({
                       }}
                       className={`p-4 rounded-lg font-semibold text-lg transition-all ${
                         modalTipOption === "10"
-                          ? "bg-green-600 text-theme border-2 border-green-600"
+                          ? "bg-secondary text-on-secondary border-2 border-secondary"
                           : "bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme"
                       }`}
                     >
                       <div>10%</div>
                       <div className="text-sm font-normal">
-                        {formatPrice(
+                        {formatDisplayPrice(
                           (() => {
                             const base =
                               isHookup && hookupAmount
@@ -1533,13 +1602,13 @@ export default function POSInterface({
                       }}
                       className={`p-4 rounded-lg font-semibold text-lg transition-all ${
                         modalTipOption === "20"
-                          ? "bg-green-600 text-theme border-2 border-green-600"
+                          ? "bg-secondary text-on-secondary border-2 border-secondary"
                           : "bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme"
                       }`}
                     >
                       <div>20%</div>
                       <div className="text-sm font-normal">
-                        {formatPrice(
+                        {formatDisplayPrice(
                           (() => {
                             const base =
                               isHookup && hookupAmount
@@ -1557,7 +1626,7 @@ export default function POSInterface({
                     onClick={() => setModalTipOption("custom")}
                     className={`w-full p-4 rounded-lg font-semibold text-lg transition-all mb-3 ${
                       modalTipOption === "custom"
-                        ? "bg-green-600 text-theme border-2 border-green-600"
+                        ? "bg-secondary text-on-secondary border-2 border-secondary"
                         : "bg-theme-tertiary text-theme border-2 border-transparent hover:border-theme"
                     }`}
                   >
@@ -1566,8 +1635,8 @@ export default function POSInterface({
 
                   {/* Custom Tip Input */}
                   {modalTipOption === "custom" && (
-                    <div className="p-4 bg-green-900/20 border border-green-600/50 rounded-lg">
-                      <label className="block text-sm font-medium text-green-300 mb-2">
+                    <div className="p-4 bg-theme-tertiary border border-[#b565f2]/40 rounded-lg">
+                      <label className="block text-sm font-medium text-accent-light mb-2">
                         Enter Custom Tip Amount
                       </label>
                       <div className="relative">
@@ -1599,7 +1668,7 @@ export default function POSInterface({
                     disabled={
                       modalTipOption === "custom" && !modalCustomTipAmount
                     }
-                    className="w-full bg-primary text-theme py-4 rounded-lg font-bold text-lg hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="w-full bg-primary text-on-primary py-4 rounded-lg font-bold text-lg hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     Next →
                   </button>
@@ -1624,7 +1693,7 @@ export default function POSInterface({
                     <div className="flex justify-between items-center text-sm mb-2">
                       <span className="text-theme-muted">Cart Total:</span>
                       <span className="text-theme font-semibold">
-                        {formatPrice(calculateTotal())}
+                        {formatDisplayPrice(calculateTotal())}
                       </span>
                     </div>
 
@@ -1635,7 +1704,7 @@ export default function POSInterface({
                         </span>
                         <span className="text-yellow-400 font-semibold">
                           -
-                          {formatPrice(
+                          {formatDisplayPrice(
                             calculateTotal() - Number.parseFloat(hookupAmount)
                           )}
                         </span>
@@ -1644,9 +1713,9 @@ export default function POSInterface({
 
                     {modalTipOption !== "none" && (
                       <div className="flex justify-between items-center text-sm mb-2">
-                        <span className="text-green-300">Tip:</span>
-                        <span className="text-green-400 font-semibold">
-                          {formatPrice(
+                        <span className="text-theme-secondary">Tip:</span>
+                        <span className="text-primary font-semibold">
+                          {formatDisplayPrice(
                             (() => {
                               if (
                                 modalTipOption === "custom" &&
@@ -1679,7 +1748,7 @@ export default function POSInterface({
                             %):
                           </span>
                           <span className="text-blue-400 font-semibold">
-                            {formatPrice(
+                            {formatDisplayPrice(
                               (() => {
                                 const base =
                                   isHookup && hookupAmount
@@ -1713,7 +1782,7 @@ export default function POSInterface({
                     <div className="flex justify-between items-center text-lg font-bold pt-2 border-t border-theme mt-2">
                       <span className="text-theme">Total to Collect:</span>
                       <span className="text-success">
-                        {formatPrice(
+                        {formatDisplayPrice(
                           (() => {
                             const base =
                               isHookup && hookupAmount
@@ -1781,7 +1850,7 @@ export default function POSInterface({
                                 Cash Received:
                               </span>
                               <span className="text-theme font-semibold">
-                                {formatPrice(cashReceived)}
+                                {formatDisplayPrice(cashReceived)}
                               </span>
                             </div>
                             {change > 0 ? (
@@ -1790,7 +1859,7 @@ export default function POSInterface({
                                   Change Due:
                                 </span>
                                 <span className="text-blue-400 font-bold">
-                                  {formatPrice(change)}
+                                  {formatDisplayPrice(change)}
                                 </span>
                               </div>
                             ) : (

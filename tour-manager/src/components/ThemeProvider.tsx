@@ -38,7 +38,13 @@ export default function ThemeProvider({
   // Initialize theme from localStorage on client-side
   const [themeId, setThemeId] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("selectedTheme") || initialTheme;
+      const savedTheme = localStorage.getItem("selectedTheme");
+      // One-time migration: update "foldingtable" theme to "default"
+      if (savedTheme === "foldingtable") {
+        localStorage.setItem("selectedTheme", "default");
+        return "default";
+      }
+      return savedTheme || initialTheme;
     }
     return initialTheme;
   });

@@ -52,13 +52,11 @@ export default function FeedbackButton() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 right-4 z-40 bg-primary hover:bg-primary-hover text-white p-3 sm:p-4 rounded-full shadow-lg transition-all active:scale-95 flex items-center gap-2"
+          className="fixed bottom-4 right-4 z-40 bg-success hover:bg-success text-on-success p-3 sm:p-4 rounded-full shadow-lg transition-all active:scale-95 flex items-center gap-2 font-semibold"
           title="Send Feedback"
         >
           <ChatBubbleLeftIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span className="hidden sm:inline text-sm font-medium">
-            Feedback
-          </span>
+          <span className="hidden sm:inline text-sm font-medium">Feedback</span>
         </button>
       )}
 
@@ -92,7 +90,7 @@ export default function FeedbackButton() {
                   onClick={() => setFeedbackType("feature")}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                     feedbackType === "feature"
-                      ? "bg-primary text-white"
+                      ? "bg-primary text-on-success"
                       : "bg-theme-tertiary text-theme-secondary hover:bg-theme border border-theme"
                   }`}
                 >
@@ -103,7 +101,7 @@ export default function FeedbackButton() {
                   onClick={() => setFeedbackType("bug")}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                     feedbackType === "bug"
-                      ? "bg-primary text-white"
+                      ? "bg-primary text-on-success"
                       : "bg-theme-tertiary text-theme-secondary hover:bg-theme border border-theme"
                   }`}
                 >

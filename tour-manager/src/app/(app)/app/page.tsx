@@ -543,6 +543,7 @@ export default function Home() {
         productId: item.product.id,
         productName: item.product.name,
         quantity: item.quantity,
+        // Store the base USD price - user manages currency conversions
         price: item.product.price,
         size: item.size,
       })),

@@ -1,7 +1,7 @@
 export interface Product {
   id: string;
   name: string;
-  price: number;
+  price: number; // Base price in USD
   category: string;
   description?: string;
   imageUrl?: string;
@@ -10,6 +10,11 @@ export interface Product {
   // Inventory tracking
   inventory?: {
     [sizeOrDefault: string]: number; // e.g., { "M": 5, "L": 3 } or { "default": 10 }
+  };
+  // Currency price overrides - allows setting specific prices per currency
+  // e.g., { "CAD": 30, "EUR": 25 } to override automatic conversion
+  currencyPrices?: {
+    [currencyCode: string]: number;
   };
 }
 

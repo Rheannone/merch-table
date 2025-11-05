@@ -33,10 +33,10 @@ export async function POST(req: NextRequest) {
     // Clear existing data (except header)
     await sheets.spreadsheets.values.clear({
       spreadsheetId: productsSheetId,
-      range: "Products!A2:I",
+      range: "Products!A2:J",
     });
 
-    // Prepare data - including inventory and showTextOnButton
+    // Prepare data - including inventory, showTextOnButton, and currencyPrices
     const values = (products as Product[]).map((p) => [
       p.id,
       p.name,
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       p.description || "",
       p.inventory ? JSON.stringify(p.inventory) : "",
       p.showTextOnButton !== false ? "TRUE" : "FALSE", // Column I: Show text on button
+      p.currencyPrices ? JSON.stringify(p.currencyPrices) : "", // Column J: Currency price overrides
     ]);
 
     if (values.length > 0) {

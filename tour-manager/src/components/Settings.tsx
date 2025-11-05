@@ -691,8 +691,8 @@ export default function Settings() {
                 </div>
 
                 {/* Preview */}
-                <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-4">
-                  <p className="text-sm text-green-300 mb-3 font-medium">
+                <div className="bg-theme-tertiary border border-theme rounded-lg p-4">
+                  <p className="text-sm text-theme mb-3 font-medium">
                     💰 Preview:
                   </p>
                   <div className="space-y-2 text-sm">
@@ -928,7 +928,7 @@ export default function Settings() {
                           href={`https://docs.google.com/spreadsheets/d/${currentSheetId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-info hover:text-secondary underline break-all"
+                          className="text-xs text-primary hover:text-primary underline break-all"
                         >
                           Open in Google Sheets →
                         </a>
@@ -944,7 +944,7 @@ export default function Settings() {
 
                   {/* Info Box */}
                   <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
-                    <p className="text-sm text-info">
+                    <p className="text-sm text-theme">
                       💡 <strong>Tip:</strong> Switching sheets will reload all
                       your data (products, sales, settings) from the newly
                       selected sheet.
@@ -1085,7 +1085,7 @@ export default function Settings() {
 
               {/* Info Box */}
               <div className="bg-theme-secondary border border-theme rounded-lg p-4 mt-6 opacity-70">
-                <p className="text-sm text-info">
+                <p className="text-sm text-theme">
                   ✨ <strong>Preview Mode:</strong> You&apos;re seeing the theme
                   in real-time! Click &quot;Save Settings&quot; below to make it
                   permanent.
@@ -1136,7 +1136,7 @@ export default function Settings() {
             </a>
           </div>
           <p className="text-center text-xs text-theme-muted mt-3 opacity-60">
-            Band Merch POS • Made for musicians on tour
+            FOLDING TABLE • Road-ready POS for bands on tour
           </p>
         </div>
       </div>

@@ -4,40 +4,40 @@ export const themes: Record<string, Theme> = {
   default: {
     id: "default",
     name: "Default Dark",
-    description: "The original dark theme for your tour merch POS",
-    emoji: "🌙",
+    description: "Road-ready, Safety Orange for bands on tour",
+    emoji: "🧡",
     colors: {
-      // Background colors - dark theme
-      background: "#18181b", // zinc-900
-      backgroundSecondary: "#27272a", // zinc-800
-      backgroundTertiary: "#3f3f46", // zinc-700
+      // Background colors - deep black
+      background: "#111111", // Night - Deep black
+      backgroundSecondary: "#181818", // Eerie black - Surface
+      backgroundTertiary: "#1f1f1f", // Surface hover
 
       // Text colors
-      foreground: "#fafafa", // zinc-50 / white
-      foregroundSecondary: "#e4e4e7", // zinc-200
-      foregroundMuted: "#a1a1aa", // zinc-400
+      foreground: "#f9f0e8", // Linen - warmer off-white
+      foregroundSecondary: "#d4c5b8", // Lighter version of linen
+      foregroundMuted: "#9a8a7a", // Muted warm gray
 
-      // Accent colors
-      primary: "#dc2626", // red-600 (matches current branding)
-      primaryHover: "#b91c1c", // red-700
-      secondary: "#3b82f6", // blue-600
-      secondaryHover: "#2563eb", // blue-700
+      // Accent colors - Safety Orange
+      primary: "#ff6a00", // Pumpkin - Safety Orange brand color
+      primaryHover: "#ff8533", // Pumpkin hover
+      secondary: "#42106b", // Indigo purple
+      secondaryHover: "#5a1a8f", // Indigo purple hover
 
       // Status colors
-      success: "#16a34a", // green-600
-      successHover: "#15803d", // green-700
-      error: "#dc2626", // red-600
-      errorHover: "#b91c1c", // red-700
-      warning: "#f59e0b", // amber-500
-      info: "#3b82f6", // blue-600
+      success: "#00a832", // Bright green - better contrast on dark backgrounds
+      successHover: "#00c93d", // Bright green hover
+      error: "#ff4444", // Bright red - better visibility
+      errorHover: "#ff6666", // Bright red hover
+      warning: "#ffaa00", // Orange-yellow
+      info: "#42106b", // Indigo
 
       // Border and dividers
-      border: "#52525b", // zinc-600
-      borderHover: "#71717a", // zinc-500
+      border: "#2a2a2a", // Subtle border
+      borderHover: "#3a3a3a", // Border hover
 
       // Cart and checkout
-      cartBackground: "#27272a", // zinc-800
-      cartBorder: "#3f3f46", // zinc-700
+      cartBackground: "#181818", // Surface
+      cartBorder: "#2a2a2a", // Subtle border
     },
   },
 

@@ -133,16 +133,60 @@ export function saveCurrencySettings(settings: CurrencySettings): void {
 /**
  * Format a USD amount for display in the selected currency
  * @param usdAmount Amount in USD (as stored in database)
+ * @param currencyOverrides Optional price overrides per currency (e.g., { CAD: 30, EUR: 25 })
  * @returns Formatted string with currency symbol
  */
-export function formatPrice(usdAmount: number): string {
+export function formatPrice(
+  usdAmount: number,
+  currencyOverrides?: { [currencyCode: string]: number }
+): string {
   const settings = getCurrencySettings();
-  const convertedAmount = usdAmount * settings.exchangeRate;
+
+  // Check if there's a currency override for the current display currency
+  const overridePrice =
+    currencyOverrides?.[settings.displayCurrency] ?? undefined;
+  const displayAmount =
+    overridePrice !== undefined
+      ? overridePrice
+      : usdAmount * settings.exchangeRate;
 
   // JPY doesn't use decimal places
   const decimals = settings.displayCurrency === "JPY" ? 0 : 2;
 
-  return `${settings.symbol}${convertedAmount.toFixed(decimals)}`;
+  return `${settings.symbol}${displayAmount.toFixed(decimals)}`;
+}
+
+/**
+ * Get the effective price for a product in the current display currency
+ * @param usdPrice Base price in USD
+ * @param currencyOverrides Optional price overrides per currency
+ * @returns Price in current display currency (converted or overridden)
+ */
+export function getEffectivePrice(
+  usdPrice: number,
+  currencyOverrides?: { [currencyCode: string]: number }
+): number {
+  const settings = getCurrencySettings();
+
+  // Check if there's a currency override for the current display currency
+  const overridePrice =
+    currencyOverrides?.[settings.displayCurrency] ?? undefined;
+
+  return overridePrice !== undefined
+    ? overridePrice
+    : usdPrice * settings.exchangeRate;
+}
+
+/**
+ * Format an amount that's already in the display currency (no conversion needed)
+ * Use this when you've already calculated the effective price
+ * @param displayAmount Amount already in display currency
+ * @returns Formatted string with currency symbol
+ */
+export function formatDisplayPrice(displayAmount: number): string {
+  const settings = getCurrencySettings();
+  const decimals = settings.displayCurrency === "JPY" ? 0 : 2;
+  return `${settings.symbol}${displayAmount.toFixed(decimals)}`;
 }
 
 /**

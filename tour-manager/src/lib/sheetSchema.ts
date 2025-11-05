@@ -72,6 +72,7 @@ export const PRODUCTS_COLUMNS = {
   DESCRIPTION: 6, // G
   INVENTORY: 7, // H
   SHOW_TEXT: 8, // I
+  CURRENCY_PRICES: 9, // J
 } as const;
 
 /**
@@ -87,6 +88,7 @@ export const PRODUCTS_COL_LETTERS = {
   DESCRIPTION: "G",
   INVENTORY: "H",
   SHOW_TEXT: "I",
+  CURRENCY_PRICES: "J",
 } as const;
 
 /**
@@ -102,6 +104,7 @@ export const PRODUCTS_HEADERS = [
   "Description",
   "Inventory",
   "Show Text",
+  "Currency Prices",
 ] as const;
 
 /**
