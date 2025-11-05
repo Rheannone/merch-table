@@ -14,8 +14,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { spreadsheetId, paymentSettings, categories, theme, currency } =
-      await req.json();
+    const {
+      spreadsheetId,
+      paymentSettings,
+      categories,
+      theme,
+      currency,
+      emailSignup,
+    } = await req.json();
 
     if (!spreadsheetId) {
       return NextResponse.json(
@@ -85,7 +91,7 @@ export async function POST(req: NextRequest) {
       // Add headers
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: "POS Settings!A1:J1",
+        range: "POS Settings!A1:O1",
         valueInputOption: "RAW",
         requestBody: {
           values: [
@@ -100,6 +106,11 @@ export async function POST(req: NextRequest) {
               "Theme", // Column H for theme
               "Currency", // Column I for display currency
               "Exchange Rate", // Column J for exchange rate
+              "Email Signup Enabled", // Column K
+              "Email Prompt Message", // Column L
+              "Collect Name", // Column M
+              "Collect Phone", // Column N
+              "Auto Dismiss Seconds", // Column O
             ],
           ],
         },
@@ -213,6 +224,26 @@ export async function POST(req: NextRequest) {
         requestBody: {
           values: [
             [currency.displayCurrency || "USD", currency.exchangeRate || 1.0],
+          ],
+        },
+      });
+    }
+
+    // Write email signup settings if provided
+    if (emailSignup) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "POS Settings!K2:O2",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [
+            [
+              emailSignup.enabled ? "Yes" : "No",
+              emailSignup.promptMessage || "Want to join our email list?",
+              emailSignup.collectName ? "Yes" : "No",
+              emailSignup.collectPhone ? "Yes" : "No",
+              emailSignup.autoDismissSeconds || 15,
+            ],
           ],
         },
       });

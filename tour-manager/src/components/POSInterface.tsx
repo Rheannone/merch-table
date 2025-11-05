@@ -1,6 +1,12 @@
 "use client";
 
-import { Product, CartItem, PaymentMethod, PaymentSetting } from "@/types";
+import {
+  Product,
+  CartItem,
+  PaymentMethod,
+  PaymentSetting,
+  EmailSignupSettings,
+} from "@/types";
 import { useState, useEffect } from "react";
 import {
   ShoppingCartIcon,
@@ -11,6 +17,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
 import QRCodePaymentModal from "./QRCodePaymentModal";
+import EmailSignupModal from "./EmailSignupModal";
 import {
   formatPrice,
   getBillDenominations,
@@ -80,6 +87,18 @@ export default function POSInterface({
     100, 50, 20, 10, 5, 1,
   ]);
 
+  // Email signup states
+  const [showEmailSignupModal, setShowEmailSignupModal] = useState(false);
+  const [emailSignupSettings, setEmailSignupSettings] =
+    useState<EmailSignupSettings>({
+      enabled: false,
+      promptMessage: "Want to join our email list?",
+      collectName: true,
+      collectPhone: true,
+      autoDismissSeconds: 15,
+    });
+  const [lastSaleId, setLastSaleId] = useState<string | null>(null);
+
   // Update categoryOrder when prop changes (e.g., after settings save)
   useEffect(() => {
     if (initialCategoryOrder.length > 0) {
@@ -139,6 +158,18 @@ export default function POSInterface({
           Array.isArray(data.categories)
         ) {
           setCategoryOrder(data.categories);
+        }
+
+        // Load email signup settings
+        if (data.emailSignup) {
+          setEmailSignupSettings({
+            enabled: data.emailSignup.enabled !== false,
+            promptMessage:
+              data.emailSignup.promptMessage || "Want to join our email list?",
+            collectName: data.emailSignup.collectName !== false,
+            collectPhone: data.emailSignup.collectPhone !== false,
+            autoDismissSeconds: data.emailSignup.autoDismissSeconds || 15,
+          });
         }
       }
     } catch (error) {
@@ -313,6 +344,10 @@ export default function POSInterface({
         tip > 0 ? tip : undefined
       );
 
+      // Generate sale ID (same format as in page.tsx)
+      const saleId = `sale-${Date.now()}`;
+      setLastSaleId(saleId);
+
       // Reset state
       setCart([]);
       if (paymentSettings.length > 0) {
@@ -333,6 +368,11 @@ export default function POSInterface({
             : "Sale completed successfully!",
         type: "success",
       });
+
+      // Show email signup modal if enabled
+      if (emailSignupSettings.enabled) {
+        setShowEmailSignupModal(true);
+      }
     } catch (error) {
       console.error("Failed to complete sale:", error);
       setToast({
@@ -383,6 +423,10 @@ export default function POSInterface({
         tip > 0 ? tip : undefined
       );
 
+      // Generate sale ID (same format as in page.tsx)
+      const saleId = `sale-${Date.now()}`;
+      setLastSaleId(saleId);
+
       // Reset state including modal states
       setCart([]);
       if (paymentSettings.length > 0) {
@@ -407,6 +451,11 @@ export default function POSInterface({
             : "Sale completed successfully!",
         type: "success",
       });
+
+      // Show email signup modal if enabled
+      if (emailSignupSettings.enabled) {
+        setShowEmailSignupModal(true);
+      }
     } catch (error) {
       console.error("Failed to complete sale:", error);
       setToast({
@@ -620,6 +669,51 @@ export default function POSInterface({
     if (method !== "cash" && method.toLowerCase() !== "cash") {
       setCashReceived(0);
     }
+  };
+
+  const handleEmailSignupSubmit = async (data: {
+    email: string;
+    name?: string;
+    phone?: string;
+  }) => {
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) {
+        console.error("No spreadsheet ID found");
+        return;
+      }
+
+      const response = await fetch("/api/sheets/email-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spreadsheetId,
+          email: data.email,
+          name: data.name,
+          phone: data.phone,
+          saleId: lastSaleId,
+        }),
+      });
+
+      if (response.ok) {
+        setToast({
+          message: "Email saved! Thanks for signing up! 🎉",
+          type: "success",
+        });
+      } else {
+        console.error("Failed to save email signup");
+      }
+    } catch (error) {
+      console.error("Error saving email signup:", error);
+    } finally {
+      setShowEmailSignupModal(false);
+      setLastSaleId(null);
+    }
+  };
+
+  const handleEmailSignupSkip = () => {
+    setShowEmailSignupModal(false);
+    setLastSaleId(null);
   };
 
   const scrollToPayment = () => {
@@ -2037,6 +2131,15 @@ export default function POSInterface({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Email Signup Modal */}
+      {showEmailSignupModal && (
+        <EmailSignupModal
+          settings={emailSignupSettings}
+          onSubmit={handleEmailSignupSubmit}
+          onClose={handleEmailSignupSkip}
+        />
       )}
 
       {/* Toast Notification */}

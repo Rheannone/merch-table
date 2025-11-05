@@ -117,3 +117,22 @@ export interface SyncStatus {
   isSyncing: boolean;
   pendingProductSync: boolean; // True if products need to be synced
 }
+
+export interface EmailSignup {
+  id: string;
+  timestamp: string;
+  email: string;
+  name?: string; // Optional name
+  phone?: string; // Optional phone number
+  source: "post-checkout" | "manual-entry"; // How the email was collected
+  saleId?: string; // Associated sale ID if collected post-checkout
+  synced: boolean; // Whether synced to Google Sheets
+}
+
+export interface EmailSignupSettings {
+  enabled: boolean; // Whether to show post-checkout email prompt
+  promptMessage?: string; // Custom message (default: "Join our mailing list!")
+  collectName?: boolean; // Whether to ask for name (default: false)
+  collectPhone?: boolean; // Whether to ask for phone (default: false)
+  autoDismissSeconds?: number; // Auto-dismiss after X seconds (default: 10)
+}

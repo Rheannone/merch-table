@@ -11,8 +11,9 @@ import {
   CircleStackIcon,
   PaintBrushIcon,
   ArrowDownTrayIcon,
+  EnvelopeIcon,
 } from "@heroicons/react/24/outline";
-import { PaymentSetting } from "@/types";
+import { PaymentSetting, EmailSignupSettings } from "@/types";
 import Toast, { ToastType } from "./Toast";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
@@ -91,6 +92,25 @@ export default function Settings() {
   const [isBackupExpanded, setIsBackupExpanded] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
 
+  // Email Signup state
+  const [isEmailSignupExpanded, setIsEmailSignupExpanded] = useState(false);
+  const [emailSignupSettings, setEmailSignupSettings] =
+    useState<EmailSignupSettings>({
+      enabled: false,
+      promptMessage: "Want to join our email list?",
+      collectName: false,
+      collectPhone: false,
+      autoDismissSeconds: 10,
+    });
+
+  // Manual email entry state
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [isManualEntrySubmitting, setIsManualEntrySubmitting] = useState(false);
+  const [needsEmailListSheet, setNeedsEmailListSheet] = useState(false);
+  const [isAddingEmailSheet, setIsAddingEmailSheet] = useState(false);
+
   // Unsaved changes tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [originalPaymentSettings, setOriginalPaymentSettings] = useState<
@@ -101,12 +121,19 @@ export default function Settings() {
   const [originalCurrency, setOriginalCurrency] = useState<CurrencyCode>("USD");
   const [originalExchangeRate, setOriginalExchangeRate] =
     useState<string>("1.0");
+  const [originalEmailSignupSettings, setOriginalEmailSignupSettings] =
+    useState<EmailSignupSettings>({
+      enabled: false,
+      promptMessage: "Want to join our email list?",
+      collectName: false,
+      collectPhone: false,
+      autoDismissSeconds: 10,
+    });
 
   useEffect(() => {
     loadSettings();
     loadCurrentSheetInfo();
     loadGooglePickerScript();
-    loadCurrencySettings();
   }, []);
 
   // Detect changes
@@ -120,6 +147,9 @@ export default function Settings() {
     const themeChanged = selectedThemeId !== themeId;
     const currencyChanged = selectedCurrency !== originalCurrency;
     const rateChanged = exchangeRate !== originalExchangeRate;
+    const emailSignupChanged =
+      JSON.stringify(emailSignupSettings) !==
+      JSON.stringify(originalEmailSignupSettings);
 
     const hasChanges =
       paymentChanged ||
@@ -127,7 +157,8 @@ export default function Settings() {
       tipJarChanged ||
       themeChanged ||
       currencyChanged ||
-      rateChanged;
+      rateChanged ||
+      emailSignupChanged;
 
     setHasUnsavedChanges(hasChanges);
   }, [
@@ -143,6 +174,8 @@ export default function Settings() {
     originalCurrency,
     exchangeRate,
     originalExchangeRate,
+    emailSignupSettings,
+    originalEmailSignupSettings,
   ]);
 
   // Helper to check if specific section has changes
@@ -165,6 +198,11 @@ export default function Settings() {
         );
       case "theme":
         return selectedThemeId !== themeId;
+      case "emailSignup":
+        return (
+          JSON.stringify(emailSignupSettings) !==
+          JSON.stringify(originalEmailSignupSettings)
+        );
       default:
         return false;
     }
@@ -305,6 +343,26 @@ export default function Settings() {
             code: currencyCode,
           });
         }
+
+        // Load email signup settings from sheet if available
+        if (data.emailSignup) {
+          console.log("Email signup data received from API:", data.emailSignup);
+          const loadedSettings: EmailSignupSettings = {
+            enabled: data.emailSignup.enabled === true,
+            promptMessage:
+              data.emailSignup.promptMessage || "Want to join our email list?",
+            collectName: data.emailSignup.collectName === true,
+            collectPhone: data.emailSignup.collectPhone === true,
+            autoDismissSeconds: data.emailSignup.autoDismissSeconds || 15,
+          };
+          console.log("Loaded email signup settings:", loadedSettings);
+          setEmailSignupSettings(loadedSettings);
+          setOriginalEmailSignupSettings(
+            JSON.parse(JSON.stringify(loadedSettings))
+          );
+        } else {
+          console.log("No email signup data received from API");
+        }
       } else {
         setToast({
           message: `Failed to load settings: ${data.error}`,
@@ -360,6 +418,7 @@ export default function Settings() {
             displayCurrency: selectedCurrency,
             exchangeRate: Number.parseFloat(exchangeRate),
           },
+          emailSignup: emailSignupSettings,
         }),
       });
 
@@ -372,6 +431,9 @@ export default function Settings() {
         setOriginalShowTipJar(showTipJar);
         setOriginalCurrency(selectedCurrency);
         setOriginalExchangeRate(exchangeRate);
+        setOriginalEmailSignupSettings(
+          JSON.parse(JSON.stringify(emailSignupSettings))
+        );
 
         // Save currency to localStorage so it persists across sessions
         const currencyInfo = CURRENCIES[selectedCurrency];
@@ -401,6 +463,149 @@ export default function Settings() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAddEmailListSheet = async () => {
+    setIsAddingEmailSheet(true);
+
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) {
+        setToast({ message: "No spreadsheet found", type: "error" });
+        return;
+      }
+
+      const response = await fetch("/api/sheets/add-email-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spreadsheetId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setNeedsEmailListSheet(false);
+        setToast({
+          message: data.alreadyExists
+            ? "Email List sheet already exists!"
+            : "Email List sheet created successfully! 🎉",
+          type: "success",
+        });
+        return true;
+      } else {
+        setToast({
+          message: data.error || "Failed to create Email List sheet",
+          type: "error",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("Error creating Email List sheet:", error);
+      setToast({ message: "Failed to create Email List sheet", type: "error" });
+      return false;
+    } finally {
+      setIsAddingEmailSheet(false);
+    }
+  };
+
+  const handleToggleEmailSignup = async () => {
+    const newEnabledState = !emailSignupSettings.enabled;
+
+    // If enabling, check if Email List sheet exists first
+    if (newEnabledState) {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) {
+        setToast({
+          message: "No spreadsheet found. Please initialize sheets first.",
+          type: "error",
+        });
+        return;
+      }
+
+      setIsAddingEmailSheet(true);
+
+      // Try to add the Email List sheet (it will return success if it already exists)
+      const success = await handleAddEmailListSheet();
+
+      if (success) {
+        // Only enable if sheet was created/exists
+        setEmailSignupSettings((prev) => ({
+          ...prev,
+          enabled: true,
+        }));
+      }
+    } else {
+      // If disabling, just update the state
+      setEmailSignupSettings((prev) => ({
+        ...prev,
+        enabled: false,
+      }));
+    }
+  };
+
+  const handleManualEmailEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!manualEmail.trim()) {
+      setToast({ message: "Email is required", type: "error" });
+      return;
+    }
+
+    setIsManualEntrySubmitting(true);
+
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) {
+        setToast({ message: "No spreadsheet found", type: "error" });
+        return;
+      }
+
+      const response = await fetch("/api/sheets/email-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spreadsheetId,
+          email: manualEmail.trim().toLowerCase(),
+          name: manualName.trim() || undefined,
+          phone: manualPhone.trim() || undefined,
+          // No saleId for manual entry
+        }),
+      });
+
+      if (response.ok) {
+        setToast({ message: "Email added successfully! 📧", type: "success" });
+        setNeedsEmailListSheet(false);
+        // Clear form
+        setManualEmail("");
+        setManualName("");
+        setManualPhone("");
+      } else {
+        const errorData = await response.json();
+        const errorMessage = errorData.error || "Failed to add email";
+        console.error("Email signup error:", errorData);
+
+        if (errorMessage.includes("Email List sheet not found")) {
+          setNeedsEmailListSheet(true);
+          setToast({
+            message:
+              "Email List sheet missing - Toggle the feature off and on again to auto-create it",
+            type: "error",
+            duration: 6000,
+          });
+        } else {
+          setToast({
+            message: errorMessage,
+            type: "error",
+            duration: 5000,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error adding manual email:", error);
+      setToast({ message: "Failed to add email", type: "error" });
+    } finally {
+      setIsManualEntrySubmitting(false);
     }
   };
 
@@ -1343,6 +1548,280 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Email Signup Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsEmailSignupExpanded(!isEmailSignupExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <EnvelopeIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Email Signup</h2>
+              {sectionHasChanges("emailSignup") && (
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
+            </div>
+            {isEmailSignupExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isEmailSignupExpanded && (
+            <div className="px-6 pb-6">
+              <p className="text-sm text-theme-muted mb-6">
+                Collect emails from customers after checkout. Build your mailing
+                list for updates, new merch, and tour announcements.
+              </p>
+
+              <div className="space-y-6">
+                {/* Enable/Disable Toggle */}
+                <div className="flex items-center justify-between p-5 bg-gradient-to-r from-theme-tertiary to-theme-secondary rounded-lg border-2 border-theme hover:border-primary/30 transition-all">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-theme mb-1 text-lg">
+                      Enable Email Signup
+                    </h3>
+                    <p className="text-sm text-theme-muted">
+                      Show email signup prompt after each sale
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleEmailSignup}
+                    disabled={isAddingEmailSheet}
+                    className={`relative inline-flex h-10 w-[70px] flex-shrink-0 items-center rounded-full transition-all duration-300 shadow-lg ${
+                      emailSignupSettings.enabled
+                        ? "bg-gradient-to-r from-green-600 to-green-500"
+                        : "bg-gradient-to-r from-gray-600 to-gray-500"
+                    } hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100`}
+                  >
+                    {isAddingEmailSheet ? (
+                      <div className="w-full flex items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      <span
+                        className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                          emailSignupSettings.enabled
+                            ? "translate-x-[34px]"
+                            : "translate-x-[2px]"
+                        }`}
+                      />
+                    )}
+                  </button>
+                </div>
+
+                {/* Custom Message */}
+                <div>
+                  <label
+                    htmlFor="promptMessage"
+                    className="block text-sm font-semibold text-theme mb-2"
+                  >
+                    Prompt Message
+                  </label>
+                  <input
+                    id="promptMessage"
+                    type="text"
+                    value={emailSignupSettings.promptMessage}
+                    onChange={(e) =>
+                      setEmailSignupSettings((prev) => ({
+                        ...prev,
+                        promptMessage: e.target.value,
+                      }))
+                    }
+                    placeholder="Join our mailing list!"
+                    className="w-full px-4 py-3 bg-theme-tertiary border border-theme rounded-lg text-theme placeholder:text-theme-muted focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                {/* Additional Fields */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-theme">
+                    Optional Information to Collect
+                  </h3>
+
+                  <label className="flex items-center gap-3 p-3 bg-theme-tertiary rounded-lg cursor-pointer hover:bg-theme transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={emailSignupSettings.collectName}
+                      onChange={(e) =>
+                        setEmailSignupSettings((prev) => ({
+                          ...prev,
+                          collectName: e.target.checked,
+                        }))
+                      }
+                      className="w-5 h-5 text-primary rounded focus:ring-2 focus:ring-primary"
+                    />
+                    <div>
+                      <div className="font-medium text-theme">Collect Name</div>
+                      <div className="text-sm text-theme-muted">
+                        Ask for customer&apos;s name
+                      </div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 bg-theme-tertiary rounded-lg cursor-pointer hover:bg-theme transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={emailSignupSettings.collectPhone}
+                      onChange={(e) =>
+                        setEmailSignupSettings((prev) => ({
+                          ...prev,
+                          collectPhone: e.target.checked,
+                        }))
+                      }
+                      className="w-5 h-5 text-primary rounded focus:ring-2 focus:ring-primary"
+                    />
+                    <div>
+                      <div className="font-medium text-theme">
+                        Collect Phone Number
+                      </div>
+                      <div className="text-sm text-theme-muted">
+                        Ask for customer&apos;s phone
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Auto-dismiss Timer */}
+                <div>
+                  <label
+                    htmlFor="autoDismiss"
+                    className="block text-sm font-semibold text-theme mb-2"
+                  >
+                    Auto-dismiss Timer (seconds)
+                  </label>
+                  <input
+                    id="autoDismiss"
+                    type="number"
+                    min="5"
+                    max="30"
+                    value={emailSignupSettings.autoDismissSeconds}
+                    onChange={(e) =>
+                      setEmailSignupSettings((prev) => ({
+                        ...prev,
+                        autoDismissSeconds:
+                          Number.parseInt(e.target.value) || 10,
+                      }))
+                    }
+                    className="w-full px-4 py-3 bg-theme-tertiary border border-theme rounded-lg text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <p className="text-xs text-theme-muted mt-2">
+                    Modal will auto-close after this many seconds if no action
+                    taken
+                  </p>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+                  <p className="text-sm text-blue-300 mb-2">
+                    📧 <strong>Email List will be saved to:</strong>
+                  </p>
+                  <ul className="text-sm text-blue-200 space-y-1 ml-4 list-disc">
+                    <li>
+                      New &quot;Email List&quot; sheet in your spreadsheet
+                    </li>
+                    <li>Includes timestamp, email, name, phone, and sale ID</li>
+                    <li>Automatically syncs with Google Sheets</li>
+                  </ul>
+                </div>
+
+                {/* Manual Email Entry Section */}
+                <div className="border-t border-theme pt-6 mt-6">
+                  <h3 className="text-lg font-bold text-theme mb-3">
+                    📝 Manual Entry
+                  </h3>
+                  <p className="text-sm text-theme-muted mb-4">
+                    Add emails from physical signup sheets or paper lists
+                  </p>
+
+                  <form onSubmit={handleManualEmailEntry} className="space-y-4">
+                    <div>
+                      <label
+                        htmlFor="manualEmail"
+                        className="block text-sm font-medium text-theme mb-2"
+                      >
+                        Email Address *
+                      </label>
+                      <input
+                        id="manualEmail"
+                        type="email"
+                        value={manualEmail}
+                        onChange={(e) => setManualEmail(e.target.value)}
+                        placeholder="customer@example.com"
+                        disabled={isManualEntrySubmitting}
+                        className="w-full px-4 py-3 bg-theme-tertiary border border-theme rounded-lg text-theme placeholder:text-theme-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label
+                          htmlFor="manualName"
+                          className="block text-sm font-medium text-theme mb-2"
+                        >
+                          Name (Optional)
+                        </label>
+                        <input
+                          id="manualName"
+                          type="text"
+                          value={manualName}
+                          onChange={(e) => setManualName(e.target.value)}
+                          placeholder="John Doe"
+                          disabled={isManualEntrySubmitting}
+                          className="w-full px-4 py-3 bg-theme-tertiary border border-theme rounded-lg text-theme placeholder:text-theme-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="manualPhone"
+                          className="block text-sm font-medium text-theme mb-2"
+                        >
+                          Phone (Optional)
+                        </label>
+                        <input
+                          id="manualPhone"
+                          type="tel"
+                          value={manualPhone}
+                          onChange={(e) => setManualPhone(e.target.value)}
+                          placeholder="(555) 123-4567"
+                          disabled={isManualEntrySubmitting}
+                          className="w-full px-4 py-3 bg-theme-tertiary border border-theme rounded-lg text-theme placeholder:text-theme-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isManualEntrySubmitting || !manualEmail.trim()}
+                      className="w-full px-4 py-3 bg-primary hover:bg-primary/90 text-on-primary font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                    >
+                      {isManualEntrySubmitting
+                        ? "Adding..."
+                        : "Add to Email List"}
+                    </button>
+
+                    {/* Helper message if Email List sheet is missing */}
+                    {needsEmailListSheet && (
+                      <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
+                        <p className="text-sm text-yellow-200">
+                          ⚠️ The Email List sheet is missing. Toggle the
+                          &quot;Enable Email Signup&quot; off and back on to
+                          auto-create it.
+                        </p>
+                      </div>
+                    )}
+                  </form>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -141,12 +141,47 @@ export async function POST(req: NextRequest) {
       console.log("No currency found in settings, using default USD");
     }
 
+    // Load email signup settings from sheet (stored in columns K-O)
+    let emailSignup = {
+      enabled: false,
+      promptMessage: "Want to join our email list?",
+      collectName: true,
+      collectPhone: true,
+      autoDismissSeconds: 15,
+    };
+    try {
+      const emailSignupData = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "POS Settings!K2:O2", // Email signup in columns K-O, row 2
+      });
+
+      const emailValues = emailSignupData.data.values?.[0];
+      console.log("Email signup raw values from sheet:", emailValues);
+
+      if (emailValues && emailValues.length > 0) {
+        emailSignup = {
+          enabled: emailValues[0] === "TRUE" || emailValues[0] === "Yes",
+          promptMessage: emailValues[1] || "Want to join our email list?",
+          collectName: emailValues[2] === "TRUE" || emailValues[2] === "Yes",
+          collectPhone: emailValues[3] === "TRUE" || emailValues[3] === "Yes",
+          autoDismissSeconds: Number.parseInt(emailValues[4]) || 15,
+        };
+        console.log("Parsed email signup settings:", emailSignup);
+      }
+    } catch (error) {
+      console.log(
+        "No email signup settings found, using defaults. Error:",
+        error
+      );
+    }
+
     return NextResponse.json({
       success: true,
       paymentSettings,
       categories: categories.length > 0 ? categories : DEFAULT_CATEGORIES,
       theme,
       currency,
+      emailSignup,
       isDefault: false,
     });
   } catch (error) {

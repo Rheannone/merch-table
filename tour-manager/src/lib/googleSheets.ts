@@ -200,7 +200,7 @@ export async function initializeUserSheets(
 
   const sheets = google.sheets({ version: "v4", auth });
 
-  // Create a single spreadsheet with two sheets
+  // Create a single spreadsheet with three sheets
   const response = await sheets.spreadsheets.create({
     requestBody: {
       properties: {
@@ -218,6 +218,14 @@ export async function initializeUserSheets(
         {
           properties: {
             title: "Sales",
+            gridProperties: {
+              frozenRowCount: 1,
+            },
+          },
+        },
+        {
+          properties: {
+            title: "Email List",
             gridProperties: {
               frozenRowCount: 1,
             },
@@ -275,9 +283,22 @@ export async function initializeUserSheets(
     },
   });
 
-  // Format both sheet headers (bold)
+  // Set up Email List sheet headers
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: "Email List!A1:G1",
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [
+        ["Timestamp", "Email", "Name", "Phone", "Source", "Sale ID", "Synced"],
+      ],
+    },
+  });
+
+  // Format all sheet headers (bold)
   const productSheetId = response.data.sheets?.[0]?.properties?.sheetId ?? 0;
   const salesSheetId = response.data.sheets?.[1]?.properties?.sheetId ?? 1;
+  const emailSheetId = response.data.sheets?.[2]?.properties?.sheetId ?? 2;
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -304,6 +325,23 @@ export async function initializeUserSheets(
           repeatCell: {
             range: {
               sheetId: salesSheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                textFormat: {
+                  bold: true,
+                },
+              },
+            },
+            fields: "userEnteredFormat.textFormat.bold",
+          },
+        },
+        {
+          repeatCell: {
+            range: {
+              sheetId: emailSheetId,
               startRowIndex: 0,
               endRowIndex: 1,
             },

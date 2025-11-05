@@ -63,7 +63,7 @@ export default function Home() {
 
   // Check localStorage on client side only
   useEffect(() => {
-    const dismissed = localStorage.getItem("announcement-v2-dismissed");
+    const dismissed = localStorage.getItem("announcement-v3-dismissed");
     if (dismissed === "true") {
       setShowAnnouncement(false);
     }
@@ -805,27 +805,32 @@ export default function Home() {
 
       {/* Announcement Banner */}
       {showAnnouncement && (
-        <div className="bg-gradient-to-r from-purple-600 to-purple-500 border-b border-purple-700">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
+        <div 
+          className="relative border-b border-amber-900 overflow-hidden" 
+          style={{
+            backgroundImage: 'url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)',
+            backgroundSize: '600px auto',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'repeat'
+          }}
+        >
+          <div className="flex items-center justify-between gap-4 px-4 py-3 relative">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <span className="text-2xl flex-shrink-0">🎉</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold text-sm sm:text-base">
-                  New: Review Order Flow for All Payments!
+              <div className="flex-1 min-w-0 bg-black/85 px-3 py-2 rounded-lg">
+                <p className="text-white font-bold text-sm sm:text-base">
+                  v3 Features: Email List Signup + Direct Image Uploads!
                 </p>
-                <p className="text-theme text-xs sm:text-sm mt-0.5">
-                  Coffee shop-style checkout: Select tips, review your order
-                  with complete breakdown, and see transaction fees before
-                  completing any sale.
+                <p className="text-white text-xs sm:text-sm mt-0.5">
+                  Collect emails from customers after checkout, upload product images & QR codes directly from your device, and more settings improvements. Check Settings → Email Signup to enable!
                 </p>
               </div>
             </div>
             <button
               onClick={() => {
                 setShowAnnouncement(false);
-                localStorage.setItem("announcement-v2-dismissed", "true");
+                localStorage.setItem("announcement-v3-dismissed", "true");
               }}
-              className="text-white hover:bg-secondary transition-colors flex-shrink-0 p-2 rounded-lg bg-secondary/70 border border-accent-light/30"
+              className="text-white hover:bg-primary/90 transition-colors flex-shrink-0 p-2 rounded-lg bg-primary border-2 border-black drop-shadow-lg"
               title="Dismiss"
             >
               <XMarkIcon className="w-6 h-6" />
@@ -919,6 +924,62 @@ export default function Home() {
 
             {/* Changelog */}
             <div className="space-y-6">
+              {/* November 5, 2025 - v3 Features */}
+              <div className="border-l-4 border-emerald-500 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500 text-white rounded">
+                    NEW
+                  </span>
+                  <span className="text-sm text-theme-muted">
+                    November 5, 2025
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-theme mb-2">
+                  📧 Email List Signup
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>
+                    • Post-checkout modal to collect emails from customers
+                  </li>
+                  <li>
+                    • Optional name and phone collection with smart toggle
+                  </li>
+                  <li>
+                    • Auto-dismiss countdown that pauses when user starts typing
+                  </li>
+                  <li>
+                    • Customizable prompt message for your band&apos;s voice
+                  </li>
+                  <li>
+                    • Manual entry form in Settings for table signups
+                  </li>
+                  <li>
+                    • All emails saved to &quot;Email List&quot; sheet in your spreadsheet
+                  </li>
+                  <li>
+                    • Each signup linked to sale ID for tracking conversion
+                  </li>
+                </ul>
+
+                <h3 className="text-lg font-bold text-theme mb-2 mt-4">
+                  🎨 Enhanced Settings
+                </h3>
+                <ul className="space-y-1 text-sm text-theme-secondary">
+                  <li>
+                    • Direct image uploads for products (no external links needed)
+                  </li>
+                  <li>
+                    • Upload QR codes directly from device for payment methods
+                  </li>
+                  <li>
+                    • Images stored as base64 in sheets - never expire or break
+                  </li>
+                  <li>
+                    • Auto-compression keeps sheet sizes manageable
+                  </li>
+                </ul>
+              </div>
+
               {/* November 5, 2025 - MERCH TABLE Rebrand */}
               <div className="border-l-4 border-primary pl-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -953,8 +1014,8 @@ export default function Home() {
                     • All functionality stays the same - just looks better
                   </li>
                   <li>
-                    • Multiple themes still available in Settings (Merch
-                    Table, Default, Girlypop)
+                    • Multiple themes still available in Settings (Merch Table,
+                    Default, Girlypop)
                   </li>
                 </ul>
                 <p className="text-xs text-theme-muted mt-3 italic">
