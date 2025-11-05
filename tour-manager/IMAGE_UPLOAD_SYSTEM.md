@@ -10,6 +10,7 @@
 The image upload system handles **product images** and **payment QR codes** with automatic compression and validation for Google Sheets storage.
 
 ### Key Features
+
 - ✅ **Unified compression logic** in `src/lib/imageCompression.ts`
 - ✅ **Automatic size validation** (50k character limit for Google Sheets)
 - ✅ **Dynamic quality adjustment** (compresses until image fits)
@@ -55,32 +56,39 @@ The image upload system handles **product images** and **payment QR codes** with
 ### `src/lib/imageCompression.ts`
 
 #### `compressImage(file: File): Promise<File>`
+
 Compresses image with dynamic quality adjustment.
 
 **Algorithm:**
+
 1. Resize to max 800px width (maintains aspect ratio)
 2. Start with 80% JPEG quality
-3. Estimate base64 size (fileSize * 1.33)
+3. Estimate base64 size (fileSize \* 1.33)
 4. If > 37KB, reduce quality by 10% and retry
 5. Minimum quality: 30%
 
 **Why 37KB target?**
+
 - Google Sheets limit: 50,000 characters
 - Base64 prefix adds ~100 chars: `data:image/jpeg;base64,`
 - Buffer for safety: 37,000 chars ≈ 27KB file size
 
 #### `fileToBase64(file: File): Promise<string>`
+
 Converts file to base64 and validates size.
 
 **Validation:**
+
 - Checks final base64 string length
 - Throws error if > 50,000 characters
 - Includes size in error message for debugging
 
 #### `processImageForUpload(file: File): Promise<{ base64, originalSize, compressedSize }>`
+
 **The main entry point** - combines compression + validation.
 
 **Returns:**
+
 - `base64`: Ready-to-use data URL
 - `originalSize`: Human-readable original size
 - `compressedSize`: Human-readable compressed size
@@ -97,14 +105,18 @@ const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   if (!file) return;
 
   // Validate file type
-  if (!file.type.startsWith("image/")) { /* error */ }
-  
+  if (!file.type.startsWith("image/")) {
+    /* error */
+  }
+
   // Validate size (10MB max before compression)
-  if (file.size > 10 * 1024 * 1024) { /* error */ }
+  if (file.size > 10 * 1024 * 1024) {
+    /* error */
+  }
 
   try {
     // Use unified utility
-    const { base64, originalSize, compressedSize } = 
+    const { base64, originalSize, compressedSize } =
       await processImageForUpload(file);
 
     // Update product with base64 URL
@@ -133,12 +145,16 @@ const handleQRCodeUpload = async (
   if (!file) return;
 
   // Same validation as products
-  if (!file.type.startsWith("image/")) { /* error */ }
-  if (file.size > 5 * 1024 * 1024) { /* error */ }
+  if (!file.type.startsWith("image/")) {
+    /* error */
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    /* error */
+  }
 
   try {
     // Use same unified utility
-    const { base64, originalSize, compressedSize } = 
+    const { base64, originalSize, compressedSize } =
       await processImageForUpload(file);
 
     // Update payment setting
@@ -163,7 +179,7 @@ const handleQRCodeUpload = async (
 ```typescript
 const values = (products as Product[]).map((p) => {
   const imageUrl = p.imageUrl || "";
-  
+
   // Validate before syncing
   if (imageUrl.length > 50000) {
     throw new Error(
@@ -172,12 +188,13 @@ const values = (products as Product[]).map((p) => {
       `Please use a smaller image or external URL.`
     );
   }
-  
+
   return [p.id, p.name, p.price, p.category, p.sizes, imageUrl, ...];
 });
 ```
 
 **Why validate here?**
+
 - Catches any images that slipped through client validation
 - Prevents Google Sheets API errors
 - Provides specific product name in error
@@ -187,13 +204,13 @@ const values = (products as Product[]).map((p) => {
 
 ## Size Limits
 
-| Limit Type | Value | Reason |
-|------------|-------|--------|
-| **Pre-compression file size** | 10MB (products)<br>5MB (QR codes) | Reasonable upload size |
-| **Target compressed file** | ~27KB | Ensures base64 < 37KB |
-| **Base64 string length** | 50,000 chars | Google Sheets cell limit |
-| **Compression quality range** | 30% - 80% | Balance quality vs. size |
-| **Image width** | 800px max | Sufficient for POS display |
+| Limit Type                    | Value                             | Reason                     |
+| ----------------------------- | --------------------------------- | -------------------------- |
+| **Pre-compression file size** | 10MB (products)<br>5MB (QR codes) | Reasonable upload size     |
+| **Target compressed file**    | ~27KB                             | Ensures base64 < 37KB      |
+| **Base64 string length**      | 50,000 chars                      | Google Sheets cell limit   |
+| **Compression quality range** | 30% - 80%                         | Balance quality vs. size   |
+| **Image width**               | 800px max                         | Sufficient for POS display |
 
 ---
 
@@ -201,21 +218,23 @@ const values = (products as Product[]).map((p) => {
 
 ### User-Friendly Errors
 
-| Scenario | Message |
-|----------|---------|
-| Wrong file type | "Please select an image file" |
-| File too large (pre-compression) | "Image must be less than 10MB" |
+| Scenario                           | Message                                                         |
+| ---------------------------------- | --------------------------------------------------------------- |
+| Wrong file type                    | "Please select an image file"                                   |
+| File too large (pre-compression)   | "Image must be less than 10MB"                                  |
 | Still too large (post-compression) | "Image is too large (52KB). Maximum is 50KB after compression." |
-| Compression failed | "Failed to compress image" |
-| Network error during sync | "Failed to sync products" |
-| Specific product too large | "Product 'Band T-Shirt' has an image that's too large (55KB)" |
+| Compression failed                 | "Failed to compress image"                                      |
+| Network error during sync          | "Failed to sync products"                                       |
+| Specific product too large         | "Product 'Band T-Shirt' has an image that's too large (55KB)"   |
 
 ### Debug Logging
 
 ```typescript
 console.log(`✅ Product image compressed: 2.1 MB → 24 KB (32145 chars)`);
 console.log(`✅ QR code compressed for venmo: 400 KB → 18 KB (24576 chars)`);
-console.error(`❌ Product "Hat" has an image that's too large: 52341 characters`);
+console.error(
+  `❌ Product "Hat" has an image that's too large: 52341 characters`
+);
 ```
 
 ---
@@ -223,6 +242,7 @@ console.error(`❌ Product "Hat" has an image that's too large: 52341 characters
 ## Testing Checklist
 
 ### Product Images
+
 - [ ] Upload small image (< 1MB) - should compress to ~10-20KB
 - [ ] Upload large image (5-10MB) - should compress to ~20-30KB
 - [ ] Upload huge image (> 10MB) - should show error before upload
@@ -233,6 +253,7 @@ console.error(`❌ Product "Hat" has an image that's too large: 52341 characters
 - [ ] Offline mode: images display from IndexedDB
 
 ### QR Code Images
+
 - [ ] Upload QR code PNG - should compress and display preview
 - [ ] Upload QR code JPG - should compress and display preview
 - [ ] Upload very simple QR (small) - should compress to ~5-10KB
@@ -243,6 +264,7 @@ console.error(`❌ Product "Hat" has an image that's too large: 52341 characters
 - [ ] Remove QR code works correctly
 
 ### Sync Validation
+
 - [ ] Products with valid images sync successfully
 - [ ] Products with oversized images show specific error
 - [ ] Error message includes product name
@@ -259,6 +281,7 @@ console.error(`❌ Product "Hat" has an image that's too large: 52341 characters
 **Cause:** Image base64 exceeds 50,000 character limit
 
 **Solution:**
+
 1. Check console for specific product name
 2. Re-upload image (will compress more aggressively)
 3. Or use external URL instead of base64
@@ -268,6 +291,7 @@ console.error(`❌ Product "Hat" has an image that's too large: 52341 characters
 **Cause:** Over-compression (quality < 40%)
 
 **Solution:**
+
 1. Start with smaller original image (< 2MB ideal)
 2. Crop image to focus on product only
 3. Use PNG for text/graphics, JPG for photos
@@ -277,6 +301,7 @@ console.error(`❌ Product "Hat" has an image that's too large: 52341 characters
 **Cause:** Compression taking too long or error not caught
 
 **Solution:**
+
 1. Check browser console for errors
 2. Try smaller image
 3. Refresh page if stuck
@@ -319,6 +344,6 @@ src/
 ✅ **Validated** - Size checks at upload AND sync  
 ✅ **Debugged** - Clear error messages with specifics  
 ✅ **Optimized** - Dynamic quality adjustment  
-✅ **Reliable** - Works offline, syncs when online  
+✅ **Reliable** - Works offline, syncs when online
 
 **No more buggy experiences!** 🎉

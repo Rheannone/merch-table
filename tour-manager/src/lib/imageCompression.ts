@@ -56,7 +56,7 @@ export async function compressImage(file: File): Promise<File> {
               // Check if size is acceptable
               // Base64 encoding adds ~33% overhead
               const estimatedBase64Size = blob.size * 1.33;
-              
+
               if (estimatedBase64Size > TARGET_BASE64_SIZE && quality > 0.3) {
                 // Too large, try lower quality
                 quality -= 0.1;
@@ -97,13 +97,19 @@ export async function fileToBase64(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result as string;
-      
+
       // Validate size
       if (base64String.length > GOOGLE_SHEETS_CHAR_LIMIT) {
-        reject(new Error(`Image is too large (${formatFileSize(base64String.length)}). Maximum is 50KB after compression.`));
+        reject(
+          new Error(
+            `Image is too large (${formatFileSize(
+              base64String.length
+            )}). Maximum is 50KB after compression.`
+          )
+        );
         return;
       }
-      
+
       resolve(base64String);
     };
     reader.onerror = () => {
@@ -125,10 +131,10 @@ export async function processImageForUpload(file: File): Promise<{
   const compressedFile = await compressImage(file);
   const originalSize = formatFileSize(file.size);
   const compressedSize = formatFileSize(compressedFile.size);
-  
+
   // Convert to base64 and validate
   const base64 = await fileToBase64(compressedFile);
-  
+
   return {
     base64,
     originalSize,

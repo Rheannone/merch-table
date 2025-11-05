@@ -9,37 +9,49 @@ export default function SignIn() {
   const [betaEmail, setBetaEmail] = useState("");
   const [betaName, setBetaName] = useState("");
   const [betaSubmitting, setBetaSubmitting] = useState(false);
-  const [betaMessage, setBetaMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
-  
+  const [betaMessage, setBetaMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+
   // Handle beta interest form submission
   const handleBetaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBetaSubmitting(true);
     setBetaMessage(null);
-    
+
     try {
       const response = await fetch("/api/beta-interest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: betaEmail, name: betaName }),
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
-        setBetaMessage({ text: data.message || "Thanks! We'll be in touch soon.", type: "success" });
+        setBetaMessage({
+          text: data.message || "Thanks! We'll be in touch soon.",
+          type: "success",
+        });
         setBetaEmail("");
         setBetaName("");
       } else {
-        setBetaMessage({ text: data.error || "Something went wrong. Please try again.", type: "error" });
+        setBetaMessage({
+          text: data.error || "Something went wrong. Please try again.",
+          type: "error",
+        });
       }
     } catch (error) {
-      setBetaMessage({ text: "Failed to submit. Please try again.", type: "error" });
+      setBetaMessage({
+        text: "Failed to submit. Please try again.",
+        type: "error",
+      });
     } finally {
       setBetaSubmitting(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen bg-theme flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6">
@@ -57,14 +69,33 @@ export default function SignIn() {
             🎸 Merch Table
           </h1>
           <p className="text-lg text-primary font-bold">
-            Sign in to get started
+            Beta Access Required
           </p>
+        </div>
+
+        {/* Beta Access Notice */}
+        <div className="bg-primary/10 border-2 border-primary rounded-lg p-6">
+          <div className="text-center space-y-3">
+            <div className="text-3xl">🔐</div>
+            <h2 className="text-xl font-bold text-theme">
+              Currently in Private Beta
+            </h2>
+            <p className="text-sm text-theme-secondary">
+              Merch Table is currently in beta testing. To sign in, you must
+              first <strong>request beta access</strong> and be approved by our
+              team.
+            </p>
+            <p className="text-sm text-theme-secondary">
+              If you&apos;ve already been approved, sign in below!
+            </p>
+          </div>
         </div>
 
         {/* Sign In Box */}
         <div className="bg-theme-secondary p-8 rounded-lg border border-theme shadow-lg">
           <p className="text-sm text-center text-theme-secondary mb-6">
-            Sign in with Google to create your sales tracking spreadsheet.
+            <strong>Approved beta users:</strong> Sign in with Google to create
+            your sales tracking spreadsheet.
             <br />
             <span className="text-theme-muted text-xs">
               Your data stays in your Google Drive.
@@ -129,12 +160,13 @@ export default function SignIn() {
         {/* Beta Interest Form */}
         <div className="bg-theme-secondary border-2 border-primary rounded-lg p-6">
           <h3 className="text-lg font-bold text-theme mb-3 text-center">
-            🎸 Questions or Want Early Access?
+            🎸 Request Beta Access
           </h3>
           <p className="text-sm text-center text-theme-muted mb-4">
-            Drop your email and we&apos;ll reach out!
+            Don&apos;t have access yet? Drop your email and we&apos;ll reach
+            out with next steps!
           </p>
-          
+
           <form onSubmit={handleBetaSubmit} className="space-y-3">
             <input
               type="text"
@@ -144,7 +176,7 @@ export default function SignIn() {
               className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               disabled={betaSubmitting}
             />
-            
+
             <input
               type="email"
               value={betaEmail}
@@ -154,7 +186,7 @@ export default function SignIn() {
               className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               disabled={betaSubmitting}
             />
-            
+
             {betaMessage && (
               <div
                 className={`p-3 rounded text-sm ${
@@ -166,13 +198,13 @@ export default function SignIn() {
                 {betaMessage.text}
               </div>
             )}
-            
+
             <button
               type="submit"
               disabled={betaSubmitting}
               className="w-full px-4 py-2 bg-primary text-on-primary font-semibold rounded hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
-              {betaSubmitting ? "Submitting..." : "Get in Touch"}
+              {betaSubmitting ? "Requesting Access..." : "Request Beta Access"}
             </button>
           </form>
         </div>
@@ -186,7 +218,7 @@ export default function SignIn() {
             </Link>
           </p>
           <p className="text-xs opacity-75">
-            Currently in beta • Made for touring bands and vendors
+            Currently in private beta • Made for touring bands and vendors
           </p>
         </div>
       </div>

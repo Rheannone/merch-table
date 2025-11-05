@@ -12,12 +12,15 @@ import { useEffect, useState } from "react";
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
-  
+
   // Beta interest form state
   const [betaEmail, setBetaEmail] = useState("");
   const [betaName, setBetaName] = useState("");
   const [betaSubmitting, setBetaSubmitting] = useState(false);
-  const [betaMessage, setBetaMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [betaMessage, setBetaMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
   // If user is already signed in, redirect to app
   useEffect(() => {
@@ -25,31 +28,40 @@ export default function HomePage() {
       router.push("/app");
     }
   }, [session, router]);
-  
+
   // Handle beta interest form submission
   const handleBetaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBetaSubmitting(true);
     setBetaMessage(null);
-    
+
     try {
       const response = await fetch("/api/beta-interest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: betaEmail, name: betaName }),
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
-        setBetaMessage({ text: data.message || "Thanks! We'll be in touch soon.", type: "success" });
+        setBetaMessage({
+          text: data.message || "Thanks! We'll be in touch soon.",
+          type: "success",
+        });
         setBetaEmail("");
         setBetaName("");
       } else {
-        setBetaMessage({ text: data.error || "Something went wrong. Please try again.", type: "error" });
+        setBetaMessage({
+          text: data.error || "Something went wrong. Please try again.",
+          type: "error",
+        });
       }
     } catch (error) {
-      setBetaMessage({ text: "Failed to submit. Please try again.", type: "error" });
+      setBetaMessage({
+        text: "Failed to submit. Please try again.",
+        type: "error",
+      });
     } finally {
       setBetaSubmitting(false);
     }
@@ -375,13 +387,17 @@ export default function HomePage() {
               🎸 Join the Beta
             </h3>
             <p className="text-theme-secondary text-lg">
-              Want early access or have questions? Drop your email and we&apos;ll be in touch!
+              Want early access or have questions? Drop your email and
+              we&apos;ll be in touch!
             </p>
           </div>
-          
+
           <form onSubmit={handleBetaSubmit} className="space-y-4">
             <div>
-              <label htmlFor="beta-name" className="block text-sm font-medium text-theme mb-2">
+              <label
+                htmlFor="beta-name"
+                className="block text-sm font-medium text-theme mb-2"
+              >
                 Name (optional)
               </label>
               <input
@@ -394,9 +410,12 @@ export default function HomePage() {
                 disabled={betaSubmitting}
               />
             </div>
-            
+
             <div>
-              <label htmlFor="beta-email" className="block text-sm font-medium text-theme mb-2">
+              <label
+                htmlFor="beta-email"
+                className="block text-sm font-medium text-theme mb-2"
+              >
                 Email <span className="text-error">*</span>
               </label>
               <input
@@ -410,7 +429,7 @@ export default function HomePage() {
                 disabled={betaSubmitting}
               />
             </div>
-            
+
             {betaMessage && (
               <div
                 className={`p-4 rounded-lg ${
@@ -422,7 +441,7 @@ export default function HomePage() {
                 {betaMessage.text}
               </div>
             )}
-            
+
             <button
               type="submit"
               disabled={betaSubmitting}
@@ -431,7 +450,7 @@ export default function HomePage() {
               {betaSubmitting ? "Submitting..." : "Get Early Access"}
             </button>
           </form>
-          
+
           <p className="text-center text-sm text-theme-muted mt-6">
             We respect your privacy. No spam, ever. Unsubscribe anytime.
           </p>

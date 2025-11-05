@@ -247,7 +247,8 @@ export default function ProductManager({
       setUploadProgress("Compressing image...");
 
       // Use unified image processing utility
-      const { base64, originalSize, compressedSize } = await processImageForUpload(file);
+      const { base64, originalSize, compressedSize } =
+        await processImageForUpload(file);
 
       setUploadProgress(`Processed (${originalSize} → ${compressedSize})`);
 
@@ -258,8 +259,10 @@ export default function ProductManager({
         message: `Image uploaded! (${originalSize} → ${compressedSize})`,
         type: "success",
       });
-      
-      console.log(`✅ Product image compressed: ${originalSize} → ${compressedSize} (${base64.length} chars)`);
+
+      console.log(
+        `✅ Product image compressed: ${originalSize} → ${compressedSize} (${base64.length} chars)`
+      );
     } catch (error) {
       console.error("Upload error:", error);
       setToast({

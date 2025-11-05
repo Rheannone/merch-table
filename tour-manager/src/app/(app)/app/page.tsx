@@ -623,13 +623,13 @@ export default function Home() {
 
     // Mark products as needing sync
     setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-    
+
     // Debounce sync to avoid showing sync bar for rapid changes
     // Clear any existing timeout
     if (productSyncTimeoutRef.current) {
       clearTimeout(productSyncTimeoutRef.current);
     }
-    
+
     // Sync will happen after 1.5 seconds of inactivity, or on page load/online event
     productSyncTimeoutRef.current = setTimeout(() => {
       if (navigator.onLine) {
@@ -645,12 +645,12 @@ export default function Home() {
 
     // Mark products as needing sync
     setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-    
+
     // Debounce sync to avoid showing sync bar for rapid changes
     if (productSyncTimeoutRef.current) {
       clearTimeout(productSyncTimeoutRef.current);
     }
-    
+
     productSyncTimeoutRef.current = setTimeout(() => {
       if (navigator.onLine) {
         syncProductsToSheet();
@@ -666,12 +666,12 @@ export default function Home() {
 
       // Mark products as needing sync
       setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-      
+
       // Debounce sync to avoid showing sync bar for rapid changes
       if (productSyncTimeoutRef.current) {
         clearTimeout(productSyncTimeoutRef.current);
       }
-      
+
       productSyncTimeoutRef.current = setTimeout(() => {
         if (navigator.onLine) {
           syncProductsToSheet();

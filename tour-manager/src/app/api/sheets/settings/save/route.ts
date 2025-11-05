@@ -147,13 +147,17 @@ export async function POST(req: NextRequest) {
     // Prepare payment settings data rows
     const rows = (paymentSettings as PaymentSetting[]).map((setting) => {
       const qrCodeUrl = setting.qrCodeUrl || "";
-      
+
       // Check if QR code URL is too large for Google Sheets (50k char limit)
       if (qrCodeUrl.length > 50000) {
-        console.warn(`QR code for ${setting.displayName} is too large (${qrCodeUrl.length} chars), truncating...`);
-        throw new Error(`QR code for ${setting.displayName} is too large. Please use a smaller image.`);
+        console.warn(
+          `QR code for ${setting.displayName} is too large (${qrCodeUrl.length} chars), truncating...`
+        );
+        throw new Error(
+          `QR code for ${setting.displayName} is too large. Please use a smaller image.`
+        );
       }
-      
+
       return [
         setting.paymentType,
         setting.enabled ? "Yes" : "No",

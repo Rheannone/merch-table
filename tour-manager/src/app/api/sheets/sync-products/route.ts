@@ -40,13 +40,19 @@ export async function POST(req: NextRequest) {
     // Validate image URLs for Google Sheets cell limit (50,000 characters)
     const values = (products as Product[]).map((p) => {
       const imageUrl = p.imageUrl || "";
-      
+
       // Check if image URL is too large for Google Sheets
       if (imageUrl.length > 50000) {
-        console.error(`❌ Product "${p.name}" has an image that's too large: ${imageUrl.length} characters`);
-        throw new Error(`Product "${p.name}" has an image that's too large (${Math.round(imageUrl.length / 1000)}KB). Please use a smaller image or external URL.`);
+        console.error(
+          `❌ Product "${p.name}" has an image that's too large: ${imageUrl.length} characters`
+        );
+        throw new Error(
+          `Product "${p.name}" has an image that's too large (${Math.round(
+            imageUrl.length / 1000
+          )}KB). Please use a smaller image or external URL.`
+        );
       }
-      
+
       return [
         p.id,
         p.name,

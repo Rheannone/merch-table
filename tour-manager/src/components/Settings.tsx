@@ -211,14 +211,15 @@ export default function Settings() {
         // Log loaded QR codes
         data.paymentSettings.forEach((setting: PaymentSetting) => {
           if (setting.qrCodeUrl) {
-            console.log(`Loaded ${setting.displayName} QR code:`, 
-              setting.qrCodeUrl.startsWith('data:') 
-                ? `Base64 (${setting.qrCodeUrl.length} chars)` 
+            console.log(
+              `Loaded ${setting.displayName} QR code:`,
+              setting.qrCodeUrl.startsWith("data:")
+                ? `Base64 (${setting.qrCodeUrl.length} chars)`
                 : `URL: ${setting.qrCodeUrl}`
             );
           }
         });
-        
+
         setPaymentSettings(data.paymentSettings);
         setCategories(data.categories || ["Apparel", "Merch", "Music"]);
         setShowTipJar(data.showTipJar !== false); // Default to true if not set
@@ -278,9 +279,10 @@ export default function Settings() {
       // Log QR codes before saving
       paymentSettings.forEach((setting, i) => {
         if (setting.qrCodeUrl) {
-          console.log(`Saving ${setting.displayName} QR code:`, 
-            setting.qrCodeUrl.startsWith('data:') 
-              ? `Base64 (${setting.qrCodeUrl.length} chars)` 
+          console.log(
+            `Saving ${setting.displayName} QR code:`,
+            setting.qrCodeUrl.startsWith("data:")
+              ? `Base64 (${setting.qrCodeUrl.length} chars)`
               : `URL: ${setting.qrCodeUrl}`
           );
         }
@@ -371,10 +373,13 @@ export default function Settings() {
       setUploadingQRCode(paymentType);
 
       // Use unified image processing utility
-      const { base64, originalSize, compressedSize } = await processImageForUpload(file);
-      
-      console.log(`✅ QR code compressed for ${paymentType}: ${originalSize} → ${compressedSize} (${base64.length} chars)`);
-      
+      const { base64, originalSize, compressedSize } =
+        await processImageForUpload(file);
+
+      console.log(
+        `✅ QR code compressed for ${paymentType}: ${originalSize} → ${compressedSize} (${base64.length} chars)`
+      );
+
       updatePaymentSetting(index, "qrCodeUrl", base64);
       setUploadingQRCode(null);
       setToast({
@@ -382,18 +387,19 @@ export default function Settings() {
         type: "success",
         duration: 4000,
       });
-      
+
       // Reset the file input so the same file can be re-uploaded if needed
-      e.target.value = '';
+      e.target.value = "";
     } catch (error) {
       setUploadingQRCode(null);
-      const errorMessage = error instanceof Error ? error.message : "Failed to upload QR code";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to upload QR code";
       setToast({
         message: errorMessage,
         type: "error",
         duration: 5000,
       });
-      e.target.value = '';
+      e.target.value = "";
     }
   };
 
@@ -691,9 +697,7 @@ export default function Settings() {
                                 <input
                                   type="file"
                                   accept="image/*"
-                                  onChange={(e) =>
-                                    handleQRCodeUpload(e, index)
-                                  }
+                                  onChange={(e) => handleQRCodeUpload(e, index)}
                                   disabled={
                                     uploadingQRCode === setting.paymentType
                                   }
@@ -722,9 +726,7 @@ export default function Settings() {
                               }
                               className="w-full px-3 py-2 input-theme rounded"
                               placeholder="https://example.com/qr-code.png"
-                              disabled={
-                                uploadingQRCode === setting.paymentType
-                              }
+                              disabled={uploadingQRCode === setting.paymentType}
                             />
                             <p className="text-xs text-theme-muted">
                               Upload an image or paste a URL. A popup with the
