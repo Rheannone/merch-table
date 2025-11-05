@@ -68,9 +68,7 @@ export default function SignIn() {
           <h1 className="text-4xl sm:text-5xl font-black text-theme ft-heading">
             🎸 Merch Table
           </h1>
-          <p className="text-lg text-primary font-bold">
-            Beta Access Required
-          </p>
+          <p className="text-lg text-primary font-bold">Beta Access Required</p>
         </div>
 
         {/* Beta Access Notice */}
@@ -163,8 +161,8 @@ export default function SignIn() {
             🎸 Request Beta Access
           </h3>
           <p className="text-sm text-center text-theme-muted mb-4">
-            Don&apos;t have access yet? Drop your email and we&apos;ll reach
-            out with next steps!
+            Don&apos;t have access yet? Drop your email and we&apos;ll reach out
+            with next steps!
           </p>
 
           <form onSubmit={handleBetaSubmit} className="space-y-3">
