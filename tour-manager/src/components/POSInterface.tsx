@@ -221,6 +221,11 @@ export default function POSInterface({
       return [...prev, { product, quantity: 1, size }];
     });
 
+    // Haptic feedback - light tap when adding to cart
+    if (navigator.vibrate) {
+      navigator.vibrate(10); // 10ms vibration - subtle and quick
+    }
+
     // Show success toast
     const itemName = size ? `${product.name} (${size})` : product.name;
     setToast({

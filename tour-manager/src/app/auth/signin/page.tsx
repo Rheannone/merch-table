@@ -66,7 +66,7 @@ export default function SignIn() {
         {/* Header */}
         <div className="text-center space-y-3">
           <h1 className="text-4xl sm:text-5xl font-black text-theme ft-heading">
-            🎸 Merch Table
+            Merch Table
           </h1>
           <p className="text-lg text-primary font-bold">Beta Access Required</p>
         </div>
