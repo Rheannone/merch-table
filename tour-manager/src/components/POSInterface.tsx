@@ -226,12 +226,12 @@ export default function POSInterface({
       try {
         // Stronger vibration that's more noticeable
         navigator.vibrate(50); // 50ms - noticeable but not jarring
-        console.log('✓ Haptic feedback triggered');
+        console.log("✓ Haptic feedback triggered");
       } catch (error) {
-        console.log('✗ Haptic feedback failed:', error);
+        console.log("✗ Haptic feedback failed:", error);
       }
     } else {
-      console.log('✗ Vibration API not supported on this device');
+      console.log("✗ Vibration API not supported on this device");
     }
 
     // Show success toast

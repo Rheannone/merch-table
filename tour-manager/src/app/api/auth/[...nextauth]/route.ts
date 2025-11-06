@@ -1,6 +1,7 @@
 import NextAuth, { AuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { JWT } from "next-auth/jwt";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * Refreshes an expired Google OAuth access token using the refresh token
@@ -68,6 +69,60 @@ export const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      // When user signs in with Google, create/update their Supabase profile
+      if (account?.provider === "google" && user.email) {
+        try {
+          // Use non-NEXT_PUBLIC_ versions for server-side
+          const supabaseUrl =
+            process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const supabaseKey =
+            process.env.SUPABASE_ANON_KEY ||
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+          if (!supabaseUrl || !supabaseKey) {
+            console.error("Supabase environment variables not found");
+            console.error("SUPABASE_URL:", !!process.env.SUPABASE_URL);
+            console.error(
+              "NEXT_PUBLIC_SUPABASE_URL:",
+              !!process.env.NEXT_PUBLIC_SUPABASE_URL
+            );
+            return true; // Don't block sign in
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseKey);
+
+          // Check if user already exists
+          const { data: existingUser } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", user.email)
+            .single();
+
+          if (!existingUser) {
+            // Create new user in Supabase - let Supabase generate the UUID
+            // We'll use email as the unique identifier instead of NextAuth's ID
+            const { error } = await supabase.from("users").insert({
+              email: user.email,
+              full_name: user.name || null,
+              avatar_url: user.image || null,
+            });
+
+            if (error) {
+              console.error("Error inserting user to Supabase:", error);
+            } else {
+              console.log("✅ User synced to Supabase:", user.email);
+            }
+          } else {
+            console.log("User already exists in Supabase:", user.email);
+          }
+        } catch (error) {
+          console.error("Error syncing user to Supabase:", error);
+          // Don't block sign in if Supabase sync fails
+        }
+      }
+      return true;
+    },
     async jwt({ token, account }) {
       // Initial sign in - preserve user info from token
       if (account) {
