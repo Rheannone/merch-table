@@ -805,13 +805,14 @@ export default function Home() {
 
       {/* Announcement Banner */}
       {showAnnouncement && (
-        <div 
-          className="relative border-b border-amber-900 overflow-hidden" 
+        <div
+          className="relative border-b border-amber-900 overflow-hidden"
           style={{
-            backgroundImage: 'url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)',
-            backgroundSize: '600px auto',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'repeat'
+            backgroundImage:
+              "url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)",
+            backgroundSize: "600px auto",
+            backgroundPosition: "center",
+            backgroundRepeat: "repeat",
           }}
         >
           <div className="flex items-center justify-between gap-4 px-4 py-3 relative">
@@ -821,7 +822,9 @@ export default function Home() {
                   v3 Features: Email List Signup + Direct Image Uploads!
                 </p>
                 <p className="text-white text-xs sm:text-sm mt-0.5">
-                  Collect emails from customers after checkout, upload product images & QR codes directly from your device, and more settings improvements. Check Settings → Email Signup to enable!
+                  Collect emails from customers after checkout, upload product
+                  images & QR codes directly from your device, and more settings
+                  improvements. Check Settings → Email Signup to enable!
                 </p>
               </div>
             </div>
@@ -950,11 +953,10 @@ export default function Home() {
                   <li>
                     • Customizable prompt message for your band&apos;s voice
                   </li>
+                  <li>• Manual entry form in Settings for table signups</li>
                   <li>
-                    • Manual entry form in Settings for table signups
-                  </li>
-                  <li>
-                    • All emails saved to &quot;Email List&quot; sheet in your spreadsheet
+                    • All emails saved to &quot;Email List&quot; sheet in your
+                    spreadsheet
                   </li>
                   <li>
                     • Each signup linked to sale ID for tracking conversion
@@ -966,7 +968,8 @@ export default function Home() {
                 </h3>
                 <ul className="space-y-1 text-sm text-theme-secondary">
                   <li>
-                    • Direct image uploads for products (no external links needed)
+                    • Direct image uploads for products (no external links
+                    needed)
                   </li>
                   <li>
                     • Upload QR codes directly from device for payment methods
@@ -974,9 +977,7 @@ export default function Home() {
                   <li>
                     • Images stored as base64 in sheets - never expire or break
                   </li>
-                  <li>
-                    • Auto-compression keeps sheet sizes manageable
-                  </li>
+                  <li>• Auto-compression keeps sheet sizes manageable</li>
                 </ul>
               </div>
 

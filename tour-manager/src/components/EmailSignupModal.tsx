@@ -25,7 +25,7 @@ export default function EmailSignupModal({
   // Auto-dismiss countdown (only if user hasn't interacted)
   useEffect(() => {
     if (hasInteracted) return; // Stop countdown if user is typing
-    
+
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -100,7 +100,6 @@ export default function EmailSignupModal({
               placeholder="your@email.com"
               required
               className="w-full px-4 py-3 bg-theme-tertiary border border-theme rounded-lg text-theme placeholder:text-theme-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              autoFocus
             />
           </div>
 
