@@ -223,7 +223,15 @@ export default function POSInterface({
 
     // Haptic feedback - light tap when adding to cart
     if (navigator.vibrate) {
-      navigator.vibrate(10); // 10ms vibration - subtle and quick
+      try {
+        // Stronger vibration that's more noticeable
+        navigator.vibrate(50); // 50ms - noticeable but not jarring
+        console.log('✓ Haptic feedback triggered');
+      } catch (error) {
+        console.log('✗ Haptic feedback failed:', error);
+      }
+    } else {
+      console.log('✗ Vibration API not supported on this device');
     }
 
     // Show success toast
