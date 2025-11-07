@@ -22,8 +22,8 @@ export async function GET() {
     // Search for spreadsheet with specific name
     const response = await drive.files.list({
       q: "name='Merch Table - Sales & Inventory' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-      fields: "files(id, name)",
-      orderBy: "createdTime desc",
+      fields: "files(id, name, modifiedTime)",
+      orderBy: "modifiedTime desc", // Find most recently modified (actively used) sheet
       pageSize: 1,
     });
 

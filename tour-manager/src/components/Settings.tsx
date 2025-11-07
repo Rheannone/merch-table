@@ -26,6 +26,10 @@ import {
   formatPrice,
 } from "@/lib/currency";
 import { processImageForUpload } from "@/lib/imageCompression";
+import {
+  DEFAULT_PAYMENT_SETTINGS,
+  DEFAULT_CATEGORIES,
+} from "@/lib/defaultSettings";
 
 // TypeScript declarations for Google Picker API
 declare global {
@@ -134,7 +138,62 @@ export default function Settings() {
     loadSettings();
     loadCurrentSheetInfo();
     loadGooglePickerScript();
+    syncPendingSettings(); // Auto-sync any pending changes
   }, []);
+
+  // Auto-sync pending settings changes when online
+  const syncPendingSettings = async () => {
+    if (!navigator.onLine) return;
+
+    const { hasPendingSettingsSync, getSettings, markSettingsAsSynced } =
+      await import("@/lib/db");
+    const hasPending = await hasPendingSettingsSync();
+
+    if (!hasPending) return;
+
+    console.log("🔄 Auto-syncing pending settings changes...");
+
+    const settings = await getSettings();
+    if (!settings) return;
+
+    try {
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (!spreadsheetId) return;
+
+      const response = await fetch("/api/settings/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settings: {
+            user_id: spreadsheetId,
+            payment_methods: settings.paymentSettings,
+            categories: settings.categories,
+            show_tip_jar: settings.showTipJar,
+            currency: settings.currency,
+            exchange_rate: settings.exchangeRate,
+            theme_id: settings.themeId,
+            current_sheet_id: spreadsheetId,
+            email_signup_enabled: settings.emailSignupSettings.enabled,
+            email_signup_prompt_message:
+              settings.emailSignupSettings.promptMessage,
+            email_signup_collect_name: settings.emailSignupSettings.collectName,
+            email_signup_collect_phone:
+              settings.emailSignupSettings.collectPhone,
+            email_signup_auto_dismiss_seconds:
+              settings.emailSignupSettings.autoDismissSeconds,
+          },
+        }),
+      });
+
+      if (response.ok) {
+        await markSettingsAsSynced();
+        console.log("✅ Settings synced successfully");
+      }
+    } catch (error) {
+      console.error("Failed to sync pending settings:", error);
+      // Will retry next time page loads
+    }
+  };
 
   // Detect changes
   useEffect(() => {
@@ -281,93 +340,185 @@ export default function Settings() {
         return;
       }
 
-      const response = await fetch("/api/sheets/settings/load", {
+      // Load from Supabase (source of truth)
+      const response = await fetch("/api/settings/load");
+
+      if (response.ok) {
+        const { settings } = await response.json();
+
+        if (settings) {
+          // Settings exist in Supabase - use them
+          setPaymentSettings(settings.payment_methods || []);
+          setCategories(settings.categories || ["Apparel", "Merch", "Music"]);
+          setShowTipJar(settings.show_tip_jar !== false);
+
+          // Store original values for change detection
+          setOriginalPaymentSettings(
+            JSON.parse(JSON.stringify(settings.payment_methods || []))
+          );
+          setOriginalCategories([
+            ...(settings.categories || ["Apparel", "Merch", "Music"]),
+          ]);
+          setOriginalShowTipJar(settings.show_tip_jar !== false);
+
+          // Load theme
+          if (settings.theme_id && selectedThemeId === themeId) {
+            setSelectedThemeId(settings.theme_id);
+          }
+
+          // Load currency settings
+          setSelectedCurrency((settings.currency as CurrencyCode) || "USD");
+          setExchangeRate(settings.exchange_rate?.toString() || "1.0");
+          setOriginalCurrency((settings.currency as CurrencyCode) || "USD");
+          setOriginalExchangeRate(settings.exchange_rate?.toString() || "1.0");
+
+          // Load email signup settings
+          const emailSettings = {
+            enabled: settings.email_signup_enabled || false,
+            promptMessage:
+              settings.email_signup_prompt_message ||
+              "Want to join our email list?",
+            collectName: settings.email_signup_collect_name || false,
+            collectPhone: settings.email_signup_collect_phone || false,
+            autoDismissSeconds:
+              settings.email_signup_auto_dismiss_seconds || 10,
+          };
+          setEmailSignupSettings(emailSettings);
+          setOriginalEmailSignupSettings(
+            JSON.parse(JSON.stringify(emailSettings))
+          );
+
+          // Cache to IndexedDB for offline access
+          const { saveSettings: saveToIndexedDB } = await import("@/lib/db");
+          await saveToIndexedDB({
+            id: "current",
+            paymentSettings: settings.payment_methods || [],
+            categories: settings.categories || ["Apparel", "Merch", "Music"],
+            showTipJar: settings.show_tip_jar !== false,
+            currency: settings.currency || "USD",
+            exchangeRate: settings.exchange_rate || 1.0,
+            themeId: settings.theme_id || "default",
+            emailSignupSettings: emailSettings,
+            updatedAt: settings.updated_at || new Date().toISOString(),
+            pendingSync: false, // Just loaded from Supabase, already synced
+          });
+
+          return;
+        }
+      }
+
+      // Supabase empty or error - try IndexedDB cache (offline fallback)
+      const { getSettings: getFromIndexedDB } = await import("@/lib/db");
+      const cachedSettings = await getFromIndexedDB();
+
+      if (cachedSettings) {
+        console.log("📦 Using cached settings (offline mode)");
+        setPaymentSettings(cachedSettings.paymentSettings);
+        setCategories(cachedSettings.categories);
+        setShowTipJar(cachedSettings.showTipJar);
+        setSelectedCurrency(cachedSettings.currency as CurrencyCode);
+        setExchangeRate(cachedSettings.exchangeRate.toString());
+        setEmailSignupSettings(cachedSettings.emailSignupSettings);
+
+        setOriginalPaymentSettings(
+          JSON.parse(JSON.stringify(cachedSettings.paymentSettings))
+        );
+        setOriginalCategories([...cachedSettings.categories]);
+        setOriginalShowTipJar(cachedSettings.showTipJar);
+        setOriginalCurrency(cachedSettings.currency as CurrencyCode);
+        setOriginalExchangeRate(cachedSettings.exchangeRate.toString());
+        setOriginalEmailSignupSettings(
+          JSON.parse(JSON.stringify(cachedSettings.emailSignupSettings))
+        );
+
+        return;
+      }
+
+      // Nothing in Supabase or IndexedDB - this is a legacy user, load from Google Sheets
+      console.log(
+        "📋 No settings in Supabase/IndexedDB, loading from Google Sheets..."
+      );
+      const sheetsResponse = await fetch("/api/sheets/settings/load", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ spreadsheetId }),
       });
 
-      const data = await response.json();
+      if (sheetsResponse.ok) {
+        const sheetsData = await sheetsResponse.json();
 
-      if (response.ok) {
-        // Log loaded QR codes
-        data.paymentSettings.forEach((setting: PaymentSetting) => {
-          if (setting.qrCodeUrl) {
-            console.log(
-              `Loaded ${setting.displayName} QR code:`,
-              setting.qrCodeUrl.startsWith("data:")
-                ? `Base64 (${setting.qrCodeUrl.length} chars)`
-                : `URL: ${setting.qrCodeUrl}`
-            );
-          }
-        });
+        setPaymentSettings(sheetsData.paymentSettings || []);
+        setCategories(sheetsData.categories || ["Apparel", "Merch", "Music"]);
+        setShowTipJar(sheetsData.showTipJar !== false);
 
-        setPaymentSettings(data.paymentSettings);
-        setCategories(data.categories || ["Apparel", "Merch", "Music"]);
-        setShowTipJar(data.showTipJar !== false); // Default to true if not set
-
-        // Store original values for change detection (deep clone to avoid reference issues)
         setOriginalPaymentSettings(
-          JSON.parse(JSON.stringify(data.paymentSettings))
+          JSON.parse(JSON.stringify(sheetsData.paymentSettings || []))
         );
         setOriginalCategories([
-          ...(data.categories || ["Apparel", "Merch", "Music"]),
+          ...(sheetsData.categories || ["Apparel", "Merch", "Music"]),
         ]);
-        setOriginalShowTipJar(data.showTipJar !== false);
+        setOriginalShowTipJar(sheetsData.showTipJar !== false);
 
-        // Load theme if provided - but only update if user hasn't selected a different theme to preview
-        // This prevents overwriting the user's preview selection
-        if (data.theme && selectedThemeId === themeId) {
-          setSelectedThemeId(data.theme);
+        if (sheetsData.theme && selectedThemeId === themeId) {
+          setSelectedThemeId(sheetsData.theme);
         }
 
-        // Load currency settings from sheet if available
-        if (data.currency) {
-          const currencyCode = (data.currency.displayCurrency ||
+        if (sheetsData.currency) {
+          const currencyCode = (sheetsData.currency.displayCurrency ||
             "USD") as CurrencyCode;
           setSelectedCurrency(currencyCode);
-          setExchangeRate((data.currency.exchangeRate || 1.0).toString());
-
-          // Store original currency values
+          setExchangeRate((sheetsData.currency.exchangeRate || 1.0).toString());
           setOriginalCurrency(currencyCode);
           setOriginalExchangeRate(
-            (data.currency.exchangeRate || 1.0).toString()
+            (sheetsData.currency.exchangeRate || 1.0).toString()
           );
-
-          // Update localStorage with currency from sheet
-          const currencyInfo = CURRENCIES[currencyCode];
-          saveCurrencySettings({
-            displayCurrency: currencyCode,
-            exchangeRate: data.currency.exchangeRate || 1.0,
-            symbol: currencyInfo.symbol,
-            code: currencyCode,
-          });
         }
 
-        // Load email signup settings from sheet if available
-        if (data.emailSignup) {
-          console.log("Email signup data received from API:", data.emailSignup);
-          const loadedSettings: EmailSignupSettings = {
-            enabled: data.emailSignup.enabled === true,
+        if (sheetsData.emailSignup) {
+          const loadedSettings = {
+            enabled: sheetsData.emailSignup.enabled === true,
             promptMessage:
-              data.emailSignup.promptMessage || "Want to join our email list?",
-            collectName: data.emailSignup.collectName === true,
-            collectPhone: data.emailSignup.collectPhone === true,
-            autoDismissSeconds: data.emailSignup.autoDismissSeconds || 15,
+              sheetsData.emailSignup.promptMessage ||
+              "Want to join our email list?",
+            collectName: sheetsData.emailSignup.collectName === true,
+            collectPhone: sheetsData.emailSignup.collectPhone === true,
+            autoDismissSeconds: sheetsData.emailSignup.autoDismissSeconds || 15,
           };
-          console.log("Loaded email signup settings:", loadedSettings);
           setEmailSignupSettings(loadedSettings);
           setOriginalEmailSignupSettings(
             JSON.parse(JSON.stringify(loadedSettings))
           );
-        } else {
-          console.log("No email signup data received from API");
         }
       } else {
-        setToast({
-          message: `Failed to load settings: ${data.error}`,
-          type: "error",
-        });
+        // No settings anywhere - use defaults for new users
+        console.log("🆕 New user detected - using default settings");
+
+        const defaultEmailSettings = {
+          enabled: false,
+          promptMessage: "Want to join our email list?",
+          collectName: false,
+          collectPhone: false,
+          autoDismissSeconds: 10,
+        };
+
+        setPaymentSettings(DEFAULT_PAYMENT_SETTINGS);
+        setCategories(DEFAULT_CATEGORIES);
+        setShowTipJar(true);
+        setSelectedCurrency("USD");
+        setExchangeRate("1.0");
+        setEmailSignupSettings(defaultEmailSettings);
+
+        // Set originals to track changes
+        setOriginalPaymentSettings(
+          JSON.parse(JSON.stringify(DEFAULT_PAYMENT_SETTINGS))
+        );
+        setOriginalCategories([...DEFAULT_CATEGORIES]);
+        setOriginalShowTipJar(true);
+        setOriginalCurrency("USD");
+        setOriginalExchangeRate("1.0");
+        setOriginalEmailSignupSettings(
+          JSON.parse(JSON.stringify(defaultEmailSettings))
+        );
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -393,66 +544,114 @@ export default function Settings() {
         return;
       }
 
-      // Log QR codes before saving
-      paymentSettings.forEach((setting, i) => {
-        if (setting.qrCodeUrl) {
-          console.log(
-            `Saving ${setting.displayName} QR code:`,
-            setting.qrCodeUrl.startsWith("data:")
-              ? `Base64 (${setting.qrCodeUrl.length} chars)`
-              : `URL: ${setting.qrCodeUrl}`
-          );
+      // 1. Save to IndexedDB immediately (optimistic UI)
+      const { saveSettings: saveToIndexedDB } = await import("@/lib/db");
+      await saveToIndexedDB({
+        id: "current",
+        paymentSettings,
+        categories,
+        showTipJar,
+        currency: selectedCurrency,
+        exchangeRate: Number.parseFloat(exchangeRate),
+        themeId: selectedThemeId,
+        emailSignupSettings,
+        updatedAt: new Date().toISOString(),
+        pendingSync: true, // Mark as needing sync
+      });
+
+      // Update UI state immediately
+      setOriginalPaymentSettings(JSON.parse(JSON.stringify(paymentSettings)));
+      setOriginalCategories([...categories]);
+      setOriginalShowTipJar(showTipJar);
+      setOriginalCurrency(selectedCurrency);
+      setOriginalExchangeRate(exchangeRate);
+      setOriginalEmailSignupSettings(
+        JSON.parse(JSON.stringify(emailSignupSettings))
+      );
+
+      // Save currency to localStorage
+      const currencyInfo = CURRENCIES[selectedCurrency];
+      saveCurrencySettings({
+        displayCurrency: selectedCurrency,
+        exchangeRate:
+          Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
+        symbol: currencyInfo.symbol,
+        code: selectedCurrency,
+      });
+
+      // 2. Try to sync to Supabase if online
+      if (navigator.onLine) {
+        try {
+          const supabaseResponse = await fetch("/api/settings/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              settings: {
+                user_id: spreadsheetId,
+                payment_methods: paymentSettings,
+                categories,
+                show_tip_jar: showTipJar,
+                currency: selectedCurrency,
+                exchange_rate: Number.parseFloat(exchangeRate),
+                theme_id: selectedThemeId,
+                current_sheet_id: spreadsheetId,
+                email_signup_enabled: emailSignupSettings.enabled,
+                email_signup_prompt_message: emailSignupSettings.promptMessage,
+                email_signup_collect_name: emailSignupSettings.collectName,
+                email_signup_collect_phone: emailSignupSettings.collectPhone,
+                email_signup_auto_dismiss_seconds:
+                  emailSignupSettings.autoDismissSeconds,
+              },
+            }),
+          });
+
+          if (supabaseResponse.ok) {
+            const { settings: savedSettings } = await supabaseResponse.json();
+
+            // Mark as synced in IndexedDB
+            const { markSettingsAsSynced } = await import("@/lib/db");
+            await markSettingsAsSynced();
+
+            // Update with server timestamp
+            await saveToIndexedDB({
+              id: "current",
+              paymentSettings,
+              categories,
+              showTipJar,
+              currency: selectedCurrency,
+              exchangeRate: Number.parseFloat(exchangeRate),
+              themeId: selectedThemeId,
+              emailSignupSettings,
+              updatedAt: savedSettings.updated_at || new Date().toISOString(),
+              pendingSync: false,
+            });
+
+            setToast({
+              message: "Settings saved successfully!",
+              type: "success",
+            });
+          } else {
+            // Sync failed but data is saved locally
+            const errorData = await supabaseResponse.json();
+            console.error("Failed to sync to Supabase:", errorData);
+            setToast({
+              message: "Saved locally. Will sync when online.",
+              type: "success",
+            });
+          }
+        } catch (error) {
+          // Network error - data is saved locally
+          console.error("Network error syncing settings:", error);
+          setToast({
+            message: "Saved locally. Will sync when online.",
+            type: "success",
+          });
         }
-      });
-
-      const response = await fetch("/api/sheets/settings/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          spreadsheetId,
-          paymentSettings,
-          categories,
-          theme: selectedThemeId,
-          showTipJar,
-          currency: {
-            displayCurrency: selectedCurrency,
-            exchangeRate: Number.parseFloat(exchangeRate),
-          },
-          emailSignup: emailSignupSettings,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Update originals to match current state (deep clone to avoid reference issues)
-        setOriginalPaymentSettings(JSON.parse(JSON.stringify(paymentSettings)));
-        setOriginalCategories([...categories]);
-        setOriginalShowTipJar(showTipJar);
-        setOriginalCurrency(selectedCurrency);
-        setOriginalExchangeRate(exchangeRate);
-        setOriginalEmailSignupSettings(
-          JSON.parse(JSON.stringify(emailSignupSettings))
-        );
-
-        // Save currency to localStorage so it persists across sessions
-        const currencyInfo = CURRENCIES[selectedCurrency];
-        saveCurrencySettings({
-          displayCurrency: selectedCurrency,
-          exchangeRate:
-            Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
-          symbol: currencyInfo.symbol,
-          code: selectedCurrency,
-        });
-
-        setToast({
-          message: "Settings saved successfully!",
-          type: "success",
-        });
       } else {
+        // Offline - show user data is saved locally
         setToast({
-          message: `Failed to save settings: ${data.error}`,
-          type: "error",
+          message: "Saved locally. Will sync when online.",
+          type: "success",
         });
       }
     } catch (error) {

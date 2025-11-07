@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       spreadsheetId,
       paymentSettings,
       categories,
+      showTipJar,
       theme,
       currency,
       emailSignup,
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest) {
               "Display Name",
               "Transaction Fee %",
               "QR Code URL",
-              "", // Empty column F
+              "Show Tip Jar", // Column F
               "Categories",
               "Theme", // Column H for theme
               "Currency", // Column I for display currency
@@ -199,6 +200,18 @@ export async function POST(req: NextRequest) {
         valueInputOption: "RAW",
         requestBody: {
           values: categoryRows,
+        },
+      });
+    }
+
+    // Write showTipJar if provided
+    if (showTipJar !== undefined) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "POS Settings!F2",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [[showTipJar ? "Yes" : "No"]],
         },
       });
     }

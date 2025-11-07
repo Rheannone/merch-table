@@ -22,6 +22,7 @@ import Settings from "@/components/Settings";
 import Analytics from "@/components/Analytics";
 import SyncStatusBar from "@/components/SyncStatusBar";
 import FeedbackButton from "@/components/FeedbackButton";
+import OnboardingModal from "@/components/OnboardingModal";
 import Toast, { ToastType } from "@/components/Toast";
 import {
   Cog6ToothIcon,
@@ -54,6 +55,8 @@ export default function Home() {
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
   const [loadedFromSheets, setLoadedFromSheets] = useState(false); // Track if products were loaded from Sheets
   const [productsChanged, setProductsChanged] = useState(false); // Track if products actually changed
+  const [showOnboarding, setShowOnboarding] = useState(false); // Show onboarding modal when no sheet found
+  const [isPickerLoaded, setIsPickerLoaded] = useState(false); // Track if Google Picker is loaded
   const [toast, setToast] = useState<{
     message: string;
     type: ToastType;
@@ -71,6 +74,29 @@ export default function Home() {
 
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
+
+  // Load Google Picker script on mount
+  useEffect(() => {
+    const loadGooglePickerScript = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((window as any).gapi && (window as any).google?.picker) {
+        setIsPickerLoaded(true);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://apis.google.com/js/api.js";
+      script.onload = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).gapi.load("picker", () => {
+          setIsPickerLoaded(true);
+        });
+      };
+      document.body.appendChild(script);
+    };
+
+    loadGooglePickerScript();
+  }, []);
 
   // Handle authentication redirect
   useEffect(() => {
@@ -128,6 +154,7 @@ export default function Home() {
       initializingRef.current = true;
       initializeApp();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, isInitialized]);
 
   useEffect(() => {
@@ -287,6 +314,136 @@ export default function Home() {
     return oldDetailedFingerprint !== newDetailedFingerprint;
   };
 
+  // Handle user choosing to connect existing sheet in onboarding
+  const handleConnectExisting = async () => {
+    if (!session?.accessToken) {
+      setToast({
+        message: "Please sign in to select a sheet.",
+        type: "error",
+      });
+      return;
+    }
+
+    if (!isPickerLoaded) {
+      setToast({
+        message: "Google Picker is loading, please try again in a moment.",
+        type: "error",
+      });
+      return;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const picker = new (window as any).google.picker.PickerBuilder()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .addView((window as any).google.picker.ViewId.SPREADSHEETS)
+        .setOAuthToken(session.accessToken)
+        .setCallback(handleOnboardingPickerCallback)
+        .build();
+      picker.setVisible(true);
+    } catch (error) {
+      console.error("Error opening picker:", error);
+      setToast({
+        message: "Failed to open sheet picker.",
+        type: "error",
+      });
+    }
+  };
+
+  // Handle sheet selection from onboarding picker
+  const handleOnboardingPickerCallback = async (data: {
+    action: string;
+    docs?: Array<{ id: string; name: string }>;
+  }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (
+      data.action === (window as any).google.picker.Action.PICKED &&
+      data.docs
+    ) {
+      const doc = data.docs[0];
+      const sheetId = doc.id;
+      const sheetName = doc.name;
+
+      // Store the selected sheet
+      localStorage.setItem("salesSheetId", sheetId);
+      localStorage.setItem("salesSheetName", sheetName);
+      localStorage.setItem("productsSheetId", sheetId);
+
+      // Clear IndexedDB to force fresh load
+      const { clearAllProducts } = await import("@/lib/db");
+      await clearAllProducts();
+
+      // Hide onboarding and proceed with initialization
+      setShowOnboarding(false);
+
+      // Reset initialization ref and reinitialize
+      initializingRef.current = false;
+      setIsInitialized(false);
+
+      setToast({
+        message: `Connected to "${sheetName}"! Loading your data...`,
+        type: "success",
+      });
+
+      // Reload page to complete initialization
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  };
+
+  // Handle user choosing to create new sheet in onboarding
+  const handleCreateNew = async () => {
+    setIsInitializingSheets(true);
+    setShowOnboarding(false);
+
+    try {
+      const response = await fetch("/api/sheets/initialize", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem("productsSheetId", data.productsSheetId);
+        localStorage.setItem("salesSheetId", data.salesSheetId);
+        if (data.sheetName) {
+          localStorage.setItem("salesSheetName", data.sheetName);
+        }
+
+        setToast({
+          message: "New spreadsheet created! Setting up your workspace...",
+          type: "success",
+        });
+
+        // Reset and reinitialize
+        initializingRef.current = false;
+        setIsInitialized(false);
+
+        // Reload to complete initialization with new sheet
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        const errorText = await response.text();
+        console.error("❌ Failed to create spreadsheet:", errorText);
+        setToast({
+          message: "Failed to create spreadsheet. Please try again.",
+          type: "error",
+        });
+        setShowOnboarding(true); // Show modal again
+      }
+    } catch (error) {
+      console.error("❌ Error creating spreadsheet:", error);
+      setToast({
+        message: "Error creating spreadsheet. Please try again.",
+        type: "error",
+      });
+      setShowOnboarding(true); // Show modal again
+    } finally {
+      setIsInitializingSheets(false);
+    }
+  };
+
   const initializeApp = async () => {
     try {
       // Check for force-new parameter to bypass cached IDs (for testing)
@@ -302,81 +459,20 @@ export default function Home() {
       }
 
       // Check if user has sheet IDs stored locally
-      let storedProductsSheetId = localStorage.getItem("productsSheetId");
-      let storedSalesSheetId = localStorage.getItem("salesSheetId");
+      const storedProductsSheetId = localStorage.getItem("productsSheetId");
+      const storedSalesSheetId = localStorage.getItem("salesSheetId");
 
-      // If no local IDs, search for existing spreadsheet in Google Drive
+      // If no local IDs, show onboarding modal instead of auto-creating
       if (!storedProductsSheetId || !storedSalesSheetId) {
-        console.log("🔍 No local sheet IDs found, searching Google Drive...");
-        try {
-          const findResponse = await fetch("/api/sheets/find");
-          console.log("📡 Search response status:", findResponse.status);
-
-          if (findResponse.ok) {
-            const findData = await findResponse.json();
-            console.log("📄 Search result:", findData);
-
-            if (findData.found) {
-              // Found existing spreadsheet - use it
-              localStorage.setItem("productsSheetId", findData.spreadsheetId);
-              localStorage.setItem("salesSheetId", findData.spreadsheetId);
-              storedProductsSheetId = findData.spreadsheetId;
-              storedSalesSheetId = findData.spreadsheetId;
-              console.log(
-                "✅ Found existing MERCH TABLE spreadsheet!",
-                findData.spreadsheetId
-              );
-            } else {
-              console.log(
-                "ℹ️ No existing spreadsheet found, will create new one"
-              );
-            }
-          } else {
-            const errorText = await findResponse.text();
-            console.error("❌ Search request failed:", errorText);
-          }
-        } catch (error) {
-          console.error("❌ Error searching for existing spreadsheet:", error);
-        }
+        console.log("🎯 No sheet IDs found - showing onboarding modal");
+        setShowOnboarding(true);
+        setIsInitialized(true); // Mark as initialized so modal can be shown
+        return; // Stop here and wait for user choice
       } else {
         console.log("✅ Using cached sheet IDs:", {
           storedProductsSheetId,
           storedSalesSheetId,
         });
-      }
-
-      // If still no sheet IDs, create new spreadsheet
-      if (!storedProductsSheetId || !storedSalesSheetId) {
-        console.log("📝 Creating new spreadsheet...");
-        setIsInitializingSheets(true);
-        try {
-          const response = await fetch("/api/sheets/initialize", {
-            method: "POST",
-          });
-
-          console.log("📡 Create response status:", response.status);
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log("📄 Create result:", data);
-            localStorage.setItem("productsSheetId", data.productsSheetId);
-            localStorage.setItem("salesSheetId", data.salesSheetId);
-            if (data.sheetName) {
-              localStorage.setItem("salesSheetName", data.sheetName);
-            }
-            console.log(
-              "✅ Google Sheets created successfully!",
-              data.productsSheetId
-            );
-          } else {
-            const errorText = await response.text();
-            console.error("❌ Failed to initialize sheets:", errorText);
-          }
-        } catch (error) {
-          console.error("❌ Error initializing sheets:", error);
-        } finally {
-          setIsInitializingSheets(false);
-        }
       }
 
       // Load products - try from Google Sheets first, then IndexedDB, then defaults
@@ -479,6 +575,30 @@ export default function Home() {
       setProducts(loadedProducts);
       setLoadedFromSheets(productsLoadedFromSheets);
       setProductsChanged(hasProductsChanged);
+
+      // Create default Supabase settings for new users
+      // This runs after Sheet creation, so we have a Sheet ID
+      if (
+        session?.user?.email &&
+        (storedProductsSheetId || storedSalesSheetId)
+      ) {
+        try {
+          const { getUserSettings, createDefaultUserSettings } = await import(
+            "@/lib/supabase/settings"
+          );
+          const existingSettings = await getUserSettings(session.user.email);
+
+          if (!existingSettings) {
+            console.log(
+              "🆕 Creating default Supabase settings for new user..."
+            );
+            await createDefaultUserSettings(session.user.email);
+          }
+        } catch (error) {
+          console.error("❌ Failed to create default settings:", error);
+          // Non-critical error, don't block initialization
+        }
+      }
 
       // Load category order from settings
       if (storedSalesSheetId) {
@@ -1236,6 +1356,15 @@ export default function Home() {
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Onboarding Modal - only show if authenticated and initialized */}
+      {showOnboarding && session && isInitialized && (
+        <OnboardingModal
+          onConnectExisting={handleConnectExisting}
+          onCreateNew={handleCreateNew}
+          isCreating={isInitializingSheets}
         />
       )}
     </div>

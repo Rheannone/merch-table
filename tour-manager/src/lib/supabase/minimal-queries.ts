@@ -10,6 +10,10 @@ export interface MinimalUser {
   email: string;
   full_name?: string;
   avatar_url?: string;
+  subscription_tier: string;
+  is_grandfathered: boolean;
+  stripe_customer_id?: string;
+  subscription_status: string;
   created_at: string;
   updated_at: string;
 }

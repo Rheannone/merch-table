@@ -14,12 +14,13 @@ CREATE TABLE IF NOT EXISTS public.users (
   full_name TEXT,
   avatar_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   
-  -- Add whatever fields you want here later, like:
-  -- subscription_tier TEXT DEFAULT 'free',
-  -- trial_ends_at TIMESTAMP WITH TIME ZONE,
-  -- etc.
+  -- Subscription & billing
+  subscription_tier TEXT DEFAULT 'pro', -- 'free', 'pro', 'enterprise'
+  is_grandfathered BOOLEAN DEFAULT true, -- Early users get Pro for free forever
+  stripe_customer_id TEXT,
+  subscription_status TEXT DEFAULT 'active' -- 'active', 'canceled', 'past_due', 'trialing'
 );
 
 -- ============================================
