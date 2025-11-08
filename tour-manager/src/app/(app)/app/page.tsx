@@ -58,16 +58,7 @@ export default function Home() {
     message: string;
     type: ToastType;
   } | null>(null);
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
-
-  // Check localStorage on client side only
-  useEffect(() => {
-    const dismissed = localStorage.getItem("announcement-v3-dismissed");
-    if (dismissed === "true") {
-      setShowAnnouncement(false);
-    }
-  }, []);
 
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
@@ -802,45 +793,6 @@ export default function Home() {
           </div>
         </div>
       </header>
-
-      {/* Announcement Banner */}
-      {showAnnouncement && (
-        <div
-          className="relative border-b border-amber-900 overflow-hidden"
-          style={{
-            backgroundImage:
-              "url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)",
-            backgroundSize: "600px auto",
-            backgroundPosition: "center",
-            backgroundRepeat: "repeat",
-          }}
-        >
-          <div className="flex items-center justify-between gap-4 px-4 py-3 relative">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="flex-1 min-w-0 bg-black/85 px-3 py-2 rounded-lg">
-                <p className="text-white font-bold text-sm sm:text-base">
-                  v3 Features: Email List Signup + Direct Image Uploads!
-                </p>
-                <p className="text-white text-xs sm:text-sm mt-0.5">
-                  Collect emails from customers after checkout, upload product
-                  images & QR codes directly from your device, and more settings
-                  improvements. Check Settings → Email Signup to enable!
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setShowAnnouncement(false);
-                localStorage.setItem("announcement-v3-dismissed", "true");
-              }}
-              className="text-white hover:bg-primary/90 transition-colors flex-shrink-0 p-2 rounded-lg bg-primary border-2 border-black drop-shadow-lg"
-              title="Dismiss"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-      )}
 
       <SyncStatusBar status={syncStatus} onSync={syncSales} />
 

@@ -13,7 +13,7 @@ interface MerchPOSDB extends DBSchema {
 }
 
 const DB_NAME = "merch-pos-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Temporarily match feature branch to avoid version errors
 
 let dbPromise: Promise<IDBPDatabase<MerchPOSDB>> | null = null;
 
