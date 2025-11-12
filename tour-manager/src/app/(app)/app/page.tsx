@@ -3,17 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Product, CartItem, PaymentMethod, Sale, SyncStatus } from "@/types";
+import { Product, CartItem, PaymentMethod, Sale } from "@/types";
 import {
   getProducts,
   saveProducts,
   addProduct as addProductToDB,
   deleteProduct as deleteProductFromDB,
   saveSale,
-  getSales,
-  getUnsyncedSales,
-  markSaleAsSynced,
-  deleteSyncedSales,
 } from "@/lib/db";
 import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import POSInterface from "@/components/POSInterface";
@@ -24,6 +20,10 @@ import SyncStatusBar from "@/components/SyncStatusBar";
 import FeedbackButton from "@/components/FeedbackButton";
 import OnboardingModal from "@/components/OnboardingModal";
 import Toast, { ToastType } from "@/components/Toast";
+import RamonaDrawer from "@/components/RamonaDrawer";
+import { TutorialProvider } from "@/contexts/TutorialContext";
+import { TUTORIAL_SEED_DATA, isTutorialMode } from "@/lib/tutorialData";
+import { syncManager, SyncStatus } from "@/lib/syncManager";
 import {
   Cog6ToothIcon,
   ShoppingBagIcon,
@@ -45,11 +45,13 @@ export default function Home() {
     "pos" | "setup" | "analytics" | "settings"
   >("pos");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    isOnline: navigator.onLine,
+    isSyncing: false,
     lastSyncTime: null,
     pendingSales: 0,
-    totalSales: 0,
-    isSyncing: false,
-    pendingProductSync: false,
+    pendingProducts: false,
+    pendingSettings: false,
+    error: null,
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
@@ -70,6 +72,14 @@ export default function Home() {
     if (dismissed === "true") {
       setShowAnnouncement(false);
     }
+  }, []);
+
+  // Subscribe to sync manager status updates
+  useEffect(() => {
+    const unsubscribe = syncManager.subscribe((status) => {
+      setSyncStatus(status);
+    });
+    return unsubscribe;
   }, []);
 
   // Get theme context to apply saved theme on load
@@ -157,11 +167,11 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, isInitialized]);
 
+  // Sync manager automatically updates status, no need for manual polling
   useEffect(() => {
     if (isInitialized) {
-      updateSyncStatus();
-      const interval = setInterval(updateSyncStatus, 5000);
-      return () => clearInterval(interval);
+      // Trigger initial check for pending data
+      syncManager.checkPendingData();
     }
   }, [isInitialized]);
 
@@ -169,45 +179,40 @@ export default function Home() {
   useEffect(() => {
     if (isInitialized && navigator.onLine) {
       const autoSync = async () => {
-        console.log("🔄 Auto-syncing on page load...");
+        console.log("🔄 Checking for pending data to sync...");
 
-        const unsyncedSales = await getUnsyncedSales();
-        const hasUnsyncedProducts = syncStatus.pendingProductSync;
+        // Check pending data and queue syncs
+        await syncManager.checkPendingData();
 
-        // Build toast message based on what happened
+        // Show toast if there's something being synced
+        const status = syncManager.getStatus();
         const messageParts: string[] = [];
 
-        // If products were loaded from Sheets AND they changed, mention it
         if (loadedFromSheets && productsChanged) {
           messageParts.push("Loaded latest products");
         }
 
-        // Sync any local changes
-        if (unsyncedSales.length > 0 || hasUnsyncedProducts) {
+        if (
+          status.pendingSales > 0 ||
+          status.pendingProducts ||
+          status.pendingSettings
+        ) {
           const syncParts: string[] = [];
-
-          if (unsyncedSales.length > 0) {
-            await syncSales();
+          if (status.pendingSales > 0) {
             syncParts.push(
-              `${unsyncedSales.length} sale${
-                unsyncedSales.length > 1 ? "s" : ""
-              }`
+              `${status.pendingSales} sale${status.pendingSales > 1 ? "s" : ""}`
             );
           }
-
-          if (hasUnsyncedProducts) {
-            await syncProductsToSheet();
+          if (status.pendingProducts) {
             syncParts.push("products");
           }
-
-          if (syncParts.length > 0) {
-            messageParts.push(`synced ${syncParts.join(" and ")}`);
+          if (status.pendingSettings) {
+            syncParts.push("settings");
           }
+          messageParts.push(`syncing ${syncParts.join(" and ")}`);
         }
 
-        // Show toast if there's something to report
         if (messageParts.length > 0) {
-          // Capitalize first letter
           const message = messageParts.join(" and ");
           const formattedMessage =
             message.charAt(0).toUpperCase() + message.slice(1);
@@ -226,36 +231,14 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized]);
 
-  // Auto-sync when coming back online
+  // Auto-sync when coming back online is now handled by syncManager
+  // Clean up product sync timeouts on unmount
   useEffect(() => {
-    const handleOnline = async () => {
-      console.log("📶 Network connection restored - auto-syncing...");
-
-      // Sync sales if needed
-      const unsyncedSales = await getUnsyncedSales();
-      if (unsyncedSales.length > 0) {
-        setTimeout(() => {
-          syncSales();
-        }, 1000);
-      }
-
-      // Sync products if needed
-      if (syncStatus.pendingProductSync) {
-        setTimeout(() => {
-          syncProductsToSheet();
-        }, 1500);
-      }
-    };
-
-    globalThis.addEventListener("online", handleOnline);
     return () => {
-      globalThis.removeEventListener("online", handleOnline);
-      // Clean up any pending product sync timeouts
       if (productSyncTimeoutRef.current) {
         clearTimeout(productSyncTimeoutRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper function to detect if products have changed
@@ -369,6 +352,12 @@ export default function Home() {
       localStorage.setItem("salesSheetName", sheetName);
       localStorage.setItem("productsSheetId", sheetId);
 
+      // Also save to Supabase for persistence
+      if (session?.user?.email) {
+        const { updateCurrentSheet } = await import("@/lib/supabase/settings");
+        await updateCurrentSheet(session.user.email, sheetId, sheetName);
+      }
+
       // Clear IndexedDB to force fresh load
       const { clearAllProducts } = await import("@/lib/db");
       await clearAllProducts();
@@ -410,6 +399,23 @@ export default function Home() {
           localStorage.setItem("salesSheetName", data.sheetName);
         }
 
+        // Save sheet ID to Supabase
+        if (session?.user?.email) {
+          try {
+            const { updateCurrentSheet } = await import(
+              "@/lib/supabase/settings"
+            );
+            await updateCurrentSheet(
+              session.user.email,
+              data.salesSheetId,
+              data.sheetName || "My Merch Table"
+            );
+            console.log("✅ Sheet ID saved to Supabase");
+          } catch (error) {
+            console.error("❌ Failed to save sheet ID to Supabase:", error);
+          }
+        }
+
         setToast({
           message: "New spreadsheet created! Setting up your workspace...",
           type: "success",
@@ -444,6 +450,43 @@ export default function Home() {
     }
   };
 
+  // Handle user disconnecting from current sheet
+  const handleDisconnectSheet = async () => {
+    try {
+      // Clear localStorage
+      localStorage.removeItem("productsSheetId");
+      localStorage.removeItem("salesSheetId");
+      localStorage.removeItem("salesSheetName");
+
+      // Clear IndexedDB to force fresh start
+      const { clearAllData } = await import("@/lib/db");
+      await clearAllData();
+
+      // Clear Supabase current_sheet_id
+      if (session?.user?.email) {
+        const { updateCurrentSheet } = await import("@/lib/supabase/settings");
+        await updateCurrentSheet(session.user.email, "", "");
+      }
+
+      // Set flag to skip onboarding dialogue and go straight to choice screen
+      localStorage.setItem("skip_onboarding_dialogue", "true");
+
+      setToast({
+        message: "Disconnected from sheet. Choose a new option.",
+        type: "success",
+      });
+
+      // Show onboarding to let user choose create/connect
+      setShowOnboarding(true);
+    } catch (error) {
+      console.error("❌ Error disconnecting sheet:", error);
+      setToast({
+        message: "Error disconnecting sheet.",
+        type: "error",
+      });
+    }
+  };
+
   const initializeApp = async () => {
     try {
       // Check for force-new parameter to bypass cached IDs (for testing)
@@ -459,15 +502,94 @@ export default function Home() {
       }
 
       // Check if user has sheet IDs stored locally
-      const storedProductsSheetId = localStorage.getItem("productsSheetId");
-      const storedSalesSheetId = localStorage.getItem("salesSheetId");
+      let storedProductsSheetId = localStorage.getItem("productsSheetId");
+      let storedSalesSheetId = localStorage.getItem("salesSheetId");
 
-      // If no local IDs, show onboarding modal instead of auto-creating
+      // If no local IDs, try to load from Supabase
+      if (
+        (!storedProductsSheetId || !storedSalesSheetId) &&
+        session?.user?.email
+      ) {
+        console.log("📊 No local sheet IDs - checking Supabase...");
+        try {
+          const { getUserSettings } = await import("@/lib/supabase/settings");
+          const settings = await getUserSettings(session.user.email);
+
+          if (settings?.current_sheet_id) {
+            console.log(
+              "✅ Found sheet ID in Supabase:",
+              settings.current_sheet_id
+            );
+            storedProductsSheetId = settings.current_sheet_id;
+            storedSalesSheetId = settings.current_sheet_id;
+
+            // Save to localStorage for faster access
+            localStorage.setItem("productsSheetId", settings.current_sheet_id);
+            localStorage.setItem("salesSheetId", settings.current_sheet_id);
+            if (settings.current_sheet_name) {
+              localStorage.setItem(
+                "salesSheetName",
+                settings.current_sheet_name
+              );
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error loading sheet IDs from Supabase:", error);
+        }
+      }
+
+      // Check if we should auto-create The Bones sheet
+      const shouldAutoCreateSheet = localStorage.getItem(
+        "auto_create_tutorial_sheet"
+      );
+
+      // If no local IDs and NOT in tutorial mode, show onboarding modal or auto-create
       if (!storedProductsSheetId || !storedSalesSheetId) {
-        console.log("🎯 No sheet IDs found - showing onboarding modal");
-        setShowOnboarding(true);
-        setIsInitialized(true); // Mark as initialized so modal can be shown
-        return; // Stop here and wait for user choice
+        // Don't show onboarding if tutorial mode is active
+        if (isTutorialMode()) {
+          console.log("🎓 Tutorial mode - skipping onboarding modal");
+          // Continue to load tutorial data below
+        } else if (shouldAutoCreateSheet === "true") {
+          // Auto-create "The Bones Merch Table" sheet
+          console.log("🦴 Auto-creating The Bones Merch Table");
+          localStorage.removeItem("auto_create_tutorial_sheet");
+          setIsInitializingSheets(true);
+
+          try {
+            const response = await fetch("/api/sheets/create", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sheetName: "The Bones Merch Table",
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              localStorage.setItem("productsSheetId", data.productsSheetId);
+              localStorage.setItem("salesSheetId", data.salesSheetId);
+              console.log("✅ The Bones sheet created successfully");
+              // Continue to load and sync products below
+            } else {
+              console.error("❌ Failed to create The Bones sheet");
+              setShowOnboarding(true);
+              setIsInitialized(true);
+              return;
+            }
+          } catch (error) {
+            console.error("❌ Error creating The Bones sheet:", error);
+            setShowOnboarding(true);
+            setIsInitialized(true);
+            return;
+          } finally {
+            setIsInitializingSheets(false);
+          }
+        } else {
+          console.log("🎯 No sheet IDs found - showing onboarding modal");
+          setShowOnboarding(true);
+          setIsInitialized(true); // Mark as initialized so modal can be shown
+          return; // Stop here and wait for user choice
+        }
       } else {
         console.log("✅ Using cached sheet IDs:", {
           storedProductsSheetId,
@@ -482,8 +604,14 @@ export default function Home() {
       // Get current products from IndexedDB to compare for changes
       const currentProducts = await getProducts();
 
+      // If in tutorial mode, load tutorial seed data
+      if (isTutorialMode()) {
+        console.log("🎓 Tutorial mode active - loading The Bones seed data");
+        loadedProducts = TUTORIAL_SEED_DATA.products;
+        await saveProducts(loadedProducts);
+      }
       // If we have a sheet ID, try loading products from Google Sheets
-      if (storedProductsSheetId) {
+      else if (storedProductsSheetId) {
         try {
           console.log("📥 Loading products from Google Sheets...");
 
@@ -638,16 +766,6 @@ export default function Home() {
     }
   };
 
-  const updateSyncStatus = async () => {
-    const unsyncedSales = await getUnsyncedSales();
-    const allSales = await getSales();
-    setSyncStatus((prev) => ({
-      ...prev,
-      pendingSales: unsyncedSales.length,
-      totalSales: allSales.length,
-    }));
-  };
-
   const handleCompleteSale = async (
     items: CartItem[],
     total: number,
@@ -684,56 +802,9 @@ export default function Home() {
     };
 
     await saveSale(sale);
-    await updateSyncStatus();
 
-    if (navigator.onLine) {
-      syncSales();
-    }
-  };
-
-  const syncSales = async () => {
-    if (syncStatus.isSyncing) return;
-
-    setSyncStatus((prev) => ({ ...prev, isSyncing: true }));
-
-    try {
-      const unsyncedSales = await getUnsyncedSales();
-      const salesSheetId = localStorage.getItem("salesSheetId");
-
-      if (unsyncedSales.length > 0 && salesSheetId) {
-        const response = await fetch("/api/sheets/sync-sales", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sales: unsyncedSales, salesSheetId }),
-        });
-
-        if (response.ok) {
-          for (const sale of unsyncedSales) {
-            await markSaleAsSynced(sale.id);
-          }
-
-          // Delete synced sales to keep local storage clean
-          const deletedCount = await deleteSyncedSales();
-          console.log(
-            `🗑️ Cleaned up ${deletedCount} synced sales from local storage`
-          );
-
-          const allSales = await getSales();
-          setSyncStatus({
-            lastSyncTime: new Date().toISOString(),
-            pendingSales: 0,
-            totalSales: allSales.length,
-            isSyncing: false,
-            pendingProductSync: false,
-          });
-        }
-      } else {
-        setSyncStatus((prev) => ({ ...prev, isSyncing: false }));
-      }
-    } catch (error) {
-      console.error("Sync failed:", error);
-      setSyncStatus((prev) => ({ ...prev, isSyncing: false }));
-    }
+    // Queue sync via sync manager
+    syncManager.queueSync("sales");
   };
 
   const handleAddProduct = async (product: Product) => {
@@ -741,20 +812,14 @@ export default function Home() {
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
 
-    // Mark products as needing sync
-    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-
-    // Debounce sync to avoid showing sync bar for rapid changes
-    // Clear any existing timeout
+    // Debounce sync via sync manager
     if (productSyncTimeoutRef.current) {
       clearTimeout(productSyncTimeoutRef.current);
     }
 
-    // Sync will happen after 1.5 seconds of inactivity, or on page load/online event
     productSyncTimeoutRef.current = setTimeout(() => {
-      if (navigator.onLine) {
-        syncProductsToSheet();
-      }
+      syncManager.markProductsPending();
+      syncManager.queueSync("products");
     }, 1500);
   };
 
@@ -763,18 +828,14 @@ export default function Home() {
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
 
-    // Mark products as needing sync
-    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-
-    // Debounce sync to avoid showing sync bar for rapid changes
+    // Debounce sync via sync manager
     if (productSyncTimeoutRef.current) {
       clearTimeout(productSyncTimeoutRef.current);
     }
 
     productSyncTimeoutRef.current = setTimeout(() => {
-      if (navigator.onLine) {
-        syncProductsToSheet();
-      }
+      syncManager.markProductsPending();
+      syncManager.queueSync("products");
     }, 1500);
   };
 
@@ -784,52 +845,15 @@ export default function Home() {
       const updatedProducts = await getProducts();
       setProducts(updatedProducts);
 
-      // Mark products as needing sync
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-
-      // Debounce sync to avoid showing sync bar for rapid changes
+      // Debounce sync via sync manager
       if (productSyncTimeoutRef.current) {
         clearTimeout(productSyncTimeoutRef.current);
       }
 
       productSyncTimeoutRef.current = setTimeout(() => {
-        if (navigator.onLine) {
-          syncProductsToSheet();
-        }
+        syncManager.markProductsPending();
+        syncManager.queueSync("products");
       }, 1500);
-    }
-  };
-
-  const syncProductsToSheet = async () => {
-    try {
-      const productsSheetId = localStorage.getItem("productsSheetId");
-
-      if (!productsSheetId) {
-        console.warn(
-          "Products sheet not initialized - will sync when available"
-        );
-        return;
-      }
-
-      // Get latest products from IndexedDB
-      const currentProducts = await getProducts();
-
-      const response = await fetch("/api/sheets/sync-products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products: currentProducts, productsSheetId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to sync");
-      }
-
-      console.log("✅ Products synced to Google Sheets");
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: false }));
-    } catch (error) {
-      console.error("Failed to sync products:", error);
-      // Keep pendingProductSync true so it retries when online
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     }
   };
 
@@ -875,498 +899,525 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-theme">
-      <header className="bg-theme-secondary border-b border-theme p-3 sm:p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-theme ft-heading">
-            Merch Table
-          </h1>
-          <div className="flex items-center gap-2 sm:gap-4">
-            {session?.user?.email && (
-              <div className="text-right">
-                <p className="text-xs sm:text-sm text-theme-muted hidden sm:block">
-                  Signed in as
-                </p>
-                <p className="text-xs sm:text-sm font-medium text-theme truncate max-w-[120px] sm:max-w-none">
-                  {session.user.email}
-                </p>
+    <TutorialProvider>
+      <div className="flex flex-col min-h-screen bg-theme">
+        <header className="bg-theme-secondary border-b border-theme p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-theme ft-heading">
+              Merch Table
+            </h1>
+            <div className="flex items-center gap-2 sm:gap-4">
+              {session?.user?.email && (
+                <div className="text-right">
+                  <p className="text-xs sm:text-sm text-theme-muted hidden sm:block">
+                    Signed in as
+                  </p>
+                  <p className="text-xs sm:text-sm font-medium text-theme truncate max-w-[120px] sm:max-w-none">
+                    {session.user.email}
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={() => setShowWhatsNew(true)}
+                className="p-2 sm:px-4 sm:py-2 bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme rounded border border-theme text-sm transition-all flex items-center gap-2"
+                title="What's New"
+              >
+                <span className="text-base leading-none">✨</span>
+                <span className="hidden sm:inline">What&apos;s New</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`p-2 sm:px-4 sm:py-2 rounded border transition-all ${
+                  activeTab === "settings"
+                    ? "bg-theme-tertiary border-theme text-theme"
+                    : "bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme border-theme"
+                }`}
+                title="Settings"
+              >
+                <Cog6ToothIcon className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => signOut()}
+                className="p-2 sm:px-4 sm:py-2 bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme rounded border border-theme text-sm transition-all flex items-center gap-2"
+                title="Sign Out"
+              >
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Announcement Banner */}
+        {showAnnouncement && (
+          <div
+            className="relative border-b border-amber-900 overflow-hidden"
+            style={{
+              backgroundImage:
+                "url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)",
+              backgroundSize: "600px auto",
+              backgroundPosition: "center",
+              backgroundRepeat: "repeat",
+            }}
+          >
+            <div className="flex items-center justify-between gap-4 px-4 py-3 relative">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="flex-1 min-w-0 bg-black/85 px-3 py-2 rounded-lg">
+                  <p className="text-white font-bold text-sm sm:text-base">
+                    v3 Features: Email List Signup + Direct Image Uploads!
+                  </p>
+                  <p className="text-white text-xs sm:text-sm mt-0.5">
+                    Collect emails from customers after checkout, upload product
+                    images & QR codes directly from your device, and more
+                    settings improvements. Check Settings → Email Signup to
+                    enable!
+                  </p>
+                </div>
               </div>
-            )}
+              <button
+                onClick={() => {
+                  setShowAnnouncement(false);
+                  localStorage.setItem("announcement-v3-dismissed", "true");
+                }}
+                className="text-white hover:bg-primary/90 transition-colors flex-shrink-0 p-2 rounded-lg bg-primary border-2 border-black drop-shadow-lg"
+                title="Dismiss"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <SyncStatusBar
+          status={syncStatus}
+          onSync={() => syncManager.triggerSync()}
+        />
+
+        <nav className="bg-theme border-b border-theme">
+          <div className="flex">
             <button
-              onClick={() => setShowWhatsNew(true)}
-              className="p-2 sm:px-4 sm:py-2 bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme rounded border border-theme text-sm transition-all flex items-center gap-2"
-              title="What's New"
-            >
-              <span className="text-base leading-none">✨</span>
-              <span className="hidden sm:inline">What&apos;s New</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`p-2 sm:px-4 sm:py-2 rounded border transition-all ${
-                activeTab === "settings"
-                  ? "bg-theme-tertiary border-theme text-theme"
-                  : "bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme border-theme"
+              onClick={() => setActiveTab("pos")}
+              className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+                activeTab === "pos"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-theme-muted hover:text-theme-secondary"
               }`}
-              title="Settings"
             >
-              <Cog6ToothIcon className="w-5 h-5" />
+              <ShoppingBagIcon className="w-5 h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">Point of Sale</span>
             </button>
             <button
-              onClick={() => signOut()}
-              className="p-2 sm:px-4 sm:py-2 bg-theme-secondary hover:bg-theme-tertiary text-theme-secondary hover:text-theme rounded border border-theme text-sm transition-all flex items-center gap-2"
-              title="Sign Out"
+              onClick={() => setActiveTab("setup")}
+              className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+                activeTab === "setup"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-theme-muted hover:text-theme-secondary"
+              }`}
             >
-              <ArrowRightOnRectangleIcon className="w-5 h-5" />
-              <span className="hidden sm:inline">Sign Out</span>
+              <ArchiveBoxIcon className="w-5 h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">Inventory</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("analytics")}
+              className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
+                activeTab === "analytics"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-theme-muted hover:text-theme-secondary"
+              }`}
+            >
+              <ChartBarIcon className="w-5 h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">Analytics</span>
             </button>
           </div>
-        </div>
-      </header>
+        </nav>
 
-      {/* Announcement Banner */}
-      {showAnnouncement && (
-        <div
-          className="relative border-b border-amber-900 overflow-hidden"
-          style={{
-            backgroundImage:
-              "url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)",
-            backgroundSize: "600px auto",
-            backgroundPosition: "center",
-            backgroundRepeat: "repeat",
-          }}
-        >
-          <div className="flex items-center justify-between gap-4 px-4 py-3 relative">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="flex-1 min-w-0 bg-black/85 px-3 py-2 rounded-lg">
-                <p className="text-white font-bold text-sm sm:text-base">
-                  v3 Features: Email List Signup + Direct Image Uploads!
-                </p>
-                <p className="text-white text-xs sm:text-sm mt-0.5">
-                  Collect emails from customers after checkout, upload product
-                  images & QR codes directly from your device, and more settings
-                  improvements. Check Settings → Email Signup to enable!
-                </p>
+        <main className="flex-1 bg-theme">
+          {activeTab === "pos" && (
+            <POSInterface
+              products={products}
+              categoryOrder={categoryOrder}
+              onCompleteSale={handleCompleteSale}
+              onUpdateProduct={handleUpdateProduct}
+            />
+          )}
+          {activeTab === "setup" && (
+            <ProductManager
+              products={products}
+              onAddProduct={handleAddProduct}
+              onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={handleDeleteProduct}
+            />
+          )}
+          {activeTab === "analytics" && <Analytics />}
+          {activeTab === "settings" && (
+            <Settings
+              currentSheetName={
+                localStorage.getItem("salesSheetName") || undefined
+              }
+              onDisconnectSheet={handleDisconnectSheet}
+            />
+          )}
+        </main>
+
+        <FeedbackButton />
+
+        {/* What's New Modal */}
+        {showWhatsNew && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-theme-secondary border border-theme rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6 relative">
+              {/* Close button */}
+              <button
+                onClick={() => setShowWhatsNew(false)}
+                className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+
+              {/* Header */}
+              <h2 className="text-3xl font-bold text-theme mb-2 pr-8">
+                ✨ What&apos;s New
+              </h2>
+              <p className="text-theme-muted mb-6">
+                Latest features and improvements
+              </p>
+
+              {/* Changelog */}
+              <div className="space-y-6">
+                {/* November 5, 2025 - v3 Features */}
+                <div className="border-l-4 border-emerald-500 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500 text-white rounded">
+                      NEW
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      November 5, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    📧 Email List Signup
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>
+                      • Post-checkout modal to collect emails from customers
+                    </li>
+                    <li>
+                      • Optional name and phone collection with smart toggle
+                    </li>
+                    <li>
+                      • Auto-dismiss countdown that pauses when user starts
+                      typing
+                    </li>
+                    <li>
+                      • Customizable prompt message for your band&apos;s voice
+                    </li>
+                    <li>• Manual entry form in Settings for table signups</li>
+                    <li>
+                      • All emails saved to &quot;Email List&quot; sheet in your
+                      spreadsheet
+                    </li>
+                    <li>
+                      • Each signup linked to sale ID for tracking conversion
+                    </li>
+                  </ul>
+
+                  <h3 className="text-lg font-bold text-theme mb-2 mt-4">
+                    🎨 Enhanced Settings
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>
+                      • Direct image uploads for products (no external links
+                      needed)
+                    </li>
+                    <li>
+                      • Upload QR codes directly from device for payment methods
+                    </li>
+                    <li>
+                      • Images stored as base64 in sheets - never expire or
+                      break
+                    </li>
+                    <li>• Auto-compression keeps sheet sizes manageable</li>
+                  </ul>
+                </div>
+
+                {/* November 5, 2025 - MERCH TABLE Rebrand */}
+                <div className="border-l-4 border-primary pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-primary text-black rounded">
+                      REBRAND
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      November 5, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    🧡 Welcome to MERCH TABLE
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>
+                      • Complete visual rebrand with Safety Orange (#FF6A00)
+                      brand identity
+                    </li>
+                    <li>
+                      • New dark mode design (#111111 background) - easier on
+                      eyes during late-night shows
+                    </li>
+                    <li>
+                      • Updated typography: Bebas Neue for headings, Inter for
+                      body text
+                    </li>
+                    <li>
+                      • Road-ready branding that matches the touring band
+                      lifestyle
+                    </li>
+                    <li>
+                      • All functionality stays the same - just looks better
+                    </li>
+                    <li>
+                      • Multiple themes still available in Settings (Merch
+                      Table, Default, Girlypop)
+                    </li>
+                  </ul>
+                  <p className="text-xs text-theme-muted mt-3 italic">
+                    Same reliable POS, now with a name and look that fits the
+                    vibe. 🎸
+                  </p>
+                </div>
+
+                {/* November 4, 2025 */}
+                <div className="border-l-4 border-emerald-500 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500 text-white rounded">
+                      NEW
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      November 4, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    💱 Multi-Currency Support
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>
+                      • Display prices in 7 currencies: USD, CAD, EUR, GBP, MXN,
+                      AUD, JPY
+                    </li>
+                    <li>
+                      • Perfect for touring bands - show local currency while
+                      keeping USD in sheets
+                    </li>
+                    <li>
+                      • Set custom exchange rates with live rate checker link
+                    </li>
+                    <li>
+                      • Currency-specific cash denominations (e.g., CA$5, CA$10,
+                      CA$20 for Canada)
+                    </li>
+                    <li>
+                      • All prices stored in USD for consistent reporting across
+                      tours
+                    </li>
+                    <li>
+                      • Settings persist to Google Sheets for multi-device sync
+                    </li>
+                  </ul>
+
+                  <h3 className="text-lg font-bold text-theme mb-2 mt-4">
+                    📸 Image Upload
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>• Upload product images directly from your device</li>
+                    <li>
+                      • Auto-compression to ~50-100KB (perfect for sheets
+                      storage)
+                    </li>
+                    <li>
+                      • Images stored as base64 in Google Sheets - never expire
+                      or break
+                    </li>
+                    <li>• No external services or API keys required</li>
+                    <li>• Works offline - fits touring band lifestyle</li>
+                    <li>• Upload button in both Add and Edit product forms</li>
+                  </ul>
+                </div>
+
+                {/* November 3, 2025 */}
+                <div className="border-l-4 border-secondary pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-secondary text-theme rounded">
+                      NEW
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      November 3, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    ☕ Review Order Flow
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>
+                      • Coffee shop-style 2-step checkout for ALL payment types
+                    </li>
+                    <li>
+                      • Step 1: Select tip percentage (5%, 10%, 20%) or custom
+                      amount
+                    </li>
+                    <li>
+                      • Step 2: Review complete order breakdown before
+                      completing
+                    </li>
+                    <li>• See transaction fees included in total to collect</li>
+                    <li>
+                      • Cash change calculation includes all fees and tips
+                    </li>
+                    <li>
+                      • Unified experience across Cash, Venmo, Card, and custom
+                      payments
+                    </li>
+                  </ul>
+                </div>
+
+                {/* October 30, 2025 */}
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-blue-500 text-white rounded">
+                      NEW
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      October 30, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    📦 Inventory Value Tracking
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>• Added Inventory Value card to Quick Stats</li>
+                    <li>
+                      • Shows total retail value of all unsold merchandise
+                    </li>
+                    <li>• Calculates from Google Sheets Products data</li>
+                    <li>
+                      • Click info icon for detailed calculation breakdown
+                    </li>
+                  </ul>
+                </div>
+
+                {/* October 29, 2025 */}
+                <div className="border-l-4 border-green-500 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-green-500 text-white rounded">
+                      FIXED
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      October 29, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    🎸 Hookup & Tip Improvements
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>• Fixed $0 hookups (100% free merchandise)</li>
+                    <li>• Hookup discounts now visible as line items</li>
+                    <li>• Tips properly included in Venmo/QR code totals</li>
+                    <li>• Hookup auto-fills with cash received amount</li>
+                    <li>• Transaction fees calculated on hookup amount</li>
+                  </ul>
+                </div>
+
+                {/* October 28, 2025 */}
+                <div className="border-l-4 border-secondary pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-secondary text-theme rounded">
+                      NEW
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      October 28, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    💰 Tips Support
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>• Added tip tracking for Venmo/QR payments</li>
+                    <li>• Tips shown separately in Insights (Column D)</li>
+                    <li>• Tips not included in revenue calculations</li>
+                    <li>• Daily tips breakdown in Revenue by Date table</li>
+                  </ul>
+                </div>
+
+                {/* October 25, 2025 */}
+                <div className="border-l-4 border-yellow-500 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-bold bg-yellow-500 text-black rounded">
+                      FEATURE
+                    </span>
+                    <span className="text-sm text-theme-muted">
+                      October 25, 2025
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    🎨 Theme System
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>• Multiple app themes available in Settings</li>
+                    <li>• Live preview before saving</li>
+                    <li>• Persistent theme selection across sessions</li>
+                  </ul>
+                </div>
+
+                {/* Earlier Features */}
+                <div className="border-l-4 border-zinc-500 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm text-theme-muted">
+                      Earlier Updates
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-theme mb-2">
+                    🚀 Core Features
+                  </h3>
+                  <ul className="space-y-1 text-sm text-theme-secondary">
+                    <li>• Offline-first POS with IndexedDB storage</li>
+                    <li>• Google Sheets integration for sales tracking</li>
+                    <li>• Custom payment methods with QR codes</li>
+                    <li>• Product breakdown by date in Insights</li>
+                    <li>• Dynamic schema updates for payment methods</li>
+                    <li>• Revenue calculation explainer</li>
+                  </ul>
+                </div>
               </div>
+
+              {/* Close button at bottom */}
+              <button
+                onClick={() => setShowWhatsNew(false)}
+                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Close
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setShowAnnouncement(false);
-                localStorage.setItem("announcement-v3-dismissed", "true");
-              }}
-              className="text-white hover:bg-primary/90 transition-colors flex-shrink-0 p-2 rounded-lg bg-primary border-2 border-black drop-shadow-lg"
-              title="Dismiss"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <SyncStatusBar status={syncStatus} onSync={syncSales} />
-
-      <nav className="bg-theme border-b border-theme">
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab("pos")}
-            className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
-              activeTab === "pos"
-                ? "border-b-2 border-primary text-primary"
-                : "text-theme-muted hover:text-theme-secondary"
-            }`}
-          >
-            <ShoppingBagIcon className="w-5 h-5 flex-shrink-0" />
-            <span className="hidden sm:inline">Point of Sale</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("setup")}
-            className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
-              activeTab === "setup"
-                ? "border-b-2 border-primary text-primary"
-                : "text-theme-muted hover:text-theme-secondary"
-            }`}
-          >
-            <ArchiveBoxIcon className="w-5 h-5 flex-shrink-0" />
-            <span className="hidden sm:inline">Inventory</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("analytics")}
-            className={`flex-1 py-3 sm:py-4 px-2 sm:px-6 font-medium flex items-center justify-center gap-2 touch-manipulation ${
-              activeTab === "analytics"
-                ? "border-b-2 border-primary text-primary"
-                : "text-theme-muted hover:text-theme-secondary"
-            }`}
-          >
-            <ChartBarIcon className="w-5 h-5 flex-shrink-0" />
-            <span className="hidden sm:inline">Analytics</span>
-          </button>
-        </div>
-      </nav>
-
-      <main className="flex-1 bg-theme">
-        {activeTab === "pos" && (
-          <POSInterface
-            products={products}
-            categoryOrder={categoryOrder}
-            onCompleteSale={handleCompleteSale}
-            onUpdateProduct={handleUpdateProduct}
+        {/* Toast Notification */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
           />
         )}
-        {activeTab === "setup" && (
-          <ProductManager
-            products={products}
-            onAddProduct={handleAddProduct}
-            onUpdateProduct={handleUpdateProduct}
-            onDeleteProduct={handleDeleteProduct}
+
+        {/* Onboarding Modal - only show if authenticated and initialized */}
+        {showOnboarding && session && isInitialized && (
+          <OnboardingModal
+            onConnectExisting={handleConnectExisting}
+            onCreateNew={handleCreateNew}
+            onClose={() => setShowOnboarding(false)}
+            isCreating={isInitializingSheets}
           />
         )}
-        {activeTab === "analytics" && <Analytics />}
-        {activeTab === "settings" && <Settings />}
-      </main>
 
-      <FeedbackButton />
-
-      {/* What's New Modal */}
-      {showWhatsNew && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-theme-secondary border border-theme rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6 relative">
-            {/* Close button */}
-            <button
-              onClick={() => setShowWhatsNew(false)}
-              className="absolute top-4 right-4 text-theme-muted hover:text-theme transition-colors"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
-
-            {/* Header */}
-            <h2 className="text-3xl font-bold text-theme mb-2 pr-8">
-              ✨ What&apos;s New
-            </h2>
-            <p className="text-theme-muted mb-6">
-              Latest features and improvements
-            </p>
-
-            {/* Changelog */}
-            <div className="space-y-6">
-              {/* November 5, 2025 - v3 Features */}
-              <div className="border-l-4 border-emerald-500 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500 text-white rounded">
-                    NEW
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    November 5, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  📧 Email List Signup
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>
-                    • Post-checkout modal to collect emails from customers
-                  </li>
-                  <li>
-                    • Optional name and phone collection with smart toggle
-                  </li>
-                  <li>
-                    • Auto-dismiss countdown that pauses when user starts typing
-                  </li>
-                  <li>
-                    • Customizable prompt message for your band&apos;s voice
-                  </li>
-                  <li>• Manual entry form in Settings for table signups</li>
-                  <li>
-                    • All emails saved to &quot;Email List&quot; sheet in your
-                    spreadsheet
-                  </li>
-                  <li>
-                    • Each signup linked to sale ID for tracking conversion
-                  </li>
-                </ul>
-
-                <h3 className="text-lg font-bold text-theme mb-2 mt-4">
-                  🎨 Enhanced Settings
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>
-                    • Direct image uploads for products (no external links
-                    needed)
-                  </li>
-                  <li>
-                    • Upload QR codes directly from device for payment methods
-                  </li>
-                  <li>
-                    • Images stored as base64 in sheets - never expire or break
-                  </li>
-                  <li>• Auto-compression keeps sheet sizes manageable</li>
-                </ul>
-              </div>
-
-              {/* November 5, 2025 - MERCH TABLE Rebrand */}
-              <div className="border-l-4 border-primary pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-primary text-black rounded">
-                    REBRAND
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    November 5, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  🧡 Welcome to MERCH TABLE
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>
-                    • Complete visual rebrand with Safety Orange (#FF6A00) brand
-                    identity
-                  </li>
-                  <li>
-                    • New dark mode design (#111111 background) - easier on eyes
-                    during late-night shows
-                  </li>
-                  <li>
-                    • Updated typography: Bebas Neue for headings, Inter for
-                    body text
-                  </li>
-                  <li>
-                    • Road-ready branding that matches the touring band
-                    lifestyle
-                  </li>
-                  <li>
-                    • All functionality stays the same - just looks better
-                  </li>
-                  <li>
-                    • Multiple themes still available in Settings (Merch Table,
-                    Default, Girlypop)
-                  </li>
-                </ul>
-                <p className="text-xs text-theme-muted mt-3 italic">
-                  Same reliable POS, now with a name and look that fits the
-                  vibe. 🎸
-                </p>
-              </div>
-
-              {/* November 4, 2025 */}
-              <div className="border-l-4 border-emerald-500 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-emerald-500 text-white rounded">
-                    NEW
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    November 4, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  💱 Multi-Currency Support
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>
-                    • Display prices in 7 currencies: USD, CAD, EUR, GBP, MXN,
-                    AUD, JPY
-                  </li>
-                  <li>
-                    • Perfect for touring bands - show local currency while
-                    keeping USD in sheets
-                  </li>
-                  <li>
-                    • Set custom exchange rates with live rate checker link
-                  </li>
-                  <li>
-                    • Currency-specific cash denominations (e.g., CA$5, CA$10,
-                    CA$20 for Canada)
-                  </li>
-                  <li>
-                    • All prices stored in USD for consistent reporting across
-                    tours
-                  </li>
-                  <li>
-                    • Settings persist to Google Sheets for multi-device sync
-                  </li>
-                </ul>
-
-                <h3 className="text-lg font-bold text-theme mb-2 mt-4">
-                  📸 Image Upload
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Upload product images directly from your device</li>
-                  <li>
-                    • Auto-compression to ~50-100KB (perfect for sheets storage)
-                  </li>
-                  <li>
-                    • Images stored as base64 in Google Sheets - never expire or
-                    break
-                  </li>
-                  <li>• No external services or API keys required</li>
-                  <li>• Works offline - fits touring band lifestyle</li>
-                  <li>• Upload button in both Add and Edit product forms</li>
-                </ul>
-              </div>
-
-              {/* November 3, 2025 */}
-              <div className="border-l-4 border-secondary pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-secondary text-theme rounded">
-                    NEW
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    November 3, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  ☕ Review Order Flow
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>
-                    • Coffee shop-style 2-step checkout for ALL payment types
-                  </li>
-                  <li>
-                    • Step 1: Select tip percentage (5%, 10%, 20%) or custom
-                    amount
-                  </li>
-                  <li>
-                    • Step 2: Review complete order breakdown before completing
-                  </li>
-                  <li>• See transaction fees included in total to collect</li>
-                  <li>• Cash change calculation includes all fees and tips</li>
-                  <li>
-                    • Unified experience across Cash, Venmo, Card, and custom
-                    payments
-                  </li>
-                </ul>
-              </div>
-
-              {/* October 30, 2025 */}
-              <div className="border-l-4 border-blue-500 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-blue-500 text-white rounded">
-                    NEW
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    October 30, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  📦 Inventory Value Tracking
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Added Inventory Value card to Quick Stats</li>
-                  <li>• Shows total retail value of all unsold merchandise</li>
-                  <li>• Calculates from Google Sheets Products data</li>
-                  <li>• Click info icon for detailed calculation breakdown</li>
-                </ul>
-              </div>
-
-              {/* October 29, 2025 */}
-              <div className="border-l-4 border-green-500 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-green-500 text-white rounded">
-                    FIXED
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    October 29, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  🎸 Hookup & Tip Improvements
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Fixed $0 hookups (100% free merchandise)</li>
-                  <li>• Hookup discounts now visible as line items</li>
-                  <li>• Tips properly included in Venmo/QR code totals</li>
-                  <li>• Hookup auto-fills with cash received amount</li>
-                  <li>• Transaction fees calculated on hookup amount</li>
-                </ul>
-              </div>
-
-              {/* October 28, 2025 */}
-              <div className="border-l-4 border-secondary pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-secondary text-theme rounded">
-                    NEW
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    October 28, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  💰 Tips Support
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Added tip tracking for Venmo/QR payments</li>
-                  <li>• Tips shown separately in Insights (Column D)</li>
-                  <li>• Tips not included in revenue calculations</li>
-                  <li>• Daily tips breakdown in Revenue by Date table</li>
-                </ul>
-              </div>
-
-              {/* October 25, 2025 */}
-              <div className="border-l-4 border-yellow-500 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-2 py-0.5 text-xs font-bold bg-yellow-500 text-black rounded">
-                    FEATURE
-                  </span>
-                  <span className="text-sm text-theme-muted">
-                    October 25, 2025
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  🎨 Theme System
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Multiple app themes available in Settings</li>
-                  <li>• Live preview before saving</li>
-                  <li>• Persistent theme selection across sessions</li>
-                </ul>
-              </div>
-
-              {/* Earlier Features */}
-              <div className="border-l-4 border-zinc-500 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm text-theme-muted">
-                    Earlier Updates
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-theme mb-2">
-                  🚀 Core Features
-                </h3>
-                <ul className="space-y-1 text-sm text-theme-secondary">
-                  <li>• Offline-first POS with IndexedDB storage</li>
-                  <li>• Google Sheets integration for sales tracking</li>
-                  <li>• Custom payment methods with QR codes</li>
-                  <li>• Product breakdown by date in Insights</li>
-                  <li>• Dynamic schema updates for payment methods</li>
-                  <li>• Revenue calculation explainer</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Close button at bottom */}
-            <button
-              onClick={() => setShowWhatsNew(false)}
-              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
-      {/* Onboarding Modal - only show if authenticated and initialized */}
-      {showOnboarding && session && isInitialized && (
-        <OnboardingModal
-          onConnectExisting={handleConnectExisting}
-          onCreateNew={handleCreateNew}
-          isCreating={isInitializingSheets}
-        />
-      )}
-    </div>
+        {/* Ramona Tutorial Drawer */}
+        <RamonaDrawer />
+      </div>
+    </TutorialProvider>
   );
 }

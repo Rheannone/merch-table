@@ -5,28 +5,44 @@ import Image from "next/image";
 import {
   DocumentMagnifyingGlassIcon,
   PlusCircleIcon,
-  ArrowRightIcon,
 } from "@heroicons/react/24/outline";
+import { useTutorial } from "@/contexts/TutorialContext";
+import { enableTutorialMode } from "@/lib/tutorialData";
 
 interface OnboardingModalProps {
   onConnectExisting: () => void;
   onCreateNew: () => void;
+  onClose?: () => void; // Optional callback to close the modal
   isCreating?: boolean;
 }
 
-// Dialogue pages for Road Dog
+// Dialogue pages for Ramona the Road Dog
 const DIALOGUE_PAGES = [
-  "Hey! Welcome to Merch Table! I'm Road Dog 🐾",
-  "I'm your tour's newest crew member!",
-  "Let's get your MERCH TABLE set up!",
+  "Hey there! I'm Ramona the Road Dog — welcome to Merch Table! *woof*",
+  "I'm your crew's new best friend — loyal, fast, and always down to tour.",
+  "Can I show you around the van? I promise I won't chew any cables this time.",
+  "This is Merch Table — your pop-up point-of-sale for bands, crews, and DIY artists.",
+  "You own your data — it all lives safe and sound in your Google Drive. No middlemen here.",
+  "You can even add your friends to help run the table — I'll keep everything in sync, no sweat.",
+  "No signal? No problem. I still run shows in basements, parking lots, even fields at 2AM.",
+  "Make it yours — colors, categories, even a little sparkle if that's your vibe.",
+  "Alright, crew — The Bones go on in 10. Can you help me set up the table before soundcheck? *arf arf*",
 ];
 
 export default function OnboardingModal({
   onConnectExisting,
   onCreateNew,
+  onClose,
   isCreating = false,
 }: OnboardingModalProps) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const { startTutorial } = useTutorial();
+
+  // Check if we should skip dialogue and go straight to choice screen
+  const shouldSkipDialogue =
+    typeof window !== "undefined" &&
+    localStorage.getItem("skip_onboarding_dialogue") === "true";
+
+  const [step, setStep] = useState<1 | 2>(shouldSkipDialogue ? 2 : 1);
   const [dialoguePage, setDialoguePage] = useState(0);
   const [displayedText, setDisplayedText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -34,8 +50,17 @@ export default function OnboardingModal({
   const [showButton, setShowButton] = useState(false);
   const [dogBounce, setDogBounce] = useState(0); // Increment to trigger bounce
   const [showHearts, setShowHearts] = useState(false);
+  const [showSkip, setShowSkip] = useState(false); // Delayed skip button visibility
   const typingTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [ramonaBoundingOff, setRamonaBoundingOff] = useState(false); // Animation state
+
+  // Clear the skip flag after reading it
+  useEffect(() => {
+    if (shouldSkipDialogue) {
+      localStorage.removeItem("skip_onboarding_dialogue");
+    }
+  }, [shouldSkipDialogue]);
 
   // Check for reduced motion preference
   useEffect(() => {
@@ -49,6 +74,14 @@ export default function OnboardingModal({
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
+
+  // Big haptic buzz when Ramona appears!
+  useEffect(() => {
+    if (navigator.vibrate) {
+      // Double buzz for emphasis: 200ms, pause 100ms, 200ms
+      navigator.vibrate([200, 100, 200]);
+    }
+  }, []); // Only on mount
 
   // Typing animation effect
   useEffect(() => {
@@ -67,6 +100,7 @@ export default function OnboardingModal({
     setIsTyping(true);
     setShowContinue(false);
     setShowButton(false);
+    setShowSkip(false); // Reset skip button on page change
 
     let currentIndex = 0;
 
@@ -76,7 +110,7 @@ export default function OnboardingModal({
         currentIndex++;
 
         // Determine delay based on character
-        let delay = 40; // Base typing speed (ms per character)
+        let delay = 40; // Base typing speed: 35-45ms per character (Nintendo-style)
         const char = fullText[currentIndex - 1];
 
         if (char === "." || char === "!" || char === "?") {
@@ -91,9 +125,10 @@ export default function OnboardingModal({
         setIsTyping(false);
         setShowContinue(true);
 
-        // If last page, show button after a brief delay
+        // If last page, show button after a brief delay, and skip button after 1 second
         if (dialoguePage === DIALOGUE_PAGES.length - 1) {
           setTimeout(() => setShowButton(true), 300);
+          setTimeout(() => setShowSkip(true), 1000); // Skip fades in 1s after text finishes
         }
       }
     };
@@ -106,6 +141,23 @@ export default function OnboardingModal({
       }
     };
   }, [dialoguePage, step, prefersReducedMotion]);
+
+  // Auto-bounce and hearts on second dialogue page ONLY
+  useEffect(() => {
+    if (step === 1 && dialoguePage === 1) {
+      // Trigger bounce
+      setDogBounce((prev) => prev + 1);
+
+      // Show hearts automatically for 3 seconds (300% longer than the 1s default)
+      setShowHearts(true);
+      const heartsTimer = setTimeout(() => setShowHearts(false), 3000);
+
+      return () => clearTimeout(heartsTimer);
+    } else {
+      // Hide hearts on all other pages
+      setShowHearts(false);
+    }
+  }, [dialoguePage, step]);
 
   // Handle click to skip typing or advance dialogue
   const handleDialogueClick = () => {
@@ -122,10 +174,28 @@ export default function OnboardingModal({
         setTimeout(() => setShowButton(true), 300);
       }
     } else if (showContinue && dialoguePage < DIALOGUE_PAGES.length - 1) {
-      // Advance to next page and trigger Road Dog bounce
+      // Advance to next page and trigger Ramona bounce
       setDialoguePage(dialoguePage + 1);
       setDogBounce((prev) => prev + 1);
+    } else if (showContinue && dialoguePage === DIALOGUE_PAGES.length - 1) {
+      // Last page - start tutorial!
+      handleStartTutorial();
     }
+  };
+
+  const handleStartTutorial = () => {
+    // Trigger Ramona bounding off animation
+    setRamonaBoundingOff(true);
+
+    // After animation, enable tutorial mode and reload to load tutorial data
+    setTimeout(() => {
+      enableTutorialMode();
+      // Don't call startTutorial() here - it will be called after reload
+      onClose?.(); // Close the onboarding modal
+
+      // Reload page to load tutorial products
+      window.location.reload();
+    }, 500); // Match animation duration
   };
 
   // Handle keyboard navigation
@@ -160,6 +230,18 @@ export default function OnboardingModal({
               : "opacity-0 -translate-x-full absolute inset-0 pointer-events-none"
           }`}
         >
+          {/* Skip intro link - only shows on final dialogue page, delayed 1s after text */}
+          {dialoguePage === DIALOGUE_PAGES.length - 1 && showSkip && (
+            <div className="absolute -top-12 right-0 animate-fade-in">
+              <button
+                onClick={() => {}} // Placeholder - will be implemented later
+                className="text-slate-500 hover:text-slate-400 text-sm font-medium transition-colors"
+              >
+                Skip to setup
+              </button>
+            </div>
+          )}
+
           <div className="text-center space-y-6 animate-fade-up">
             {/* Woofs animation - appears on initial load only */}
             {step === 1 && dialoguePage === 0 && (
@@ -172,11 +254,11 @@ export default function OnboardingModal({
               </div>
             )}
 
-            {/* Road Dog with Speech Bubble */}
+            {/* Ramona the Road Dog with Speech Bubble */}
             <div
               className="flex flex-col items-center gap-3 py-2 cursor-pointer relative"
               onClick={() => {
-                // Show hearts on Road Dog click
+                // Show hearts on Ramona click
                 setShowHearts(true);
                 setTimeout(() => setShowHearts(false), 1000);
                 handleDialogueClick();
@@ -186,60 +268,91 @@ export default function OnboardingModal({
               aria-label={showContinue ? "Continue dialogue" : "Skip typing"}
             >
               {/* Speech Bubble with typing animation - at the top */}
-              <div className="relative max-w-sm shadow-[0px_4px_8px_rgba(0,0,0,0.3)] animate-bubble-pop">
-                {/* Bubble tail pointing down to Road Dog */}
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[12px] border-t-[#FEFEFE]" />
+              <div className="relative max-w-sm animate-bubble-pop">
+                {/* Translucent white glow behind bubble */}
+                <div className="absolute inset-0 bg-white/25 rounded-xl blur-[10px]" />
 
-                {/* Bubble content */}
-                <div className="bg-gradient-to-br from-[#FEFEFE] to-[#F8F8F8] rounded-xl px-6 py-4 border border-slate-100 backdrop-blur-sm min-h-[80px] flex flex-col justify-between">
-                  <p className="text-slate-900 font-medium text-base leading-relaxed">
-                    {/* Screen reader gets full text */}
-                    <span className="sr-only">
-                      {DIALOGUE_PAGES[dialoguePage]}
-                    </span>
-                    {/* Visual users see typing animation */}
-                    <span aria-hidden="true">
-                      {displayedText}
-                      {isTyping && <span className="animate-pulse">|</span>}
-                    </span>
-                  </p>
+                {/* Bubble shadow */}
+                <div className="relative shadow-[0px_4px_8px_rgba(0,0,0,0.3)]">
+                  {/* Bubble tail pointing down to Ramona */}
+                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[12px] border-t-[#FEFEFE]" />
 
-                  {/* Continue indicator */}
-                  {showContinue && dialoguePage < DIALOGUE_PAGES.length - 1 && (
-                    <div className="flex justify-end items-center gap-1.5 mt-2">
-                      <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
-                        next
+                  {/* Bubble content */}
+                  <div className="bg-gradient-to-br from-[#FEFEFE] to-[#F8F8F8] rounded-xl px-8 py-4 border border-slate-100 backdrop-blur-sm min-h-[80px] flex flex-col justify-between">
+                    <p className="text-slate-900 font-medium text-base leading-[1.6]">
+                      {/* Screen reader gets full text */}
+                      <span className="sr-only">
+                        {DIALOGUE_PAGES[dialoguePage]}
                       </span>
-                      <span className="text-[#FF6A00] animate-bounce-slow text-xl">
-                        ▼
+                      {/* Visual users see typing animation */}
+                      <span aria-hidden="true">
+                        {displayedText}
+                        {isTyping && <span className="animate-pulse">|</span>}
                       </span>
-                    </div>
-                  )}
+                    </p>
+
+                    {/* Continue indicator */}
+                    {showContinue && (
+                      <div className="group/indicator relative flex justify-end items-center gap-1.5 mt-2">
+                        {/* Paw print decoration on "start tutorial" hover */}
+                        {dialoguePage === DIALOGUE_PAGES.length - 1 && (
+                          <span className="absolute -left-6 text-[#FF6A00]/0 group-hover/indicator:text-[#FF6A00]/40 transition-all duration-300 text-lg">
+                            🐾
+                          </span>
+                        )}
+                        <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                          {dialoguePage === DIALOGUE_PAGES.length - 1
+                            ? "start tutorial"
+                            : "next"}
+                        </span>
+                        <span className="text-[#FF6A00] text-xl animate-arrow-slide group-hover/indicator:animate-wiggle inline-block">
+                          {dialoguePage === DIALOGUE_PAGES.length - 1
+                            ? "▼"
+                            : "→"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Road Dog */}
+              {/* Ramona the Road Dog */}
               <div
                 key={dogBounce} // Key changes trigger re-mount and animation restart
-                className={`relative group ${
-                  showButton
+                className={`relative group transition-all duration-500 ${
+                  ramonaBoundingOff
+                    ? "translate-x-[200%] opacity-0"
+                    : showButton
                     ? "animate-bounce-excited"
                     : dogBounce > 0
                     ? "animate-bounce-excited"
                     : "animate-breathe"
                 }`}
               >
-                <div className="absolute inset-0 bg-[#FF6A00] rounded-full opacity-[0.15] blur-2xl group-hover:opacity-[0.2] transition-opacity" />
+                {/* Orange glow with subtle pulse */}
+                <div className="absolute inset-0 bg-[#FF6A00] rounded-full blur-2xl animate-glow-pulse" />
+
+                {/* Pawprint shadow for grounding */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-4 bg-black/20 rounded-full blur-sm" />
+
                 <Image
-                  src="/RoadDog-in-merch-box.png"
-                  alt="Road Dog mascot"
-                  width={180}
-                  height={180}
+                  src={
+                    dialoguePage === 1
+                      ? "/RoadDog-wave-hello.png"
+                      : dialoguePage === 2
+                      ? "/RoadDog-look-back.png"
+                      : dialoguePage === 8
+                      ? "/RoadDog-can-i-show-you.png"
+                      : "/RoadDog-in-merch-box.png" // Using placeholder for all other pages
+                  }
+                  alt="Ramona the Road Dog mascot"
+                  width={286}
+                  height={286}
                   className="relative"
                   priority
                 />
 
-                {/* Floating hearts from Road Dog */}
+                {/* Floating hearts from Ramona */}
                 {showHearts && (
                   <div className="absolute inset-0 pointer-events-none">
                     <span
@@ -264,22 +377,6 @@ export default function OnboardingModal({
                 )}
               </div>
             </div>
-
-            {/* Let's Go Button - appears after final dialogue */}
-            {showButton && (
-              <div className="pt-4 animate-bounce-in">
-                <button
-                  onClick={() => setStep(2)}
-                  className="group relative w-full max-w-xs mx-auto bg-gradient-to-b from-[#FF7A1A] to-[#E65C00] hover:from-[#FFA14D] hover:to-[#FF7A1A] active:from-[#CC4C00] active:to-[#B84400] text-white font-bold text-lg py-4 px-8 rounded-xl transition-all duration-150 hover:shadow-[0_0_30px_rgba(255,106,0,0.4)] hover:-translate-y-1 active:translate-y-0 overflow-hidden border-2 border-[#ff8533] shadow-lg"
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-3 font-display tracking-wide">
-                    LET&apos;S GO
-                    <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
 

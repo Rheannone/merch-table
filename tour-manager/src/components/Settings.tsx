@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -12,8 +13,12 @@ import {
   PaintBrushIcon,
   ArrowDownTrayIcon,
   EnvelopeIcon,
+  AcademicCapIcon,
+  ArrowPathIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import { PaymentSetting, EmailSignupSettings } from "@/types";
+import { enableTutorialMode } from "@/lib/tutorialData";
 import Toast, { ToastType } from "./Toast";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
@@ -45,7 +50,16 @@ interface ToastState {
   duration?: number;
 }
 
-export default function Settings() {
+interface SettingsProps {
+  currentSheetName?: string;
+  onDisconnectSheet?: () => void;
+}
+
+export default function Settings({
+  currentSheetName: externalSheetName,
+  onDisconnectSheet,
+}: SettingsProps = {}) {
+  const { data: session } = useSession();
   const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
@@ -79,6 +93,7 @@ export default function Settings() {
   const [isGoogleSheetsExpanded, setIsGoogleSheetsExpanded] = useState(false);
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
   const [isCurrencyExpanded, setIsCurrencyExpanded] = useState(false);
+  const [isTutorialExpanded, setIsTutorialExpanded] = useState(false);
 
   // Currency settings state
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>("USD");
@@ -579,69 +594,18 @@ export default function Settings() {
         code: selectedCurrency,
       });
 
-      // 2. Try to sync to Supabase if online
+      // 2. Queue sync via sync manager if online
       if (navigator.onLine) {
         try {
-          const supabaseResponse = await fetch("/api/settings/save", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              settings: {
-                user_id: spreadsheetId,
-                payment_methods: paymentSettings,
-                categories,
-                show_tip_jar: showTipJar,
-                currency: selectedCurrency,
-                exchange_rate: Number.parseFloat(exchangeRate),
-                theme_id: selectedThemeId,
-                current_sheet_id: spreadsheetId,
-                email_signup_enabled: emailSignupSettings.enabled,
-                email_signup_prompt_message: emailSignupSettings.promptMessage,
-                email_signup_collect_name: emailSignupSettings.collectName,
-                email_signup_collect_phone: emailSignupSettings.collectPhone,
-                email_signup_auto_dismiss_seconds:
-                  emailSignupSettings.autoDismissSeconds,
-              },
-            }),
+          const { syncManager } = await import("@/lib/syncManager");
+          syncManager.queueSync("settings");
+
+          setToast({
+            message: "Settings saved and syncing...",
+            type: "success",
           });
-
-          if (supabaseResponse.ok) {
-            const { settings: savedSettings } = await supabaseResponse.json();
-
-            // Mark as synced in IndexedDB
-            const { markSettingsAsSynced } = await import("@/lib/db");
-            await markSettingsAsSynced();
-
-            // Update with server timestamp
-            await saveToIndexedDB({
-              id: "current",
-              paymentSettings,
-              categories,
-              showTipJar,
-              currency: selectedCurrency,
-              exchangeRate: Number.parseFloat(exchangeRate),
-              themeId: selectedThemeId,
-              emailSignupSettings,
-              updatedAt: savedSettings.updated_at || new Date().toISOString(),
-              pendingSync: false,
-            });
-
-            setToast({
-              message: "Settings saved successfully!",
-              type: "success",
-            });
-          } else {
-            // Sync failed but data is saved locally
-            const errorData = await supabaseResponse.json();
-            console.error("Failed to sync to Supabase:", errorData);
-            setToast({
-              message: "Saved locally. Will sync when online.",
-              type: "success",
-            });
-          }
         } catch (error) {
-          // Network error - data is saved locally
-          console.error("Network error syncing settings:", error);
+          console.error("Error queueing settings sync:", error);
           setToast({
             message: "Saved locally. Will sync when online.",
             type: "success",
@@ -1639,6 +1603,29 @@ export default function Settings() {
                     </div>
                   </div>
 
+                  {/* Disconnect Button */}
+                  {onDisconnectSheet && externalSheetName && (
+                    <div className="bg-red-950/30 border border-red-800/50 rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <h3 className="text-sm font-semibold text-red-400 mb-1">
+                            Disconnect Sheet
+                          </h3>
+                          <p className="text-xs text-red-300/70">
+                            Disconnect from &quot;{externalSheetName}&quot; and
+                            choose a different sheet or create a new one.
+                          </p>
+                        </div>
+                        <button
+                          onClick={onDisconnectSheet}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded transition-all whitespace-nowrap"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Info Box */}
                   <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
                     <p className="text-sm text-theme">
@@ -2150,6 +2137,170 @@ export default function Settings() {
                   ✨ <strong>Preview Mode:</strong> You&apos;re seeing the theme
                   in real-time! Click &quot;Save Settings&quot; below to make it
                   permanent.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tutorial & Help Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsTutorialExpanded(!isTutorialExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <AcademicCapIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Tutorial & Help</h2>
+            </div>
+            {isTutorialExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isTutorialExpanded && (
+            <div className="px-6 pb-6 space-y-6">
+              <p className="text-sm text-theme-muted">
+                Need a refresher or want to start over? Use these tools to
+                replay the tutorial or reset your setup.
+              </p>
+
+              {/* Restart Tutorial */}
+              <div className="bg-theme-tertiary rounded-lg p-6 border border-theme">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 text-5xl leading-none">🐕</div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-theme mb-2">
+                      Replay Tutorial with Ramona
+                    </h3>
+                    <p className="text-sm text-theme-muted mb-4">
+                      Walk through the interactive tutorial again with Ramona
+                      the Road Dog. This will temporarily replace your products
+                      with tutorial products.
+                    </p>
+                    <button
+                      onClick={() => {
+                        enableTutorialMode();
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-secondary hover:bg-secondary-dark text-theme font-semibold rounded transition-colors"
+                    >
+                      Start Tutorial
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Restart Onboarding */}
+              <div className="bg-theme-tertiary rounded-lg p-6 border border-theme">
+                <div className="flex items-start gap-4">
+                  <ArrowPathIcon className="w-12 h-12 text-primary flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-theme mb-2">
+                      Restart Initial Setup
+                    </h3>
+                    <p className="text-sm text-theme-muted mb-4">
+                      Go through the initial onboarding slides and sheet setup
+                      process again. You can skip to create/connect a new sheet.
+                    </p>
+                    <button
+                      onClick={async () => {
+                        localStorage.setItem(
+                          "skip_onboarding_dialogue",
+                          "true"
+                        );
+                        localStorage.removeItem("productsSheetId");
+                        localStorage.removeItem("salesSheetId");
+                        localStorage.removeItem("salesSheetName");
+
+                        // Clear Supabase current_sheet_id to prevent restoration on reload
+                        if (session?.user?.email) {
+                          try {
+                            const { updateCurrentSheet } = await import(
+                              "@/lib/supabase/settings"
+                            );
+                            await updateCurrentSheet(
+                              session.user.email,
+                              "",
+                              ""
+                            );
+                          } catch (error) {
+                            console.error(
+                              "Failed to clear Supabase sheet:",
+                              error
+                            );
+                          }
+                        }
+
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-secondary hover:bg-secondary-dark text-theme font-semibold rounded transition-colors"
+                    >
+                      Restart Setup
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Onboarding (with Ramona intro) */}
+              <div className="bg-theme-tertiary rounded-lg p-6 border border-theme">
+                <div className="flex items-start gap-4">
+                  <SparklesIcon className="w-12 h-12 text-primary flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-theme mb-2">
+                      Full Onboarding Experience
+                    </h3>
+                    <p className="text-sm text-theme-muted mb-4">
+                      Experience the complete onboarding from the beginning,
+                      including all of Ramona&apos;s introduction slides.
+                    </p>
+                    <button
+                      onClick={async () => {
+                        // Clear localStorage
+                        localStorage.removeItem("skip_onboarding_dialogue");
+                        localStorage.removeItem("productsSheetId");
+                        localStorage.removeItem("salesSheetId");
+                        localStorage.removeItem("salesSheetName");
+
+                        // Clear Supabase current_sheet_id to prevent restoration on reload
+                        if (session?.user?.email) {
+                          try {
+                            const { updateCurrentSheet } = await import(
+                              "@/lib/supabase/settings"
+                            );
+                            await updateCurrentSheet(
+                              session.user.email,
+                              "",
+                              ""
+                            );
+                          } catch (error) {
+                            console.error(
+                              "Failed to clear Supabase sheet:",
+                              error
+                            );
+                          }
+                        }
+
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-secondary hover:bg-secondary-dark text-theme font-semibold rounded transition-colors"
+                    >
+                      Start Full Onboarding
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning Box */}
+              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4">
+                <p className="text-sm text-yellow-200">
+                  ⚠️ <strong>Note:</strong> These actions will reload the page.
+                  Your current data is safe, but any unsaved changes in Settings
+                  will be lost.
                 </p>
               </div>
             </div>

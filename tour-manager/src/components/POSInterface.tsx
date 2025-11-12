@@ -18,6 +18,7 @@ import {
 import Toast, { ToastType } from "./Toast";
 import QRCodePaymentModal from "./QRCodePaymentModal";
 import EmailSignupModal from "./EmailSignupModal";
+import { useTutorial } from "@/contexts/TutorialContext";
 import {
   formatPrice,
   getBillDenominations,
@@ -53,6 +54,7 @@ export default function POSInterface({
   onCompleteSale,
   onUpdateProduct,
 }: POSInterfaceProps) {
+  const { emitTutorialEvent } = useTutorial();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>("cash");
@@ -212,12 +214,19 @@ export default function POSInterface({
       );
 
       if (existing) {
+        // Emit quantity increase event for tutorial
+        emitTutorialEvent("quantity-increased");
+
         return prev.map((item) =>
           item.product.id === product.id && (!size || item.size === size)
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
+
+      // Emit product selected event for tutorial
+      emitTutorialEvent("product-selected");
+
       return [...prev, { product, quantity: 1, size }];
     });
 
@@ -245,6 +254,11 @@ export default function POSInterface({
 
   const updateQuantity = (productId: string, delta: number, size?: string) => {
     setCart((prev) => {
+      // Emit tutorial event when quantity increases
+      if (delta > 0) {
+        emitTutorialEvent("quantity-increased");
+      }
+
       return prev
         .map((item) =>
           item.product.id === productId && (!size || item.size === size)
@@ -357,6 +371,9 @@ export default function POSInterface({
         tip > 0 ? tip : undefined
       );
 
+      // Emit tutorial event for sale completion
+      emitTutorialEvent("sale-completed");
+
       // Generate sale ID (same format as in page.tsx)
       const saleId = `sale-${Date.now()}`;
       setLastSaleId(saleId);
@@ -435,6 +452,9 @@ export default function POSInterface({
         discountAmount,
         tip > 0 ? tip : undefined
       );
+
+      // Emit tutorial event for sale completion
+      emitTutorialEvent("sale-completed");
 
       // Generate sale ID (same format as in page.tsx)
       const saleId = `sale-${Date.now()}`;
