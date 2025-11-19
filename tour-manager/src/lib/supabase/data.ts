@@ -204,14 +204,14 @@ export async function loadSettingsFromSupabase(): Promise<UserSettings | null> {
     }
 
     const settings = data?.settings || null;
-    
+
     // Cache settings to IndexedDB for offline use
     if (settings) {
       const { saveSettings } = await import("@/lib/db");
       await saveSettings(userData.user.id, settings);
       console.log("✅ Loaded settings from Supabase and cached to IndexedDB");
     }
-    
+
     return settings;
   } catch (error) {
     console.error("Failed to load settings from Supabase:", error);

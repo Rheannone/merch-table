@@ -109,7 +109,9 @@ export default function Home() {
         } else {
           // Offline: Load from IndexedDB cache
           const { getSettings } = await import("@/lib/db");
-          const { data: { user } } = await createClient().auth.getUser();
+          const {
+            data: { user },
+          } = await createClient().auth.getUser();
           if (user) {
             const cachedSettings = await getSettings(user.id);
             if (cachedSettings?.theme) {
@@ -465,7 +467,9 @@ export default function Home() {
           } else {
             // Offline: Load from IndexedDB cache
             const { getSettings } = await import("@/lib/db");
-            const { data: { user } } = await createClient().auth.getUser();
+            const {
+              data: { user },
+            } = await createClient().auth.getUser();
             if (user) {
               const cachedSettings = await getSettings(user.id);
               if (
@@ -473,7 +477,9 @@ export default function Home() {
                 Array.isArray(cachedSettings.categories)
               ) {
                 setCategoryOrder(cachedSettings.categories);
-                console.log("📱 Loaded category order from IndexedDB (offline)");
+                console.log(
+                  "📱 Loaded category order from IndexedDB (offline)"
+                );
               }
             }
           }

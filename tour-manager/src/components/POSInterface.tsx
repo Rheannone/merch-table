@@ -129,7 +129,9 @@ export default function POSInterface({
     try {
       if (navigator.onLine) {
         // Online: Load from Supabase (auto-caches to IndexedDB)
-        const { loadSettingsFromSupabase } = await import("@/lib/supabase/data");
+        const { loadSettingsFromSupabase } = await import(
+          "@/lib/supabase/data"
+        );
         const settings = await loadSettingsFromSupabase();
 
         if (settings) {
@@ -176,14 +178,16 @@ export default function POSInterface({
         // Offline: Load from IndexedDB cache
         const { getSettings } = await import("@/lib/db");
         const { createClient } = await import("@/lib/supabase/client");
-        const { data: { user } } = await createClient().auth.getUser();
-        
+        const {
+          data: { user },
+        } = await createClient().auth.getUser();
+
         if (user) {
           const cachedSettings = await getSettings(user.id);
-          
+
           if (cachedSettings) {
             console.log("📱 Loaded payment settings from IndexedDB (offline)");
-            
+
             // Filter to only enabled payment types
             if (cachedSettings.paymentSettings) {
               const enabled = cachedSettings.paymentSettings.filter(
@@ -219,7 +223,8 @@ export default function POSInterface({
                   "Want to join our email list?",
                 collectName: cachedSettings.emailSignup.collectName !== false,
                 collectPhone: cachedSettings.emailSignup.collectPhone !== false,
-                autoDismissSeconds: cachedSettings.emailSignup.autoDismissSeconds || 15,
+                autoDismissSeconds:
+                  cachedSettings.emailSignup.autoDismissSeconds || 15,
               });
             }
           }

@@ -315,13 +315,15 @@ export default function Settings() {
 
           if (supabaseSettings.currency) {
             setSelectedCurrency(
-              (supabaseSettings.currency.displayCurrency || "USD") as CurrencyCode
+              (supabaseSettings.currency.displayCurrency ||
+                "USD") as CurrencyCode
             );
             setExchangeRate(
               (supabaseSettings.currency.exchangeRate || 1).toString()
             );
             setOriginalCurrency(
-              (supabaseSettings.currency.displayCurrency || "USD") as CurrencyCode
+              (supabaseSettings.currency.displayCurrency ||
+                "USD") as CurrencyCode
             );
             setOriginalExchangeRate(
               (supabaseSettings.currency.exchangeRate || 1).toString()
@@ -376,13 +378,15 @@ export default function Settings() {
 
             if (cachedSettings.currency) {
               setSelectedCurrency(
-                (cachedSettings.currency.displayCurrency || "USD") as CurrencyCode
+                (cachedSettings.currency.displayCurrency ||
+                  "USD") as CurrencyCode
               );
               setExchangeRate(
                 (cachedSettings.currency.exchangeRate || 1).toString()
               );
               setOriginalCurrency(
-                (cachedSettings.currency.displayCurrency || "USD") as CurrencyCode
+                (cachedSettings.currency.displayCurrency ||
+                  "USD") as CurrencyCode
               );
               setOriginalExchangeRate(
                 (cachedSettings.currency.exchangeRate || 1).toString()
