@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-export default function SignIn() {
+function SignInContent() {
   const { signInWithGoogle, user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,7 +82,7 @@ export default function SignIn() {
           type: "error",
         });
       }
-    } catch (error) {
+    } catch {
       setBetaMessage({
         text: "Failed to submit. Please try again.",
         type: "error",
@@ -271,5 +271,17 @@ export default function SignIn() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignIn() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-theme flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <SignInContent />
+    </Suspense>
   );
 }
