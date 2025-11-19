@@ -16,6 +16,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
       XL: 3,
       XXL: 3,
     },
+    synced: false, // Not yet synced to cloud
   },
   {
     id: "vinyl-record",
@@ -26,6 +27,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
     inventory: {
       default: 3,
     },
+    synced: false, // Not yet synced to cloud
   },
   {
     id: "button",
@@ -36,5 +38,6 @@ export const DEFAULT_PRODUCTS: Product[] = [
     inventory: {
       default: 3,
     },
+    synced: false, // Not yet synced to cloud
   },
 ];

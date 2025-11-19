@@ -17,6 +17,11 @@ import { createClient, getAuthenticatedUser } from "../supabase/client";
 const DEFAULT_RETRY_DELAYS = [1000, 3000, 10000]; // 1s, 3s, 10s
 const HIGH_PRIORITY_RETRY_DELAYS = [500, 2000, 8000, 20000]; // Faster retries for important data
 
+// Debouncing for Sheets product sync
+let productSheetsSyncTimeout: NodeJS.Timeout | null = null;
+let pendingProductSheetsSyncResolve: ((result: SyncResult) => void) | null = null;
+const PRODUCT_SHEETS_DEBOUNCE_MS = 2000; // Wait 2 seconds before syncing
+
 /**
  * Sales Sync Strategy - Sync to both Supabase and Google Sheets
  */
@@ -307,7 +312,7 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
 
   async syncToSheets(
     operation: SyncOperation,
-    _data: Product // Prefixed with _ since we sync all products, not individual ones
+    data: Product // eslint-disable-line @typescript-eslint/no-unused-vars -- Needed for type signature, actual sync fetches all products
   ): Promise<SyncResult> {
     try {
       const productsSheetId = localStorage.getItem("productsSheetId");
@@ -318,33 +323,69 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
       // For products, we sync the entire product list, not individual products
       // This is because the sync-products API clears and re-writes the sheet
       if (operation === "create" || operation === "update") {
-        // We need to get all products from IndexedDB and sync them all
-        const { getProducts } = await import("../db");
-        const allProducts = await getProducts();
+        // DEBOUNCE: If multiple product updates happen in quick succession
+        // (e.g., inventory updates from a multi-item sale), only sync once
+        return new Promise<SyncResult>((resolve) => {
+          // Clear any existing timeout
+          if (productSheetsSyncTimeout) {
+            clearTimeout(productSheetsSyncTimeout);
+          }
 
-        const response = await fetch("/api/sheets/sync-products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ products: allProducts, productsSheetId }),
+          // Store the resolve function (only the last one will be called)
+          pendingProductSheetsSyncResolve = resolve;
+
+          // Set new timeout to actually perform the sync
+          productSheetsSyncTimeout = setTimeout(async () => {
+            try {
+              const { getProducts } = await import("../db");
+              const allProducts = await getProducts();
+
+              const response = await fetch("/api/sheets/sync-products", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ products: allProducts, productsSheetId }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(
+                  errorData.error || "Failed to sync products to Sheets"
+                );
+              }
+
+              const result = await response.json();
+              console.log(
+                `✅ Products synced to Sheets (${allProducts.length} products) - debounced`
+              );
+
+              const syncResult: SyncResult = {
+                destination: "sheets",
+                success: true,
+                responseData: result,
+              };
+
+              // Resolve this and any pending resolves
+              if (pendingProductSheetsSyncResolve) {
+                pendingProductSheetsSyncResolve(syncResult);
+                pendingProductSheetsSyncResolve = null;
+              }
+              resolve(syncResult);
+            } catch (error) {
+              const syncResult: SyncResult = {
+                destination: "sheets",
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              };
+              if (pendingProductSheetsSyncResolve) {
+                pendingProductSheetsSyncResolve(syncResult);
+                pendingProductSheetsSyncResolve = null;
+              }
+              resolve(syncResult);
+            } finally {
+              productSheetsSyncTimeout = null;
+            }
+          }, PRODUCT_SHEETS_DEBOUNCE_MS);
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error || "Failed to sync products to Sheets"
-          );
-        }
-
-        const result = await response.json();
-        console.log(
-          `✅ Products synced to Sheets (${allProducts.length} products)`
-        );
-
-        return {
-          destination: "sheets",
-          success: true,
-          responseData: result,
-        };
       } else if (operation === "delete") {
         // For delete, we also re-sync all remaining products
         const { getProducts } = await import("../db");

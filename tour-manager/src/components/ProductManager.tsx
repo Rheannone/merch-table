@@ -139,6 +139,7 @@ export default function ProductManager({
         Object.keys(currencyPriceOverrides).length > 0
           ? currencyPriceOverrides
           : undefined,
+      synced: editingProduct?.synced ?? false, // Preserve synced status on edit, false for new
     };
 
     if (editingProduct) {

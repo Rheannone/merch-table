@@ -645,18 +645,20 @@ export default function Home() {
 
   const handleDeleteProduct = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      await deleteProductFromDB(id);
-      const updatedProducts = await getProducts();
-      setProducts(updatedProducts);
-
-      // Use new sync service to handle cloud sync
+      // Queue deletion FIRST (before removing from IndexedDB)
+      // This ensures sync has access to product data if needed
       try {
         await syncService.deleteProduct(id);
         console.log("✅ Product deletion queued for sync:", id);
       } catch (error) {
         console.error("Failed to queue product deletion for sync:", error);
-        // Don't block the operation - product is already deleted locally
+        // Continue with local deletion even if queueing fails
       }
+
+      // Then delete from IndexedDB
+      await deleteProductFromDB(id);
+      const updatedProducts = await getProducts();
+      setProducts(updatedProducts);
     }
   };
 

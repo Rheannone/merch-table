@@ -275,6 +275,26 @@ export class SyncManager {
       // Process each destination
       for (const destination of item.destinations) {
         try {
+          // For products: Skip Sheets sync if Supabase sync failed
+          if (
+            item.dataType === "product" &&
+            destination === "sheets" &&
+            results.length > 0
+          ) {
+            const supabaseResult = results.find((r) => r.destination === "supabase");
+            if (supabaseResult && !supabaseResult.success) {
+              console.log(
+                "⏭️ Skipping Sheets sync for product - Supabase sync failed"
+              );
+              results.push({
+                destination: "sheets",
+                success: false,
+                error: "Skipped: Supabase sync failed",
+              });
+              continue;
+            }
+          }
+
           const result = await this.syncToDestination(
             strategy,
             destination,
