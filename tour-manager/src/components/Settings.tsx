@@ -315,13 +315,13 @@ export default function Settings() {
 
           if (supabaseSettings.currency) {
             setSelectedCurrency(
-              supabaseSettings.currency.displayCurrency || "USD"
+              (supabaseSettings.currency.displayCurrency || "USD") as CurrencyCode
             );
             setExchangeRate(
               (supabaseSettings.currency.exchangeRate || 1).toString()
             );
             setOriginalCurrency(
-              supabaseSettings.currency.displayCurrency || "USD"
+              (supabaseSettings.currency.displayCurrency || "USD") as CurrencyCode
             );
             setOriginalExchangeRate(
               (supabaseSettings.currency.exchangeRate || 1).toString()
@@ -344,11 +344,13 @@ export default function Settings() {
         console.log("📴 Offline - loading settings from cache...");
         const { getSettings } = await import("@/lib/db");
         const { createClient } = await import("@/lib/supabase/client");
-        const { data: { user } } = await createClient().auth.getUser();
-        
+        const {
+          data: { user },
+        } = await createClient().auth.getUser();
+
         if (user) {
           const cachedSettings = await getSettings(user.id);
-          
+
           if (cachedSettings) {
             // Apply cached settings
             if (cachedSettings.paymentSettings) {
@@ -374,13 +376,13 @@ export default function Settings() {
 
             if (cachedSettings.currency) {
               setSelectedCurrency(
-                cachedSettings.currency.displayCurrency || "USD"
+                (cachedSettings.currency.displayCurrency || "USD") as CurrencyCode
               );
               setExchangeRate(
                 (cachedSettings.currency.exchangeRate || 1).toString()
               );
               setOriginalCurrency(
-                cachedSettings.currency.displayCurrency || "USD"
+                (cachedSettings.currency.displayCurrency || "USD") as CurrencyCode
               );
               setOriginalExchangeRate(
                 (cachedSettings.currency.exchangeRate || 1).toString()
