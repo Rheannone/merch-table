@@ -31,7 +31,6 @@ import {
   formatPrice,
 } from "@/lib/currency";
 import { processImageForUpload } from "@/lib/imageCompression";
-import syncService from "@/lib/sync/syncService";
 import {
   loadSettingsFromSupabase,
   saveSettingsToSupabase,
@@ -448,8 +447,13 @@ export default function Settings() {
         emailSignup: emailSignupSettings,
       };
 
-      // Save to Supabase immediately (optimistic update)
-      await saveSettingsToSupabase(settingsObject);
+      // Save to Supabase immediately
+      const success = await saveSettingsToSupabase(settingsObject);
+
+      // Check if save was successful (only fails if online and error occurred)
+      if (!success && navigator.onLine) {
+        throw new Error("Failed to save settings to Supabase");
+      }
 
       // Cache to IndexedDB for offline access
       const { createClient } = await import("@/lib/supabase/client");
@@ -460,9 +464,6 @@ export default function Settings() {
         await saveSettingsToIndexedDB(user.id, settingsObject);
         console.log("✅ Cached settings to IndexedDB");
       }
-
-      // Queue for Google Sheets backup sync
-      await syncService.syncSettings(settingsObject);
 
       // Update originals to match current state (deep clone to avoid reference issues)
       setOriginalPaymentSettings(JSON.parse(JSON.stringify(paymentSettings)));
@@ -484,10 +485,18 @@ export default function Settings() {
         code: selectedCurrency,
       });
 
-      setToast({
-        message: "Settings saved successfully!",
-        type: "success",
-      });
+      // Provide accurate feedback based on online/offline status
+      if (navigator.onLine) {
+        setToast({
+          message: "Settings saved successfully!",
+          type: "success",
+        });
+      } else {
+        setToast({
+          message: "Settings cached locally. Will sync when online.",
+          type: "success",
+        });
+      }
     } catch (error) {
       console.error("Error saving settings:", error);
       setToast({

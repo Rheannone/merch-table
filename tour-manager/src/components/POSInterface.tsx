@@ -402,6 +402,7 @@ export default function POSInterface({
           await onUpdateProduct({
             ...product,
             inventory: updatedInventory,
+            synced: false, // Inventory change needs to be synced
           });
         }
       }
@@ -481,6 +482,7 @@ export default function POSInterface({
           await onUpdateProduct({
             ...product,
             inventory: updatedInventory,
+            synced: false, // Inventory change needs to be synced
           });
         }
       }

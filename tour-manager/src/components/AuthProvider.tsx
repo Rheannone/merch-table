@@ -58,6 +58,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Get user ID before signing out (use the user from state)
+      const currentUser = user;
+
+      // Clear user's cached settings from IndexedDB
+      if (currentUser) {
+        try {
+          const { clearSettings } = await import("@/lib/db");
+          await clearSettings(currentUser.id);
+          console.log("🗑️ Cleared cached settings for user");
+        } catch (error) {
+          console.error("Failed to clear settings:", error);
+          // Don't block sign-out if settings cleanup fails
+        }
+      }
+
+      // Sign out from Supabase
       await supabaseAuth.signOut();
     } catch (error) {
       console.error("Sign out failed:", error);

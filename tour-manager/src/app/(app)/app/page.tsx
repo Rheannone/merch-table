@@ -227,15 +227,35 @@ export default function Home() {
   useEffect(() => {
     const handleOnline = async () => {
       console.log("📶 Network connection restored - triggering sync...");
-      // Sync service will automatically process queued items
+
+      // Sync service will automatically process queued items (sales, products, etc.)
       await syncService.forceSync();
+
+      // Also re-sync offline-saved settings if they exist
+      try {
+        const { getSettings } = await import("@/lib/db");
+        const { saveSettingsToSupabase } = await import("@/lib/supabase/data");
+
+        if (user) {
+          const cachedSettings = await getSettings(user.id);
+          if (cachedSettings) {
+            // Try to sync to Supabase
+            const success = await saveSettingsToSupabase(cachedSettings);
+            if (success) {
+              console.log("✅ Offline settings synced to Supabase");
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to sync offline settings:", error);
+      }
     };
 
     globalThis.addEventListener("online", handleOnline);
     return () => {
       globalThis.removeEventListener("online", handleOnline);
     };
-  }, []);
+  }, [user]);
 
   // Helper function to detect if products have changed
   const detectProductChanges = (

@@ -102,11 +102,28 @@ export async function saveSale(sale: Sale) {
 
 export async function saveSales(sales: Sale[]) {
   const db = await getDB();
+
+  // Get current unsynced sales to preserve them during cleanup
+  // This ensures we don't lose sales that are pending sync
+  const currentSales = await db.getAll("sales");
+  const unsyncedSales = currentSales.filter((s) => !s.synced);
+
   const tx = db.transaction("sales", "readwrite");
-  for (const sale of sales) {
+
+  // Clear existing sales to remove any that were deleted in Supabase
+  await tx.store.clear();
+
+  // Put back unsynced sales (pending sync) + new sales from Supabase
+  // This ensures deleted sales are removed while preserving local changes
+  for (const sale of [...unsyncedSales, ...sales]) {
     await tx.store.put(sale);
   }
+
   await tx.done;
+
+  console.log(
+    `💾 Saved ${sales.length} sales from Supabase, preserved ${unsyncedSales.length} unsynced sales`
+  );
 }
 
 export async function getSales(): Promise<Sale[]> {
