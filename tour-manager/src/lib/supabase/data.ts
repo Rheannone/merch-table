@@ -252,3 +252,65 @@ export async function saveSettingsToSupabase(
     return false;
   }
 }
+
+/**
+ * Load email signups from Supabase
+ */
+export async function loadEmailSignupsFromSupabase(): Promise<
+  import("../../types").EmailSignup[]
+> {
+  try {
+    const supabase = createClient();
+
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      console.error("Not authenticated:", userError);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("email_signups")
+      .select("*")
+      .eq("user_id", userData.user.id)
+      .order("timestamp", { ascending: false });
+
+    if (error) {
+      console.error("Supabase email signups query error:", error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      console.log("No email signups found in Supabase");
+      return [];
+    }
+
+    // Transform snake_case to camelCase
+    const emailSignups = data.map(
+      (row: {
+        id: string;
+        timestamp: string;
+        email: string;
+        name?: string;
+        phone?: string;
+        source: string;
+        sale_id?: string;
+        synced?: boolean;
+      }) => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        email: row.email,
+        name: row.name || undefined,
+        phone: row.phone || undefined,
+        source: row.source as "post-checkout" | "manual-entry",
+        saleId: row.sale_id || undefined,
+        synced: row.synced || true,
+      })
+    );
+
+    console.log(`✅ Loaded ${emailSignups.length} email signups from Supabase`);
+    return emailSignups;
+  } catch (error) {
+    console.error("Failed to load email signups from Supabase:", error);
+    return [];
+  }
+}

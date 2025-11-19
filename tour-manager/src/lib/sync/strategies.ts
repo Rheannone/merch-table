@@ -654,12 +654,141 @@ export const settingsSyncStrategy: SyncStrategy<UserSettings> = {
   },
 };
 
+/**
+ * Email Signups Sync Strategy - Sync to Supabase (and optionally Sheets)
+ */
+export const emailSignupsSyncStrategy: SyncStrategy<
+  import("../../types").EmailSignup
+> = {
+  dataType: "email_signup",
+  destinations: ["supabase"], // Supabase as primary, Sheets as optional legacy
+  maxAttempts: 3,
+  retryDelays: DEFAULT_RETRY_DELAYS,
+  priority: 8, // High priority - user expects confirmation
+
+  async syncToSupabase(
+    operation: SyncOperation,
+    data: import("../../types").EmailSignup
+  ): Promise<SyncResult> {
+    try {
+      const supabase = createClient();
+
+      if (operation === "create" || operation === "update") {
+        // Get the current user with token refresh handling
+        const user = await getAuthenticatedUser();
+
+        if (!user?.id) {
+          throw new Error("Authentication failed - please sign in again");
+        }
+
+        console.log("🔒 User ID for email signup sync:", user.id);
+
+        const emailSignupData = {
+          id: data.id,
+          user_id: user.id,
+          timestamp: data.timestamp,
+          email: data.email,
+          name: data.name || null,
+          phone: data.phone || null,
+          source: data.source,
+          sale_id: data.saleId || null,
+          synced: true,
+        };
+
+        console.log("📧 Email signup data being inserted:", emailSignupData);
+
+        const { data: emailSignupResult, error } = await supabase
+          .from("email_signups")
+          .upsert(emailSignupData)
+          .select();
+
+        if (error) {
+          console.error("❌ Email signup sync error:", error);
+          throw new Error(
+            `Failed to sync email signup to Supabase: ${error.message}`
+          );
+        }
+
+        console.log(
+          "✅ Email signup synced successfully to Supabase:",
+          data.id
+        );
+
+        // Update IndexedDB to mark email signup as synced
+        const { markEmailSignupAsSynced } = await import("../db");
+        await markEmailSignupAsSynced(data.id);
+
+        return {
+          destination: "supabase",
+          success: true,
+          responseData: emailSignupResult?.[0] || { id: data.id },
+        };
+      } else if (operation === "delete") {
+        const { error } = await supabase
+          .from("email_signups")
+          .delete()
+          .eq("id", data.id);
+
+        if (error) throw error;
+
+        console.log(`🗑️ Email signup deleted from Supabase: ${data.id}`);
+
+        return {
+          destination: "supabase",
+          success: true,
+          responseData: { id: data.id },
+        };
+      }
+
+      throw new Error(`Unsupported operation: ${operation}`);
+    } catch (error) {
+      console.error("Failed to sync email signup to Supabase:", error);
+      return {
+        destination: "supabase",
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
+
+  validate(data: import("../../types").EmailSignup) {
+    const errors: string[] = [];
+
+    if (!data.id) errors.push("Email signup ID is required");
+    if (!data.email) errors.push("Email is required");
+    if (!data.timestamp) errors.push("Timestamp is required");
+    if (!data.source) errors.push("Source is required");
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (data.email && !emailRegex.test(data.email)) {
+      errors.push("Invalid email format");
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  },
+
+  prepareForDestination(
+    data: import("../../types").EmailSignup
+  ): import("../../types").EmailSignup {
+    // Ensure timestamp is in ISO format for Supabase
+    return {
+      ...data,
+      timestamp: new Date(data.timestamp).toISOString(),
+    };
+  },
+};
+
 // Export all strategies for easy registration
 export const ALL_SYNC_STRATEGIES = [
   salesSyncStrategy,
   productsSyncStrategy,
   closeOutsSyncStrategy,
   settingsSyncStrategy,
+  emailSignupsSyncStrategy,
 ] as const;
 
 // Default sync manager configuration

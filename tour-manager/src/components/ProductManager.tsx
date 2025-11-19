@@ -9,7 +9,6 @@ import {
   PhotoIcon,
 } from "@heroicons/react/24/outline";
 import Toast, { ToastType } from "./Toast";
-import { processImageForUpload } from "@/lib/imageCompression";
 import { CURRENCIES, type CurrencyCode } from "@/lib/currency";
 
 interface ProductManagerProps {
@@ -245,24 +244,41 @@ export default function ProductManager({
 
     try {
       setIsUploading(true);
-      setUploadProgress("Compressing image...");
+      setUploadProgress("Uploading to cloud storage...");
 
-      // Use unified image processing utility
-      const { base64, originalSize, compressedSize } =
-        await processImageForUpload(file);
+      // Generate temporary product ID if creating new product
+      const productId = newProduct.id || `temp-${Date.now()}`;
 
-      setUploadProgress(`Processed (${originalSize} → ${compressedSize})`);
+      // Upload to Supabase Storage via API route
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("productId", productId);
 
-      // Update image URL with base64
-      setNewProduct({ ...newProduct, imageUrl: base64 });
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      setUploadProgress(
+        `Uploaded (${data.originalSize} → ${data.compressedSize})`
+      );
+
+      // Update image URL with Supabase CDN URL
+      setNewProduct({ ...newProduct, id: productId, imageUrl: data.url });
 
       setToast({
-        message: `Image uploaded! (${originalSize} → ${compressedSize})`,
+        message: `Image uploaded to cloud! (${data.originalSize} → ${data.compressedSize})`,
         type: "success",
       });
 
       console.log(
-        `✅ Product image compressed: ${originalSize} → ${compressedSize} (${base64.length} chars)`
+        `✅ Product image uploaded to Supabase Storage: ${data.url} (${data.originalSize} → ${data.compressedSize})`
       );
     } catch (error) {
       console.error("Upload error:", error);

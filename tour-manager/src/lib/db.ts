@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
-import { Product, Sale, CloseOut, UserSettings } from "@/types";
+import { Product, Sale, CloseOut, UserSettings, EmailSignup } from "@/types";
 
 interface MerchPOSDB extends DBSchema {
   products: {
@@ -19,10 +19,15 @@ interface MerchPOSDB extends DBSchema {
     key: string;
     value: UserSettings & { userId: string };
   };
+  email_signups: {
+    key: string;
+    value: EmailSignup;
+    indexes: { timestamp: string };
+  };
 }
 
 const DB_NAME = "road-dog-db";
-const DB_VERSION = 3; // Increment for new settings store
+const DB_VERSION = 4; // Increment for new email_signups store
 
 let dbPromise: Promise<IDBPDatabase<MerchPOSDB>> | null = null;
 
@@ -57,6 +62,18 @@ export function getDB() {
       if (!db.objectStoreNames.contains("settings")) {
         console.log("⚙️ Creating settings store");
         db.createObjectStore("settings", { keyPath: "userId" });
+      }
+
+      // Email signups store (added in v4)
+      if (!db.objectStoreNames.contains("email_signups")) {
+        console.log("📧 Creating email_signups store");
+        const emailSignupsStore = db.createObjectStore("email_signups", {
+          keyPath: "id",
+        });
+        // Add index for timestamp to enable sorting by date
+        emailSignupsStore.createIndex("timestamp", "timestamp", {
+          unique: false,
+        });
       }
     },
   });
@@ -262,6 +279,35 @@ export async function getSettings(
 export async function clearSettings(userId: string): Promise<void> {
   const db = await getDB();
   await db.delete("settings", userId);
+}
+
+// =============================
+// Email Signups Operations
+// =============================
+
+export async function saveEmailSignup(emailSignup: EmailSignup) {
+  const db = await getDB();
+  await db.put("email_signups", emailSignup);
+}
+
+export async function getEmailSignups(): Promise<EmailSignup[]> {
+  const db = await getDB();
+  return (await db.getAll("email_signups")) || [];
+}
+
+export async function getUnsyncedEmailSignups(): Promise<EmailSignup[]> {
+  const db = await getDB();
+  const allEmailSignups = await db.getAll("email_signups");
+  return allEmailSignups.filter((signup) => !signup.synced);
+}
+
+export async function markEmailSignupAsSynced(emailSignupId: string) {
+  const db = await getDB();
+  const emailSignup = await db.get("email_signups", emailSignupId);
+  if (emailSignup) {
+    emailSignup.synced = true;
+    await db.put("email_signups", emailSignup);
+  }
 }
 
 export async function deleteCloseOut(id: string) {

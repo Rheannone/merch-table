@@ -6,6 +6,7 @@ import {
   PaymentMethod,
   PaymentSetting,
   EmailSignupSettings,
+  EmailSignup,
 } from "@/types";
 import { useState, useEffect } from "react";
 import {
@@ -26,6 +27,7 @@ import {
   formatDisplayPrice,
   getCurrencyCode,
 } from "@/lib/currency";
+import syncService from "@/lib/sync/syncService";
 
 interface POSInterfaceProps {
   products: Product[];
@@ -750,34 +752,73 @@ export default function POSInterface({
     phone?: string;
   }) => {
     try {
+      // Create EmailSignup object
+      const { nanoid } = await import("nanoid");
+      const emailSignup: EmailSignup = {
+        id: nanoid(),
+        timestamp: new Date().toISOString(),
+        email: data.email,
+        name: data.name,
+        phone: data.phone,
+        source: lastSaleId ? "post-checkout" : "manual-entry",
+        saleId: lastSaleId || undefined,
+        synced: false,
+      };
+
+      // Save to IndexedDB first (immediate local save)
+      const { saveEmailSignup } = await import("@/lib/db");
+      await saveEmailSignup(emailSignup);
+      console.log("📧 Email signup saved to IndexedDB:", emailSignup.id);
+
+      // Queue for Supabase sync (will sync when online)
+      if (syncService) {
+        try {
+          await syncService.syncEmailSignup(emailSignup);
+          console.log("📤 Email signup queued for Supabase sync");
+        } catch (syncError) {
+          console.error("⚠️ Failed to queue email signup for sync:", syncError);
+          // Continue - it's saved in IndexedDB, will retry on network return
+        }
+      }
+
+      // Keep Google Sheets sync as fallback for legacy compatibility
       const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) {
-        console.error("No spreadsheet ID found");
-        return;
+      if (spreadsheetId) {
+        try {
+          const response = await fetch("/api/sheets/email-signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              spreadsheetId,
+              email: data.email,
+              name: data.name,
+              phone: data.phone,
+              saleId: lastSaleId,
+            }),
+          });
+
+          if (response.ok) {
+            console.log("✅ Email also synced to Google Sheets (legacy)");
+          }
+        } catch (sheetsError) {
+          console.warn(
+            "⚠️ Google Sheets sync failed (non-critical):",
+            sheetsError
+          );
+          // Non-critical - Supabase is primary storage
+        }
       }
 
-      const response = await fetch("/api/sheets/email-signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          spreadsheetId,
-          email: data.email,
-          name: data.name,
-          phone: data.phone,
-          saleId: lastSaleId,
-        }),
+      setToast({
+        message: "Email saved! Thanks for signing up! 🎉",
+        type: "success",
       });
-
-      if (response.ok) {
-        setToast({
-          message: "Email saved! Thanks for signing up! 🎉",
-          type: "success",
-        });
-      } else {
-        console.error("Failed to save email signup");
-      }
     } catch (error) {
       console.error("Error saving email signup:", error);
+      setToast({
+        message: "Failed to save email. Please try again.",
+        type: "error",
+      });
     } finally {
       setShowEmailSignupModal(false);
       setLastSaleId(null);

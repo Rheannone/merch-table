@@ -160,9 +160,21 @@ export default function CloseOutWizard({
           cashDifference: actualCash
             ? parseFloat(actualCash) - (editingCloseOut.expectedCash || 0)
             : editingCloseOut.cashDifference,
+          syncedToSupabase: false, // Mark as unsynced so it will re-sync
         };
 
         await updateCloseOut(updatedCloseOut);
+
+        // Re-queue for sync to Supabase
+        try {
+          const syncService = (await import("@/lib/sync/syncService")).default;
+          await syncService.syncCloseOut(updatedCloseOut);
+          console.log("✅ Edited close-out queued for re-sync to Supabase");
+        } catch (error) {
+          console.error("❌ Failed to queue edited close-out for sync:", error);
+          // Don't throw - close-out is still saved locally
+        }
+
         onSuccess(updatedCloseOut);
       } else {
         // Create new close-out

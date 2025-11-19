@@ -132,6 +132,23 @@ class SyncService {
   }
 
   /**
+   * Sync an email signup to Supabase (high priority)
+   */
+  async syncEmailSignup(
+    emailSignup: import("../../types").EmailSignup
+  ): Promise<string> {
+    this.ensureInitialized();
+    return await this.syncManager.enqueue(
+      "email_signup",
+      "create",
+      emailSignup as unknown as Record<string, unknown>,
+      {
+        priority: 8, // High priority
+      }
+    );
+  }
+
+  /**
    * Sync user settings to Supabase
    */
   async syncSettings(settings: UserSettings): Promise<string> {

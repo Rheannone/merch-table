@@ -22,6 +22,7 @@ import {
   loadSettingsFromSupabase,
 } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/client";
+import { deleteProductImage } from "@/lib/supabase/storage";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
@@ -248,6 +249,38 @@ export default function Home() {
         }
       } catch (error) {
         console.error("Failed to sync offline settings:", error);
+      }
+
+      // Auto-sync unsynced close-outs
+      try {
+        const { syncUnsyncedCloseOuts } = await import("@/lib/closeouts");
+        const syncedCount = await syncUnsyncedCloseOuts();
+        if (syncedCount > 0) {
+          console.log(
+            `✅ ${syncedCount} offline close-outs synced to Supabase`
+          );
+        }
+      } catch (error) {
+        console.error("Failed to sync offline close-outs:", error);
+      }
+
+      // Auto-sync unsynced email signups
+      try {
+        const { getUnsyncedEmailSignups } = await import("@/lib/db");
+        const unsyncedEmailSignups = await getUnsyncedEmailSignups();
+        if (unsyncedEmailSignups.length > 0) {
+          console.log(
+            `📧 Found ${unsyncedEmailSignups.length} unsynced email signups, queuing for sync...`
+          );
+          for (const emailSignup of unsyncedEmailSignups) {
+            await syncService.syncEmailSignup(emailSignup);
+          }
+          console.log(
+            `✅ ${unsyncedEmailSignups.length} offline email signups queued for sync`
+          );
+        }
+      } catch (error) {
+        console.error("Failed to sync offline email signups:", error);
       }
     };
 
@@ -510,6 +543,75 @@ export default function Home() {
         console.log("📴 Offline - sales will load from IndexedDB only");
       }
 
+      // ===== Load close-outs from Supabase =====
+      if (navigator.onLine) {
+        try {
+          console.log("📥 Loading close-outs from Supabase...");
+          const { loadCloseOutsFromSupabase } = await import(
+            "@/lib/supabase/data"
+          );
+          const supabaseCloseOuts = await loadCloseOutsFromSupabase();
+          console.log(
+            "🔍 Supabase returned:",
+            supabaseCloseOuts.length,
+            "close-outs"
+          );
+
+          if (supabaseCloseOuts.length > 0) {
+            // Cache to IndexedDB
+            const { saveCloseOut } = await import("@/lib/db");
+            for (const closeOut of supabaseCloseOuts) {
+              await saveCloseOut(closeOut);
+            }
+            console.log(
+              "✅ Loaded",
+              supabaseCloseOuts.length,
+              "close-outs from Supabase and cached to IndexedDB"
+            );
+          }
+        } catch (error) {
+          console.error("❌ Failed to load close-outs from Supabase:", error);
+        }
+      } else {
+        console.log("📴 Offline - close-outs will load from IndexedDB only");
+      }
+
+      // ===== Load email signups from Supabase =====
+      if (navigator.onLine) {
+        try {
+          console.log("📥 Loading email signups from Supabase...");
+          const { loadEmailSignupsFromSupabase } = await import(
+            "@/lib/supabase/data"
+          );
+          const supabaseEmailSignups = await loadEmailSignupsFromSupabase();
+          console.log(
+            "🔍 Supabase returned:",
+            supabaseEmailSignups.length,
+            "email signups"
+          );
+
+          if (supabaseEmailSignups.length > 0) {
+            // Cache to IndexedDB
+            const { saveEmailSignup } = await import("@/lib/db");
+            for (const emailSignup of supabaseEmailSignups) {
+              await saveEmailSignup(emailSignup);
+            }
+            console.log(
+              "✅ Loaded",
+              supabaseEmailSignups.length,
+              "email signups from Supabase and cached to IndexedDB"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "❌ Failed to load email signups from Supabase:",
+            error
+          );
+        }
+      } else {
+        console.log("📴 Offline - email signups will load from IndexedDB only");
+      }
+
       // Load category order from settings
       if (storedSalesSheetId) {
         try {
@@ -665,6 +767,10 @@ export default function Home() {
 
   const handleDeleteProduct = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
+      // Get product data before deletion for image cleanup
+      const productsToDelete = products.filter((p) => p.id === id);
+      const productToDelete = productsToDelete[0];
+
       // Queue deletion FIRST (before removing from IndexedDB)
       // This ensures sync has access to product data if needed
       try {
@@ -673,6 +779,20 @@ export default function Home() {
       } catch (error) {
         console.error("Failed to queue product deletion for sync:", error);
         // Continue with local deletion even if queueing fails
+      }
+
+      // Delete associated image from Supabase Storage (if it's a Storage URL)
+      if (productToDelete?.imageUrl) {
+        try {
+          await deleteProductImage(productToDelete.imageUrl);
+          console.log(
+            "✅ Product image deleted from Storage:",
+            productToDelete.imageUrl
+          );
+        } catch (error) {
+          console.error("Failed to delete product image:", error);
+          // Continue with product deletion even if image deletion fails
+        }
       }
 
       // Then delete from IndexedDB

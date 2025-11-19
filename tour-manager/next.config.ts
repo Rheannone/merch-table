@@ -16,6 +16,19 @@ export default withPWA({
   },
   runtimeCaching: [
     {
+      // Cache Supabase Storage images (product images from CDN)
+      urlPattern:
+        /^https:\/\/.*\.supabase\.co\/storage\/v1\/(object|render)\/.*/i,
+      handler: "CacheFirst",
+      options: {
+        cacheName: "supabase-storage-images",
+        expiration: {
+          maxEntries: 200, // Cache up to 200 product images
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
+      },
+    },
+    {
       urlPattern: /^https:\/\/fonts\.(?:gstatic)\.com\/.*/i,
       handler: "CacheFirst",
       options: {
