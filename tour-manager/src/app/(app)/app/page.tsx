@@ -10,6 +10,7 @@ import {
   addProduct as addProductToDB,
   deleteProduct as deleteProductFromDB,
   saveSale,
+  saveSales,
   getSales,
   getUnsyncedSales,
 } from "@/lib/db";
@@ -17,6 +18,7 @@ import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import syncService from "@/lib/sync/syncService";
 import {
   loadProductsFromSupabase,
+  loadSalesFromSupabase,
   loadSettingsFromSupabase,
 } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/client";
@@ -51,7 +53,6 @@ export default function Home() {
     pendingSales: 0,
     totalSales: 0,
     isSyncing: false,
-    pendingProductSync: false,
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
@@ -168,7 +169,8 @@ export default function Home() {
         console.log("🔄 Auto-syncing on page load...");
 
         const unsyncedSales = await getUnsyncedSales();
-        const hasUnsyncedProducts = syncStatus.pendingProductSync;
+        const queueStats = syncService.getStats();
+        const hasUnsyncedProducts = queueStats.queueSize > unsyncedSales.length;
 
         // Build toast message based on what happened
         const messageParts: string[] = [];
@@ -386,14 +388,22 @@ export default function Home() {
       // ===== NEW APPROACH: Load from Supabase first =====
       let loadedProducts: Product[] = [];
       const currentProducts = await getProducts(); // Get cached products for comparison
-      console.log("🔍 Current IndexedDB products:", currentProducts.length, currentProducts.map(p => ({ id: p.id, name: p.name })));
+      console.log(
+        "🔍 Current IndexedDB products:",
+        currentProducts.length,
+        currentProducts.map((p) => ({ id: p.id, name: p.name }))
+      );
 
       if (navigator.onLine) {
         // Online: Try Supabase first
         try {
           console.log("📥 Loading products from Supabase...");
           const supabaseProducts = await loadProductsFromSupabase();
-          console.log("🔍 Supabase returned:", supabaseProducts.length, supabaseProducts.map(p => ({ id: p.id, name: p.name })));
+          console.log(
+            "🔍 Supabase returned:",
+            supabaseProducts.length,
+            supabaseProducts.map((p) => ({ id: p.id, name: p.name }))
+          );
 
           if (supabaseProducts.length > 0) {
             loadedProducts = supabaseProducts;
@@ -433,7 +443,10 @@ export default function Home() {
         console.log("🎯 No products found, using defaults");
         await saveProducts(DEFAULT_PRODUCTS);
         loadedProducts = DEFAULT_PRODUCTS;
-        console.log("🎯 Using default products:", DEFAULT_PRODUCTS.map(p => ({ id: p.id, name: p.name })));
+        console.log(
+          "🎯 Using default products:",
+          DEFAULT_PRODUCTS.map((p) => ({ id: p.id, name: p.name }))
+        );
 
         // Queue default products for sync
         for (const product of DEFAULT_PRODUCTS) {
@@ -453,6 +466,29 @@ export default function Home() {
 
       setProducts(loadedProducts);
       setProductsChanged(hasProductsChanged);
+
+      // ===== Load sales from Supabase =====
+      if (navigator.onLine) {
+        try {
+          console.log("📥 Loading sales from Supabase...");
+          const supabaseSales = await loadSalesFromSupabase();
+          console.log("🔍 Supabase returned:", supabaseSales.length, "sales");
+
+          if (supabaseSales.length > 0) {
+            // Cache to IndexedDB
+            await saveSales(supabaseSales);
+            console.log(
+              "✅ Loaded",
+              supabaseSales.length,
+              "sales from Supabase and cached to IndexedDB"
+            );
+          }
+        } catch (error) {
+          console.error("❌ Failed to load sales from Supabase:", error);
+        }
+      } else {
+        console.log("📴 Offline - sales will load from IndexedDB only");
+      }
 
       // Load category order from settings
       if (storedSalesSheetId) {
@@ -508,7 +544,7 @@ export default function Home() {
   const updateSyncStatus = async () => {
     const unsyncedSales = await getUnsyncedSales();
     const allSales = await getSales();
-    
+
     // Also check the actual sync queue
     const queueStats = syncService.getStats();
     console.log("🔍 Sync Status Check:", {
@@ -517,9 +553,9 @@ export default function Home() {
       queueSize: queueStats.queueSize,
       isOnline: queueStats.isOnline,
       isProcessing: queueStats.isProcessing,
-      errors: queueStats.errors.length
+      errors: queueStats.errors.length,
     });
-    
+
     setSyncStatus((prev) => ({
       ...prev,
       pendingSales: unsyncedSales.length,
@@ -590,9 +626,6 @@ export default function Home() {
       console.error("Failed to queue product for sync:", error);
       // Don't block the operation - product is already saved locally
     }
-
-    // Mark products as needing sync (for legacy status display)
-    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
   };
 
   const handleUpdateProduct = async (product: Product) => {
@@ -608,9 +641,6 @@ export default function Home() {
       console.error("Failed to queue product update for sync:", error);
       // Don't block the operation - product is already saved locally
     }
-
-    // Mark products as needing sync (for legacy status display)
-    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -627,9 +657,6 @@ export default function Home() {
         console.error("Failed to queue product deletion for sync:", error);
         // Don't block the operation - product is already deleted locally
       }
-
-      // Mark products as needing sync (for legacy status display)
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     }
   };
 

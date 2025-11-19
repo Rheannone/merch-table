@@ -73,6 +73,8 @@ export function refreshDB() {
 export async function saveProducts(products: Product[]) {
   const db = await getDB();
   const tx = db.transaction("products", "readwrite");
+  // Clear existing products first to remove any that were deleted
+  await tx.store.clear();
   await Promise.all(products.map((product) => tx.store.put(product)));
   await tx.done;
 }
@@ -96,6 +98,15 @@ export async function deleteProduct(id: string) {
 export async function saveSale(sale: Sale) {
   const db = await getDB();
   await db.put("sales", sale);
+}
+
+export async function saveSales(sales: Sale[]) {
+  const db = await getDB();
+  const tx = db.transaction("sales", "readwrite");
+  for (const sale of sales) {
+    await tx.store.put(sale);
+  }
+  await tx.done;
 }
 
 export async function getSales(): Promise<Sale[]> {
@@ -188,6 +199,25 @@ export async function updateCloseOut(closeOut: CloseOut) {
   const db = await getDB();
   closeOut.updatedAt = new Date().toISOString();
   await db.put("closeouts", closeOut);
+}
+
+export async function markCloseOutAsSynced(closeOutId: string) {
+  const db = await getDB();
+  const closeOut = await db.get("closeouts", closeOutId);
+  if (closeOut) {
+    closeOut.syncedToSupabase = true;
+    closeOut.updatedAt = new Date().toISOString();
+    await db.put("closeouts", closeOut);
+  }
+}
+
+export async function markProductAsSynced(productId: string) {
+  const db = await getDB();
+  const product = await db.get("products", productId);
+  if (product) {
+    product.synced = true;
+    await db.put("products", product);
+  }
 }
 
 // Settings

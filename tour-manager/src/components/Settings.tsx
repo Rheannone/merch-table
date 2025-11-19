@@ -19,7 +19,7 @@ import CloseOutSection from "./CloseOutSection";
 import CloseOutWizard from "./CloseOutWizard";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
-import { clearAllProducts } from "@/lib/db";
+import { clearAllProducts, saveSettings as saveSettingsToIndexedDB } from "@/lib/db";
 import {
   getCurrencySettings,
   saveCurrencySettings,
@@ -447,6 +447,16 @@ export default function Settings() {
 
       // Save to Supabase immediately (optimistic update)
       await saveSettingsToSupabase(settingsObject);
+
+      // Cache to IndexedDB for offline access
+      const { createClient } = await import("@/lib/supabase/client");
+      const {
+        data: { user },
+      } = await createClient().auth.getUser();
+      if (user) {
+        await saveSettingsToIndexedDB(user.id, settingsObject);
+        console.log("✅ Cached settings to IndexedDB");
+      }
 
       // Queue for Google Sheets backup sync
       await syncService.syncSettings(settingsObject);

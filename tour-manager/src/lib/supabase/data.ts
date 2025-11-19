@@ -37,12 +37,13 @@ export async function loadProductsFromSupabase(): Promise<Product[]> {
       id: row.id,
       name: row.name,
       price: Number(row.price),
-      image: row.image_url || undefined,
+      imageUrl: row.image_url || undefined,
       category: row.category || undefined,
       inventory: row.inventory || {},
       sku: row.sku || undefined,
       cost: row.cost ? Number(row.cost) : undefined,
       notes: row.notes || undefined,
+      synced: true, // Products from Supabase are synced
     }));
 
     console.log(`✅ Loaded ${products.length} products from Supabase`);
@@ -105,7 +106,7 @@ export async function loadSalesFromSupabase(): Promise<Sale[]> {
       discount: row.discount ? Number(row.discount) : undefined,
       tipAmount: row.tip_amount ? Number(row.tip_amount) : undefined,
       paymentMethod: row.payment_method,
-      synced: row.synced || false,
+      synced: true, // Sales loaded from Supabase are already synced
       isHookup: row.is_hookup || false,
     }));
 

@@ -17,8 +17,7 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
   };
 
   // Only show if there's something to sync or actively syncing
-  const shouldShow =
-    status.isSyncing || status.pendingSales > 0 || status.pendingProductSync;
+  const shouldShow = status.isSyncing || status.pendingSales > 0;
 
   if (!shouldShow) return null;
 
@@ -38,11 +37,6 @@ export default function SyncStatusBar({ status, onSync }: SyncStatusBarProps) {
                 <span className="text-sm font-medium">
                   {status.pendingSales} sale
                   {status.pendingSales === 1 ? "" : "s"} pending
-                </span>
-              )}
-              {status.pendingProductSync && (
-                <span className="text-sm font-medium">
-                  {status.pendingSales > 0 && "• "}Products pending sync
                 </span>
               )}
             </div>

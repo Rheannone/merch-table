@@ -91,6 +91,10 @@ export const salesSyncStrategy: SyncStrategy<Sale> = {
 
         console.log(`✅ Sale synced to Supabase: ${data.id}`);
 
+        // Update IndexedDB to mark sale as synced
+        const { markSaleAsSynced } = await import("../db");
+        await markSaleAsSynced(data.id);
+
         return {
           destination: "supabase",
           success: true,
@@ -263,6 +267,10 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
         if (error) throw error;
 
         console.log(`✅ Product synced to Supabase: ${data.id}`);
+
+        // Update IndexedDB to mark product as synced
+        const { markProductAsSynced } = await import("../db");
+        await markProductAsSynced(data.id);
 
         return {
           destination: "supabase",
@@ -456,6 +464,10 @@ export const closeOutsSyncStrategy: SyncStrategy<CloseOut> = {
         }
 
         console.log("✅ Close-out synced successfully to Supabase:", data.id);
+
+        // Update IndexedDB to mark close-out as synced
+        const { markCloseOutAsSynced } = await import("../db");
+        await markCloseOutAsSynced(data.id);
 
         return {
           destination: "supabase",

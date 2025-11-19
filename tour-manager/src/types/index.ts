@@ -16,6 +16,7 @@ export interface Product {
   currencyPrices?: {
     [currencyCode: string]: number;
   };
+  synced?: boolean; // Whether this product has been synced to Supabase
 }
 
 export interface CartItem {
@@ -115,7 +116,6 @@ export interface SyncStatus {
   pendingSales: number;
   totalSales: number; // Total number of sales (synced + unsynced) for verification
   isSyncing: boolean;
-  pendingProductSync: boolean; // True if products need to be synced
 }
 
 export interface EmailSignup {
