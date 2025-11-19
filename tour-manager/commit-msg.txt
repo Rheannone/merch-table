@@ -1,0 +1,15 @@
+Fix critical Promise race condition and synced flag bugs
+
+ISSUE #1 (CRITICAL): Fix Promise race condition in debounced Sheets sync
+- Changed pendingProductSheetsSyncResolve (single) to pendingProductSheetsSyncResolves (array)
+- Problem: With 5 rapid product updates, only last Promise resolved, 4 hung forever
+- Impact: Queue items stuck in processing, UI showed syncing indefinitely
+- Solution: Push all resolve functions to array, resolve ALL when timeout fires
+- Files: src/lib/sync/strategies.ts
+
+ISSUE #6 (MEDIUM): Fix edited products keeping synced: true
+- ProductManager preserved synced status from Supabase-loaded products on edit
+- Changed to always set synced: false on edits
+- Files: src/components/ProductManager.tsx
+
+Build: Successful

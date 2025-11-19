@@ -19,7 +19,10 @@ import CloseOutSection from "./CloseOutSection";
 import CloseOutWizard from "./CloseOutWizard";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
-import { clearAllProducts, saveSettings as saveSettingsToIndexedDB } from "@/lib/db";
+import {
+  clearAllProducts,
+  saveSettings as saveSettingsToIndexedDB,
+} from "@/lib/db";
 import {
   getCurrencySettings,
   saveCurrencySettings,

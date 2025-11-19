@@ -281,7 +281,9 @@ export class SyncManager {
             destination === "sheets" &&
             results.length > 0
           ) {
-            const supabaseResult = results.find((r) => r.destination === "supabase");
+            const supabaseResult = results.find(
+              (r) => r.destination === "supabase"
+            );
             if (supabaseResult && !supabaseResult.success) {
               console.log(
                 "⏭️ Skipping Sheets sync for product - Supabase sync failed"

@@ -19,7 +19,7 @@ const HIGH_PRIORITY_RETRY_DELAYS = [500, 2000, 8000, 20000]; // Faster retries f
 
 // Debouncing for Sheets product sync
 let productSheetsSyncTimeout: NodeJS.Timeout | null = null;
-let pendingProductSheetsSyncResolve: ((result: SyncResult) => void) | null = null;
+let pendingProductSheetsSyncResolves: ((result: SyncResult) => void)[] = []; // Track ALL pending resolves
 const PRODUCT_SHEETS_DEBOUNCE_MS = 2000; // Wait 2 seconds before syncing
 
 /**
@@ -326,13 +326,13 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
         // DEBOUNCE: If multiple product updates happen in quick succession
         // (e.g., inventory updates from a multi-item sale), only sync once
         return new Promise<SyncResult>((resolve) => {
+          // Add this resolve to the pending array
+          pendingProductSheetsSyncResolves.push(resolve);
+
           // Clear any existing timeout
           if (productSheetsSyncTimeout) {
             clearTimeout(productSheetsSyncTimeout);
           }
-
-          // Store the resolve function (only the last one will be called)
-          pendingProductSheetsSyncResolve = resolve;
 
           // Set new timeout to actually perform the sync
           productSheetsSyncTimeout = setTimeout(async () => {
@@ -343,7 +343,10 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
               const response = await fetch("/api/sheets/sync-products", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ products: allProducts, productsSheetId }),
+                body: JSON.stringify({
+                  products: allProducts,
+                  productsSheetId,
+                }),
               });
 
               if (!response.ok) {
@@ -355,7 +358,7 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
 
               const result = await response.json();
               console.log(
-                `✅ Products synced to Sheets (${allProducts.length} products) - debounced`
+                `✅ Products synced to Sheets (${allProducts.length} products) - debounced (${pendingProductSheetsSyncResolves.length} pending)`
               );
 
               const syncResult: SyncResult = {
@@ -364,23 +367,21 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
                 responseData: result,
               };
 
-              // Resolve this and any pending resolves
-              if (pendingProductSheetsSyncResolve) {
-                pendingProductSheetsSyncResolve(syncResult);
-                pendingProductSheetsSyncResolve = null;
-              }
-              resolve(syncResult);
+              // Resolve ALL pending promises with the same result
+              const resolvesToCall = [...pendingProductSheetsSyncResolves];
+              pendingProductSheetsSyncResolves = [];
+              resolvesToCall.forEach((r) => r(syncResult));
             } catch (error) {
               const syncResult: SyncResult = {
                 destination: "sheets",
                 success: false,
                 error: error instanceof Error ? error.message : String(error),
               };
-              if (pendingProductSheetsSyncResolve) {
-                pendingProductSheetsSyncResolve(syncResult);
-                pendingProductSheetsSyncResolve = null;
-              }
-              resolve(syncResult);
+              
+              // Resolve ALL pending promises with the error result
+              const resolvesToCall = [...pendingProductSheetsSyncResolves];
+              pendingProductSheetsSyncResolves = [];
+              resolvesToCall.forEach((r) => r(syncResult));
             } finally {
               productSheetsSyncTimeout = null;
             }
