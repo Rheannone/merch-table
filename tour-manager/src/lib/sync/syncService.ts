@@ -132,6 +132,21 @@ class SyncService {
   }
 
   /**
+   * Sync user settings to Supabase
+   */
+  async syncSettings(settings: Record<string, unknown>): Promise<string> {
+    this.ensureInitialized();
+    return await this.syncManager.enqueue(
+      "settings",
+      "update", // Settings always use update (upsert)
+      settings,
+      {
+        priority: 9, // High priority - user expects instant saves
+      }
+    );
+  }
+
+  /**
    * Force sync all pending items immediately
    */
   async forceSync(): Promise<void> {

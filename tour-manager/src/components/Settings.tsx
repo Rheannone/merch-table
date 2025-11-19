@@ -28,6 +28,11 @@ import {
   formatPrice,
 } from "@/lib/currency";
 import { processImageForUpload } from "@/lib/imageCompression";
+import syncService from "@/lib/sync/syncService";
+import {
+  loadSettingsFromSupabase,
+  saveSettingsToSupabase,
+} from "@/lib/supabase/data";
 
 // TypeScript declarations for Google Picker API
 declare global {
@@ -280,103 +285,62 @@ export default function Settings() {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
+      // Try loading from Supabase first
+      if (navigator.onLine) {
+        console.log("📥 Loading settings from Supabase...");
+        const supabaseSettings = await loadSettingsFromSupabase();
 
-      if (!spreadsheetId) {
-        setToast({
-          message: "No spreadsheet found. Please initialize sheets first.",
-          type: "error",
-        });
-        return;
-      }
-
-      const response = await fetch("/api/sheets/settings/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Log loaded QR codes
-        data.paymentSettings.forEach((setting: PaymentSetting) => {
-          if (setting.qrCodeUrl) {
-            console.log(
-              `Loaded ${setting.displayName} QR code:`,
-              setting.qrCodeUrl.startsWith("data:")
-                ? `Base64 (${setting.qrCodeUrl.length} chars)`
-                : `URL: ${setting.qrCodeUrl}`
+        if (supabaseSettings) {
+          // Apply settings from Supabase
+          if (supabaseSettings.paymentSettings) {
+            setPaymentSettings(supabaseSettings.paymentSettings);
+            setOriginalPaymentSettings(
+              JSON.parse(JSON.stringify(supabaseSettings.paymentSettings))
             );
           }
-        });
 
-        setPaymentSettings(data.paymentSettings);
-        setCategories(data.categories || ["Apparel", "Merch", "Music"]);
-        setShowTipJar(data.showTipJar !== false); // Default to true if not set
+          if (supabaseSettings.categories) {
+            setCategories(supabaseSettings.categories);
+            setOriginalCategories([...supabaseSettings.categories]);
+          }
 
-        // Store original values for change detection (deep clone to avoid reference issues)
-        setOriginalPaymentSettings(
-          JSON.parse(JSON.stringify(data.paymentSettings))
-        );
-        setOriginalCategories([
-          ...(data.categories || ["Apparel", "Merch", "Music"]),
-        ]);
-        setOriginalShowTipJar(data.showTipJar !== false);
+          if (supabaseSettings.theme) {
+            setSelectedThemeId(supabaseSettings.theme);
+          }
 
-        // Load theme if provided - but only update if user hasn't selected a different theme to preview
-        // This prevents overwriting the user's preview selection
-        if (data.theme && selectedThemeId === themeId) {
-          setSelectedThemeId(data.theme);
-        }
+          if (supabaseSettings.showTipJar !== undefined) {
+            setShowTipJar(supabaseSettings.showTipJar);
+            setOriginalShowTipJar(supabaseSettings.showTipJar);
+          }
 
-        // Load currency settings from sheet if available
-        if (data.currency) {
-          const currencyCode = (data.currency.displayCurrency ||
-            "USD") as CurrencyCode;
-          setSelectedCurrency(currencyCode);
-          setExchangeRate((data.currency.exchangeRate || 1.0).toString());
+          if (supabaseSettings.currency) {
+            setSelectedCurrency(
+              supabaseSettings.currency.displayCurrency || "USD"
+            );
+            setExchangeRate(
+              (supabaseSettings.currency.exchangeRate || 1).toString()
+            );
+            setOriginalCurrency(
+              supabaseSettings.currency.displayCurrency || "USD"
+            );
+            setOriginalExchangeRate(
+              (supabaseSettings.currency.exchangeRate || 1).toString()
+            );
+          }
 
-          // Store original currency values
-          setOriginalCurrency(currencyCode);
-          setOriginalExchangeRate(
-            (data.currency.exchangeRate || 1.0).toString()
-          );
+          if (supabaseSettings.emailSignup) {
+            setEmailSignupSettings(supabaseSettings.emailSignup);
+            setOriginalEmailSignupSettings(
+              JSON.parse(JSON.stringify(supabaseSettings.emailSignup))
+            );
+          }
 
-          // Update localStorage with currency from sheet
-          const currencyInfo = CURRENCIES[currencyCode];
-          saveCurrencySettings({
-            displayCurrency: currencyCode,
-            exchangeRate: data.currency.exchangeRate || 1.0,
-            symbol: currencyInfo.symbol,
-            code: currencyCode,
-          });
-        }
-
-        // Load email signup settings from sheet if available
-        if (data.emailSignup) {
-          console.log("Email signup data received from API:", data.emailSignup);
-          const loadedSettings: EmailSignupSettings = {
-            enabled: data.emailSignup.enabled === true,
-            promptMessage:
-              data.emailSignup.promptMessage || "Want to join our email list?",
-            collectName: data.emailSignup.collectName === true,
-            collectPhone: data.emailSignup.collectPhone === true,
-            autoDismissSeconds: data.emailSignup.autoDismissSeconds || 15,
-          };
-          console.log("Loaded email signup settings:", loadedSettings);
-          setEmailSignupSettings(loadedSettings);
-          setOriginalEmailSignupSettings(
-            JSON.parse(JSON.stringify(loadedSettings))
-          );
+          console.log("✅ Settings loaded from Supabase");
         } else {
-          console.log("No email signup data received from API");
+          console.log("ℹ️ No settings in Supabase yet");
         }
       } else {
-        setToast({
-          message: `Failed to load settings: ${data.error}`,
-          type: "error",
-        });
+        console.log("📴 Offline - settings not loaded");
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -392,18 +356,8 @@ export default function Settings() {
   const saveSettings = async () => {
     setIsSaving(true);
     try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-
-      if (!spreadsheetId) {
-        setToast({
-          message: "No spreadsheet found. Please initialize sheets first.",
-          type: "error",
-        });
-        return;
-      }
-
       // Log QR codes before saving
-      paymentSettings.forEach((setting, i) => {
+      paymentSettings.forEach((setting) => {
         if (setting.qrCodeUrl) {
           console.log(
             `Saving ${setting.displayName} QR code:`,
@@ -414,56 +368,49 @@ export default function Settings() {
         }
       });
 
-      const response = await fetch("/api/sheets/settings/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          spreadsheetId,
-          paymentSettings,
-          categories,
-          theme: selectedThemeId,
-          showTipJar,
-          currency: {
-            displayCurrency: selectedCurrency,
-            exchangeRate: Number.parseFloat(exchangeRate),
-          },
-          emailSignup: emailSignupSettings,
-        }),
+      // Build settings object
+      const settingsObject = {
+        paymentSettings,
+        categories,
+        theme: selectedThemeId,
+        showTipJar,
+        currency: {
+          displayCurrency: selectedCurrency,
+          exchangeRate: Number.parseFloat(exchangeRate),
+        },
+        emailSignup: emailSignupSettings,
+      };
+
+      // Save to Supabase immediately (optimistic update)
+      await saveSettingsToSupabase(settingsObject);
+
+      // Queue for Google Sheets backup sync
+      await syncService.syncSettings(settingsObject);
+
+      // Update originals to match current state (deep clone to avoid reference issues)
+      setOriginalPaymentSettings(JSON.parse(JSON.stringify(paymentSettings)));
+      setOriginalCategories([...categories]);
+      setOriginalShowTipJar(showTipJar);
+      setOriginalCurrency(selectedCurrency);
+      setOriginalExchangeRate(exchangeRate);
+      setOriginalEmailSignupSettings(
+        JSON.parse(JSON.stringify(emailSignupSettings))
+      );
+
+      // Save currency to localStorage so it persists across sessions
+      const currencyInfo = CURRENCIES[selectedCurrency];
+      saveCurrencySettings({
+        displayCurrency: selectedCurrency,
+        exchangeRate:
+          Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
+        symbol: currencyInfo.symbol,
+        code: selectedCurrency,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Update originals to match current state (deep clone to avoid reference issues)
-        setOriginalPaymentSettings(JSON.parse(JSON.stringify(paymentSettings)));
-        setOriginalCategories([...categories]);
-        setOriginalShowTipJar(showTipJar);
-        setOriginalCurrency(selectedCurrency);
-        setOriginalExchangeRate(exchangeRate);
-        setOriginalEmailSignupSettings(
-          JSON.parse(JSON.stringify(emailSignupSettings))
-        );
-
-        // Save currency to localStorage so it persists across sessions
-        const currencyInfo = CURRENCIES[selectedCurrency];
-        saveCurrencySettings({
-          displayCurrency: selectedCurrency,
-          exchangeRate:
-            Number.parseFloat(exchangeRate) || currencyInfo.defaultRate,
-          symbol: currencyInfo.symbol,
-          code: selectedCurrency,
-        });
-
-        setToast({
-          message: "Settings saved successfully!",
-          type: "success",
-        });
-      } else {
-        setToast({
-          message: `Failed to save settings: ${data.error}`,
-          type: "error",
-        });
-      }
+      setToast({
+        message: "Settings saved successfully!",
+        type: "success",
+      });
     } catch (error) {
       console.error("Error saving settings:", error);
       setToast({

@@ -12,11 +12,10 @@ import {
   saveSale,
   getSales,
   getUnsyncedSales,
-  markSaleAsSynced,
-  deleteSyncedSales,
 } from "@/lib/db";
 import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import syncService from "@/lib/sync/syncService";
+import { loadProductsFromSupabase } from "@/lib/supabase/data";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
@@ -38,7 +37,6 @@ export default function Home() {
   const { user, session, signOut } = useAuth();
   const router = useRouter();
   const initializingRef = useRef(false); // Prevent multiple initializations
-  const productSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce product syncs
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]); // Add category order state
   const [activeTab, setActiveTab] = useState<
@@ -53,7 +51,6 @@ export default function Home() {
   });
   const [isInitialized, setIsInitialized] = useState(false);
   const [isInitializingSheets, setIsInitializingSheets] = useState(false);
-  const [loadedFromSheets, setLoadedFromSheets] = useState(false); // Track if products were loaded from Sheets
   const [productsChanged, setProductsChanged] = useState(false); // Track if products actually changed
   const [toast, setToast] = useState<{
     message: string;
@@ -167,17 +164,17 @@ export default function Home() {
         // Build toast message based on what happened
         const messageParts: string[] = [];
 
-        // If products were loaded from Sheets AND they changed, mention it
-        if (loadedFromSheets && productsChanged) {
+        // If products changed, mention it
+        if (productsChanged) {
           messageParts.push("Loaded latest products");
         }
 
-        // Sync any local changes
+        // Sync happens automatically via syncService
+        // Just show a message if there were unsynced items that will be processed
         if (unsyncedSales.length > 0 || hasUnsyncedProducts) {
           const syncParts: string[] = [];
 
           if (unsyncedSales.length > 0) {
-            await syncSales();
             syncParts.push(
               `${unsyncedSales.length} sale${
                 unsyncedSales.length > 1 ? "s" : ""
@@ -186,14 +183,11 @@ export default function Home() {
           }
 
           if (hasUnsyncedProducts) {
-            // TODO: Replace with new sync service - old function temporarily disabled
-            // await syncProductsToSheet();
-            console.log("Products sync disabled - using new sync service");
             syncParts.push("products");
           }
 
           if (syncParts.length > 0) {
-            messageParts.push(`synced ${syncParts.join(" and ")}`);
+            messageParts.push(`syncing ${syncParts.join(" and ")}`);
           }
         }
 
@@ -221,35 +215,15 @@ export default function Home() {
   // Auto-sync when coming back online
   useEffect(() => {
     const handleOnline = async () => {
-      console.log("📶 Network connection restored - auto-syncing...");
-
-      // Sync sales if needed
-      const unsyncedSales = await getUnsyncedSales();
-      if (unsyncedSales.length > 0) {
-        setTimeout(() => {
-          syncSales();
-        }, 1000);
-      }
-
-      // Sync products if needed
-      if (syncStatus.pendingProductSync) {
-        setTimeout(() => {
-          // TODO: Replace with new sync service - old function temporarily disabled
-          // syncProductsToSheet();
-          console.log("Products sync disabled - using new sync service");
-        }, 1500);
-      }
+      console.log("📶 Network connection restored - triggering sync...");
+      // Sync service will automatically process queued items
+      await syncService.forceSync();
     };
 
     globalThis.addEventListener("online", handleOnline);
     return () => {
       globalThis.removeEventListener("online", handleOnline);
-      // Clean up any pending product sync timeouts
-      if (productSyncTimeoutRef.current) {
-        clearTimeout(productSyncTimeoutRef.current);
-      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper function to detect if products have changed
@@ -400,59 +374,41 @@ export default function Home() {
         }
       }
 
-      // Load products - try from Google Sheets first, then IndexedDB, then defaults
+      // ===== NEW APPROACH: Load from Supabase first =====
       let loadedProducts: Product[] = [];
-      let productsLoadedFromSheets = false;
+      const currentProducts = await getProducts(); // Get cached products for comparison
 
-      // Get current products from IndexedDB to compare for changes
-      const currentProducts = await getProducts();
-
-      // If we have a sheet ID, try loading products from Google Sheets
-      if (storedProductsSheetId) {
+      if (navigator.onLine) {
+        // Online: Try Supabase first
         try {
-          console.log("📥 Loading products from Google Sheets...");
+          console.log("📥 Loading products from Supabase...");
+          const supabaseProducts = await loadProductsFromSupabase();
 
-          // Add timeout to prevent hanging
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-          const response = await fetch("/api/sheets/load-products", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ productsSheetId: storedProductsSheetId }),
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.products && data.products.length > 0) {
-              loadedProducts = data.products;
-              await saveProducts(loadedProducts); // Save to IndexedDB
-              productsLoadedFromSheets = true;
-              console.log(
-                "✅ Loaded",
-                loadedProducts.length,
-                "products from Google Sheets"
-              );
-            } else {
-              console.log("ℹ️ No products found in Google Sheets");
-            }
+          if (supabaseProducts.length > 0) {
+            loadedProducts = supabaseProducts;
+            await saveProducts(loadedProducts); // Cache in IndexedDB
+            console.log(
+              "✅ Loaded",
+              loadedProducts.length,
+              "products from Supabase"
+            );
           } else {
-            console.error("❌ Load products response not OK:", response.status);
+            console.log("ℹ️ No products in Supabase, trying IndexedDB...");
+            loadedProducts = await getProducts();
           }
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            console.error("❌ Load products timed out after 10 seconds");
-          } else {
-            console.error("❌ Failed to load from Google Sheets:", error);
-          }
+          console.error("❌ Failed to load from Supabase:", error);
+          // Fall back to IndexedDB
+          loadedProducts = await getProducts();
+          console.log(
+            "📦 Loaded",
+            loadedProducts.length,
+            "products from IndexedDB (Supabase failed)"
+          );
         }
-      }
-
-      // If no products from sheets, try IndexedDB
-      if (loadedProducts.length === 0) {
+      } else {
+        // Offline: Load from IndexedDB
+        console.log("📴 Offline - loading from IndexedDB");
         loadedProducts = await getProducts();
         console.log(
           "📦 Loaded",
@@ -467,26 +423,12 @@ export default function Home() {
         loadedProducts = DEFAULT_PRODUCTS;
         console.log("🎯 Using default products");
 
-        // Sync default products to Google Sheets for new users
-        if (storedProductsSheetId) {
+        // Queue default products for sync
+        for (const product of DEFAULT_PRODUCTS) {
           try {
-            console.log("📤 Syncing default products to Google Sheets...");
-            const syncResponse = await fetch("/api/sheets/sync-products", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                productsSheetId: storedProductsSheetId,
-                products: DEFAULT_PRODUCTS,
-              }),
-            });
-
-            if (syncResponse.ok) {
-              console.log("✅ Default products synced to Google Sheets");
-            } else {
-              console.error("❌ Failed to sync default products");
-            }
+            await syncService.syncProduct(product);
           } catch (error) {
-            console.error("❌ Error syncing default products:", error);
+            console.error("Failed to queue default product:", error);
           }
         }
       }
@@ -498,7 +440,6 @@ export default function Home() {
       );
 
       setProducts(loadedProducts);
-      setLoadedFromSheets(productsLoadedFromSheets);
       setProductsChanged(hasProductsChanged);
 
       // Load category order from settings
@@ -599,51 +540,6 @@ export default function Home() {
     await updateSyncStatus();
   };
 
-  const syncSales = async () => {
-    if (syncStatus.isSyncing) return;
-
-    setSyncStatus((prev) => ({ ...prev, isSyncing: true }));
-
-    try {
-      const unsyncedSales = await getUnsyncedSales();
-      const salesSheetId = localStorage.getItem("salesSheetId");
-
-      if (unsyncedSales.length > 0 && salesSheetId) {
-        const response = await fetch("/api/sheets/sync-sales", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sales: unsyncedSales, salesSheetId }),
-        });
-
-        if (response.ok) {
-          for (const sale of unsyncedSales) {
-            await markSaleAsSynced(sale.id);
-          }
-
-          // Delete synced sales to keep local storage clean
-          const deletedCount = await deleteSyncedSales();
-          console.log(
-            `🗑️ Cleaned up ${deletedCount} synced sales from local storage`
-          );
-
-          const allSales = await getSales();
-          setSyncStatus({
-            lastSyncTime: new Date().toISOString(),
-            pendingSales: 0,
-            totalSales: allSales.length,
-            isSyncing: false,
-            pendingProductSync: false,
-          });
-        }
-      } else {
-        setSyncStatus((prev) => ({ ...prev, isSyncing: false }));
-      }
-    } catch (error) {
-      console.error("Sync failed:", error);
-      setSyncStatus((prev) => ({ ...prev, isSyncing: false }));
-    }
-  };
-
   const handleAddProduct = async (product: Product) => {
     await addProductToDB(product);
     const updatedProducts = await getProducts();
@@ -696,39 +592,6 @@ export default function Home() {
       }
 
       // Mark products as needing sync (for legacy status display)
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-    }
-  };
-
-  const syncProductsToSheet = async () => {
-    try {
-      const productsSheetId = localStorage.getItem("productsSheetId");
-
-      if (!productsSheetId) {
-        console.warn(
-          "Products sheet not initialized - will sync when available"
-        );
-        return;
-      }
-
-      // Get latest products from IndexedDB
-      const currentProducts = await getProducts();
-
-      const response = await fetch("/api/sheets/sync-products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products: currentProducts, productsSheetId }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to sync");
-      }
-
-      console.log("✅ Products synced to Google Sheets");
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: false }));
-    } catch (error) {
-      console.error("Failed to sync products:", error);
-      // Keep pendingProductSync true so it retries when online
       setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     }
   };
@@ -862,7 +725,10 @@ export default function Home() {
         </div>
       )}
 
-      <SyncStatusBar status={syncStatus} onSync={syncSales} />
+      <SyncStatusBar
+        status={syncStatus}
+        onSync={() => syncService.forceSync()}
+      />
 
       <nav className="bg-theme border-b border-theme">
         <div className="flex">

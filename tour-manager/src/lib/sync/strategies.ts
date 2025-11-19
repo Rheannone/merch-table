@@ -534,11 +534,96 @@ export const closeOutsSyncStrategy: SyncStrategy<CloseOut> = {
   },
 };
 
+/**
+ * Settings Sync Strategy - Sync to Supabase only
+ * Settings are stored as flexible JSONB in user_settings table
+ */
+export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
+  dataType: "settings",
+  destinations: ["supabase"],
+  maxAttempts: 3,
+  retryDelays: HIGH_PRIORITY_RETRY_DELAYS,
+  priority: 9, // High priority - user expects instant saves
+
+  async syncToSupabase(
+    operation: SyncOperation,
+    data: Record<string, any>
+  ): Promise<SyncResult> {
+    try {
+      const supabase = createClient();
+
+      if (operation === "create" || operation === "update") {
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
+
+        if (userError || !userData?.user?.id) {
+          throw new Error("No authenticated user found");
+        }
+
+        // Upsert settings (creates or updates)
+        const { error } = await supabase.from("user_settings").upsert({
+          user_id: userData.user.id,
+          settings: data,
+        });
+
+        if (error) throw error;
+
+        console.log("✅ Settings synced to Supabase");
+
+        return {
+          destination: "supabase",
+          success: true,
+          timestamp: new Date().toISOString(),
+          responseData: { synced: true },
+        };
+      }
+
+      // Settings don't support delete operation
+      throw new Error("Delete operation not supported for settings");
+    } catch (error) {
+      console.error("❌ Settings Supabase sync failed:", error);
+      return {
+        destination: "supabase",
+        success: false,
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+
+  async syncToSheets(): Promise<SyncResult> {
+    // Settings are Supabase-only, not synced to Sheets
+    return {
+      destination: "sheets",
+      success: true,
+      timestamp: new Date().toISOString(),
+      skipped: true,
+    };
+  },
+
+  validate(data: Record<string, any>) {
+    // Settings are flexible JSONB, minimal validation
+    if (!data || typeof data !== "object") {
+      return {
+        valid: false,
+        errors: ["Settings must be an object"],
+      };
+    }
+    return { valid: true };
+  },
+
+  prepareForDestination(data: Record<string, any>): Record<string, any> {
+    // Return as-is, JSONB handles the structure
+    return data;
+  },
+};
+
 // Export all strategies for easy registration
 export const ALL_SYNC_STRATEGIES = [
   salesSyncStrategy,
   productsSyncStrategy,
   closeOutsSyncStrategy,
+  settingsSyncStrategy,
 ] as const;
 
 // Default sync manager configuration

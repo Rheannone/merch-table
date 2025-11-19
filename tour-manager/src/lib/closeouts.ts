@@ -1,5 +1,6 @@
 import { Sale, CloseOut } from "@/types";
 import { getSales, getLastCloseOut, saveCloseOut } from "./db";
+import syncService from "./sync/syncService";
 
 /**
  * Calculate session statistics from sales data
@@ -202,7 +203,42 @@ export async function createCloseOut(metadata: {
   // Save to IndexedDB
   await saveCloseOut(closeOut);
 
+  // Queue for sync to Supabase
+  try {
+    await syncService.syncCloseOut(closeOut);
+    console.log("✅ Close-out queued for sync to Supabase");
+  } catch (error) {
+    console.error("❌ Failed to queue close-out for sync:", error);
+    // Don't throw - close-out is still saved locally
+  }
+
   return closeOut;
+}
+
+/**
+ * Sync all unsynced close-outs to Supabase
+ */
+export async function syncUnsyncedCloseOuts(): Promise<number> {
+  const { getCloseOuts } = await import("./db");
+  const allCloseOuts = await getCloseOuts();
+  const unsynced = allCloseOuts.filter((co) => !co.syncedToSupabase);
+
+  console.log(`📊 Found ${unsynced.length} unsynced close-outs`);
+
+  let syncedCount = 0;
+  for (const closeOut of unsynced) {
+    try {
+      await syncService.syncCloseOut(closeOut);
+      syncedCount++;
+    } catch (error) {
+      console.error(`Failed to sync close-out ${closeOut.id}:`, error);
+    }
+  }
+
+  console.log(
+    `✅ Queued ${syncedCount}/${unsynced.length} close-outs for sync`
+  );
+  return syncedCount;
 }
 
 /**
