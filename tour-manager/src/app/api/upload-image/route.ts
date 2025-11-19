@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { uploadProductImage } from "@/lib/supabase/storage";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate file size (10MB limit before compression)
+    // Validate file size (10MB limit)
     if (image.size > 10 * 1024 * 1024) {
       return NextResponse.json(
         { error: "Image must be less than 10MB" },
@@ -40,9 +40,47 @@ export async function POST(req: NextRequest) {
       ).toFixed(0)}KB)`
     );
 
-    // Upload directly to Supabase Storage (no server-side compression needed)
-    // The client already compressed it before sending
-    const publicUrl = await uploadProductImage(image, productId);
+    // Get authenticated user from server-side client
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "User must be authenticated to upload images" },
+        { status: 401 }
+      );
+    }
+
+    // Generate unique filename with timestamp
+    const fileExt = image.name.split(".").pop()?.toLowerCase() || "jpg";
+    const timestamp = Date.now();
+    const fileName = `${user.id}/${productId}-${timestamp}.${fileExt}`;
+
+    console.log(`📤 Uploading image to: product-images/${fileName}`);
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("product-images")
+      .upload(fileName, image, {
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("❌ Storage upload error:", error);
+      return NextResponse.json(
+        { error: `Failed to upload image: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("product-images").getPublicUrl(data.path);
 
     console.log(`✅ Image upload complete: ${publicUrl}`);
 
