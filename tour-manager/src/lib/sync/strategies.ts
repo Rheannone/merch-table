@@ -10,8 +10,8 @@ import {
   SyncOperation,
   SyncDestination,
 } from "./types";
-import { Sale, Product, CloseOut } from "../../types";
-import { createClient } from "../supabase/client";
+import { Sale, Product, CloseOut, UserSettings } from "../../types";
+import { createClient, getAuthenticatedUser } from "../supabase/client";
 
 // Base configurations
 const DEFAULT_RETRY_DELAYS = [1000, 3000, 10000]; // 1s, 3s, 10s
@@ -35,24 +35,19 @@ export const salesSyncStrategy: SyncStrategy<Sale> = {
       const supabase = createClient();
 
       if (operation === "create" || operation === "update") {
-        // Get the current user
-        const { data: userResponse, error: userError } =
-          await supabase.auth.getUser();
+        // Get the current user with token refresh handling
+        const user = await getAuthenticatedUser();
 
-        if (userError) {
-          throw new Error(`Auth error: ${userError.message}`);
+        if (!user?.id) {
+          throw new Error("Authentication failed - please sign in again");
         }
 
-        if (!userResponse?.user?.id) {
-          throw new Error("No authenticated user found");
-        }
-
-        console.log("🔒 User ID for sale sync:", userResponse.user.id);
+        console.log("🔒 User ID for sale sync:", user.id);
 
         // Insert/update the main sale record
         const saleData = {
           id: data.id,
-          user_id: userResponse.user.id,
+          user_id: user.id,
           timestamp: data.timestamp,
           total: data.total,
           actual_amount: data.actualAmount,
@@ -236,23 +231,18 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
       const supabase = createClient();
 
       if (operation === "create" || operation === "update") {
-        // Get the current user
-        const { data: userResponse, error: userError } =
-          await supabase.auth.getUser();
+        // Get the current user with token refresh handling
+        const user = await getAuthenticatedUser();
 
-        if (userError) {
-          throw new Error(`Auth error: ${userError.message}`);
+        if (!user?.id) {
+          throw new Error("Authentication failed - please sign in again");
         }
 
-        if (!userResponse?.user?.id) {
-          throw new Error("No authenticated user found");
-        }
-
-        console.log("🔒 User ID for product sync:", userResponse.user.id);
+        console.log("🔒 User ID for product sync:", user.id);
 
         const productData = {
           id: data.id,
-          user_id: userResponse.user.id,
+          user_id: user.id,
           name: data.name,
           price: data.price,
           image_url: data.imageUrl,
@@ -418,23 +408,18 @@ export const closeOutsSyncStrategy: SyncStrategy<CloseOut> = {
       const supabase = createClient();
 
       if (operation === "create" || operation === "update") {
-        // Get the current user
-        const { data: userResponse, error: userError } =
-          await supabase.auth.getUser();
+        // Get the current user with token refresh handling
+        const user = await getAuthenticatedUser();
 
-        if (userError) {
-          throw new Error(`Auth error: ${userError.message}`);
+        if (!user?.id) {
+          throw new Error("Authentication failed - please sign in again");
         }
 
-        if (!userResponse?.user?.id) {
-          throw new Error("No authenticated user found");
-        }
-
-        console.log("🔒 User ID for close-out sync:", userResponse.user.id);
+        console.log("🔒 User ID for close-out sync:", user.id);
 
         const closeOutData = {
           id: data.id,
-          user_id: userResponse.user.id,
+          user_id: user.id,
           timestamp: data.timestamp,
           session_name: data.sessionName,
           location: data.location,
@@ -538,7 +523,7 @@ export const closeOutsSyncStrategy: SyncStrategy<CloseOut> = {
  * Settings Sync Strategy - Sync to Supabase only
  * Settings are stored as flexible JSONB in user_settings table
  */
-export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
+export const settingsSyncStrategy: SyncStrategy<UserSettings> = {
   dataType: "settings",
   destinations: ["supabase"],
   maxAttempts: 3,
@@ -547,22 +532,22 @@ export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
 
   async syncToSupabase(
     operation: SyncOperation,
-    data: Record<string, any>
+    data: UserSettings
   ): Promise<SyncResult> {
     try {
       const supabase = createClient();
 
       if (operation === "create" || operation === "update") {
-        const { data: userData, error: userError } =
-          await supabase.auth.getUser();
+        // Get the current user with token refresh handling
+        const user = await getAuthenticatedUser();
 
-        if (userError || !userData?.user?.id) {
-          throw new Error("No authenticated user found");
+        if (!user?.id) {
+          throw new Error("Authentication failed - please sign in again");
         }
 
         // Upsert settings (creates or updates)
         const { error } = await supabase.from("user_settings").upsert({
-          user_id: userData.user.id,
+          user_id: user.id,
           settings: data,
         });
 
@@ -573,7 +558,6 @@ export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
         return {
           destination: "supabase",
           success: true,
-          timestamp: new Date().toISOString(),
           responseData: { synced: true },
         };
       }
@@ -585,7 +569,6 @@ export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
       return {
         destination: "supabase",
         success: false,
-        timestamp: new Date().toISOString(),
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
@@ -596,12 +579,11 @@ export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
     return {
       destination: "sheets",
       success: true,
-      timestamp: new Date().toISOString(),
-      skipped: true,
+      responseData: { skipped: true, reason: "Settings are Supabase-only" },
     };
   },
 
-  validate(data: Record<string, any>) {
+  validate(data: UserSettings) {
     // Settings are flexible JSONB, minimal validation
     if (!data || typeof data !== "object") {
       return {
@@ -612,7 +594,7 @@ export const settingsSyncStrategy: SyncStrategy<Record<string, any>> = {
     return { valid: true };
   },
 
-  prepareForDestination(data: Record<string, any>): Record<string, any> {
+  prepareForDestination(data: UserSettings): UserSettings {
     // Return as-is, JSONB handles the structure
     return data;
   },

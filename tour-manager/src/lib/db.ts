@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
-import { Product, Sale, CloseOut } from "@/types";
+import { Product, Sale, CloseOut, UserSettings } from "@/types";
 
 interface MerchPOSDB extends DBSchema {
   products: {
@@ -15,10 +15,14 @@ interface MerchPOSDB extends DBSchema {
     value: CloseOut;
     indexes: { timestamp: string };
   };
+  settings: {
+    key: string;
+    value: UserSettings & { userId: string };
+  };
 }
 
 const DB_NAME = "road-dog-db";
-const DB_VERSION = 2; // Increment for new close-outs store
+const DB_VERSION = 3; // Increment for new settings store
 
 let dbPromise: Promise<IDBPDatabase<MerchPOSDB>> | null = null;
 
@@ -47,6 +51,12 @@ export function getDB() {
         });
         // Add index for timestamp to enable sorting by date
         closeoutStore.createIndex("timestamp", "timestamp", { unique: false });
+      }
+
+      // Settings store (added in v3)
+      if (!db.objectStoreNames.contains("settings")) {
+        console.log("⚙️ Creating settings store");
+        db.createObjectStore("settings", { keyPath: "userId" });
       }
     },
   });
@@ -178,6 +188,33 @@ export async function updateCloseOut(closeOut: CloseOut) {
   const db = await getDB();
   closeOut.updatedAt = new Date().toISOString();
   await db.put("closeouts", closeOut);
+}
+
+// Settings
+export async function saveSettings(
+  userId: string,
+  settings: UserSettings
+): Promise<void> {
+  const db = await getDB();
+  await db.put("settings", { userId, ...settings });
+}
+
+export async function getSettings(
+  userId: string
+): Promise<UserSettings | null> {
+  const db = await getDB();
+  const result = await db.get("settings", userId);
+  if (!result) return null;
+
+  // Remove userId from the returned object
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { userId: _userId, ...settings } = result;
+  return settings;
+}
+
+export async function clearSettings(userId: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("settings", userId);
 }
 
 export async function deleteCloseOut(id: string) {

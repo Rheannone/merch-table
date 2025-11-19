@@ -6,7 +6,7 @@
  */
 
 import { createClient } from "./client";
-import { Product, Sale, CloseOut } from "@/types";
+import { Product, Sale, CloseOut, UserSettings } from "@/types";
 
 /**
  * Load user's products from Supabase
@@ -175,12 +175,9 @@ export async function loadCloseOutsFromSupabase(): Promise<CloseOut[]> {
 }
 
 /**
- * Load user settings from Supabase
+ * Load user settings from Supabase and cache to IndexedDB
  */
-export async function loadSettingsFromSupabase(): Promise<Record<
-  string,
-  any
-> | null> {
+export async function loadSettingsFromSupabase(): Promise<UserSettings | null> {
   try {
     const supabase = createClient();
 
@@ -206,8 +203,16 @@ export async function loadSettingsFromSupabase(): Promise<Record<
       return null;
     }
 
-    console.log("✅ Loaded settings from Supabase");
-    return data?.settings || null;
+    const settings = data?.settings || null;
+    
+    // Cache settings to IndexedDB for offline use
+    if (settings) {
+      const { saveSettings } = await import("@/lib/db");
+      await saveSettings(userData.user.id, settings);
+      console.log("✅ Loaded settings from Supabase and cached to IndexedDB");
+    }
+    
+    return settings;
   } catch (error) {
     console.error("Failed to load settings from Supabase:", error);
     return null;
@@ -218,7 +223,7 @@ export async function loadSettingsFromSupabase(): Promise<Record<
  * Save user settings to Supabase
  */
 export async function saveSettingsToSupabase(
-  settings: Record<string, any>
+  settings: UserSettings
 ): Promise<boolean> {
   try {
     const supabase = createClient();

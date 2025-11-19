@@ -189,3 +189,24 @@ export interface CloseOut {
 export interface CloseOutSettings {
   requireCashReconciliation: boolean; // Global setting - should cash count be required
 }
+
+export interface CurrencySettings {
+  displayCurrency: string;
+  exchangeRate: number;
+}
+
+/**
+ * User Settings stored in Supabase as JSONB
+ * This is what gets saved to the user_settings table
+ */
+export interface UserSettings {
+  paymentSettings?: PaymentSetting[];
+  categories?: string[];
+  theme?: string;
+  showTipJar?: boolean;
+  currency?: {
+    displayCurrency: string;
+    exchangeRate: number;
+  };
+  emailSignup?: EmailSignupSettings;
+}

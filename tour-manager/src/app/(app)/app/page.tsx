@@ -15,7 +15,11 @@ import {
 } from "@/lib/db";
 import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
 import syncService from "@/lib/sync/syncService";
-import { loadProductsFromSupabase } from "@/lib/supabase/data";
+import {
+  loadProductsFromSupabase,
+  loadSettingsFromSupabase,
+} from "@/lib/supabase/data";
+import { createClient } from "@/lib/supabase/client";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
@@ -95,20 +99,23 @@ export default function Home() {
   // Load theme from settings on initialization
   useEffect(() => {
     const loadThemeFromSettings = async () => {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) return;
-
       try {
-        const response = await fetch("/api/sheets/settings/load", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ spreadsheetId }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.theme) {
-            setTheme(data.theme);
+        if (navigator.onLine) {
+          // Online: Load from Supabase (auto-caches to IndexedDB)
+          const settings = await loadSettingsFromSupabase();
+          if (settings?.theme) {
+            setTheme(settings.theme);
+          }
+        } else {
+          // Offline: Load from IndexedDB cache
+          const { getSettings } = await import("@/lib/db");
+          const { data: { user } } = await createClient().auth.getUser();
+          if (user) {
+            const cachedSettings = await getSettings(user.id);
+            if (cachedSettings?.theme) {
+              setTheme(cachedSettings.theme);
+              console.log("📱 Loaded theme from IndexedDB (offline mode)");
+            }
           }
         }
       } catch (error) {
@@ -445,20 +452,29 @@ export default function Home() {
       // Load category order from settings
       if (storedSalesSheetId) {
         try {
-          const settingsResponse = await fetch("/api/sheets/settings/load", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ spreadsheetId: storedSalesSheetId }),
-          });
-
-          if (settingsResponse.ok) {
-            const settingsData = await settingsResponse.json();
+          if (navigator.onLine) {
+            // Online: Load from Supabase (auto-caches to IndexedDB)
+            const settingsData = await loadSettingsFromSupabase();
             if (
-              settingsData.categories &&
+              settingsData?.categories &&
               Array.isArray(settingsData.categories)
             ) {
               setCategoryOrder(settingsData.categories);
               console.log("✅ Loaded category order:", settingsData.categories);
+            }
+          } else {
+            // Offline: Load from IndexedDB cache
+            const { getSettings } = await import("@/lib/db");
+            const { data: { user } } = await createClient().auth.getUser();
+            if (user) {
+              const cachedSettings = await getSettings(user.id);
+              if (
+                cachedSettings?.categories &&
+                Array.isArray(cachedSettings.categories)
+              ) {
+                setCategoryOrder(cachedSettings.categories);
+                console.log("📱 Loaded category order from IndexedDB (offline)");
+              }
             }
           }
         } catch (error) {

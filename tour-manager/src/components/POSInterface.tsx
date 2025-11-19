@@ -127,49 +127,102 @@ export default function POSInterface({
 
   const loadPaymentSettings = async () => {
     try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) return;
+      if (navigator.onLine) {
+        // Online: Load from Supabase (auto-caches to IndexedDB)
+        const { loadSettingsFromSupabase } = await import("@/lib/supabase/data");
+        const settings = await loadSettingsFromSupabase();
 
-      const response = await fetch("/api/sheets/settings/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
+        if (settings) {
+          // Filter to only enabled payment types
+          if (settings.paymentSettings) {
+            const enabled = settings.paymentSettings.filter(
+              (s: PaymentSetting) => s.enabled
+            );
+            setPaymentSettings(enabled);
 
-      const data = await response.json();
-      if (response.ok) {
-        // Filter to only enabled payment types
-        const enabled = data.paymentSettings.filter(
-          (s: PaymentSetting) => s.enabled
-        );
-        setPaymentSettings(enabled);
-        setShowTipJar(data.showTipJar !== false); // Default to true if not set
+            // Set first enabled payment as default
+            if (enabled.length > 0) {
+              setSelectedPaymentMethod(enabled[0].displayName);
+              setSelectedPaymentSetting(enabled[0]);
+            }
+          }
 
-        // Set first enabled payment as default
-        if (enabled.length > 0) {
-          setSelectedPaymentMethod(enabled[0].displayName);
-          setSelectedPaymentSetting(enabled[0]);
+          // Set tip jar visibility
+          setShowTipJar(settings.showTipJar !== false); // Default to true if not set
+
+          // Only update category order if not provided via props
+          if (
+            initialCategoryOrder.length === 0 &&
+            settings.categories &&
+            Array.isArray(settings.categories)
+          ) {
+            setCategoryOrder(settings.categories);
+          }
+
+          // Load email signup settings
+          if (settings.emailSignup) {
+            setEmailSignupSettings({
+              enabled: settings.emailSignup.enabled !== false,
+              promptMessage:
+                settings.emailSignup.promptMessage ||
+                "Want to join our email list?",
+              collectName: settings.emailSignup.collectName !== false,
+              collectPhone: settings.emailSignup.collectPhone !== false,
+              autoDismissSeconds: settings.emailSignup.autoDismissSeconds || 15,
+            });
+          }
         }
+      } else {
+        // Offline: Load from IndexedDB cache
+        const { getSettings } = await import("@/lib/db");
+        const { createClient } = await import("@/lib/supabase/client");
+        const { data: { user } } = await createClient().auth.getUser();
+        
+        if (user) {
+          const cachedSettings = await getSettings(user.id);
+          
+          if (cachedSettings) {
+            console.log("📱 Loaded payment settings from IndexedDB (offline)");
+            
+            // Filter to only enabled payment types
+            if (cachedSettings.paymentSettings) {
+              const enabled = cachedSettings.paymentSettings.filter(
+                (s: PaymentSetting) => s.enabled
+              );
+              setPaymentSettings(enabled);
 
-        // Only update category order if not provided via props
-        if (
-          initialCategoryOrder.length === 0 &&
-          data.categories &&
-          Array.isArray(data.categories)
-        ) {
-          setCategoryOrder(data.categories);
-        }
+              // Set first enabled payment as default
+              if (enabled.length > 0) {
+                setSelectedPaymentMethod(enabled[0].displayName);
+                setSelectedPaymentSetting(enabled[0]);
+              }
+            }
 
-        // Load email signup settings
-        if (data.emailSignup) {
-          setEmailSignupSettings({
-            enabled: data.emailSignup.enabled !== false,
-            promptMessage:
-              data.emailSignup.promptMessage || "Want to join our email list?",
-            collectName: data.emailSignup.collectName !== false,
-            collectPhone: data.emailSignup.collectPhone !== false,
-            autoDismissSeconds: data.emailSignup.autoDismissSeconds || 15,
-          });
+            // Set tip jar visibility
+            setShowTipJar(cachedSettings.showTipJar !== false);
+
+            // Only update category order if not provided via props
+            if (
+              initialCategoryOrder.length === 0 &&
+              cachedSettings.categories &&
+              Array.isArray(cachedSettings.categories)
+            ) {
+              setCategoryOrder(cachedSettings.categories);
+            }
+
+            // Load email signup settings
+            if (cachedSettings.emailSignup) {
+              setEmailSignupSettings({
+                enabled: cachedSettings.emailSignup.enabled !== false,
+                promptMessage:
+                  cachedSettings.emailSignup.promptMessage ||
+                  "Want to join our email list?",
+                collectName: cachedSettings.emailSignup.collectName !== false,
+                collectPhone: cachedSettings.emailSignup.collectPhone !== false,
+                autoDismissSeconds: cachedSettings.emailSignup.autoDismissSeconds || 15,
+              });
+            }
+          }
         }
       }
     } catch (error) {

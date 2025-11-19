@@ -285,8 +285,8 @@ export default function Settings() {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
-      // Try loading from Supabase first
       if (navigator.onLine) {
+        // Online: Load from Supabase (auto-caches to IndexedDB)
         console.log("📥 Loading settings from Supabase...");
         const supabaseSettings = await loadSettingsFromSupabase();
 
@@ -340,7 +340,65 @@ export default function Settings() {
           console.log("ℹ️ No settings in Supabase yet");
         }
       } else {
-        console.log("📴 Offline - settings not loaded");
+        // Offline: Load from IndexedDB cache
+        console.log("📴 Offline - loading settings from cache...");
+        const { getSettings } = await import("@/lib/db");
+        const { createClient } = await import("@/lib/supabase/client");
+        const { data: { user } } = await createClient().auth.getUser();
+        
+        if (user) {
+          const cachedSettings = await getSettings(user.id);
+          
+          if (cachedSettings) {
+            // Apply cached settings
+            if (cachedSettings.paymentSettings) {
+              setPaymentSettings(cachedSettings.paymentSettings);
+              setOriginalPaymentSettings(
+                JSON.parse(JSON.stringify(cachedSettings.paymentSettings))
+              );
+            }
+
+            if (cachedSettings.categories) {
+              setCategories(cachedSettings.categories);
+              setOriginalCategories([...cachedSettings.categories]);
+            }
+
+            if (cachedSettings.theme) {
+              setSelectedThemeId(cachedSettings.theme);
+            }
+
+            if (cachedSettings.showTipJar !== undefined) {
+              setShowTipJar(cachedSettings.showTipJar);
+              setOriginalShowTipJar(cachedSettings.showTipJar);
+            }
+
+            if (cachedSettings.currency) {
+              setSelectedCurrency(
+                cachedSettings.currency.displayCurrency || "USD"
+              );
+              setExchangeRate(
+                (cachedSettings.currency.exchangeRate || 1).toString()
+              );
+              setOriginalCurrency(
+                cachedSettings.currency.displayCurrency || "USD"
+              );
+              setOriginalExchangeRate(
+                (cachedSettings.currency.exchangeRate || 1).toString()
+              );
+            }
+
+            if (cachedSettings.emailSignup) {
+              setEmailSignupSettings(cachedSettings.emailSignup);
+              setOriginalEmailSignupSettings(
+                JSON.parse(JSON.stringify(cachedSettings.emailSignup))
+              );
+            }
+
+            console.log("📱 Settings loaded from IndexedDB (offline)");
+          } else {
+            console.log("ℹ️ No cached settings available");
+          }
+        }
       }
     } catch (error) {
       console.error("Error loading settings:", error);

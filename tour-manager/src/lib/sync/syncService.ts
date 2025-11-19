@@ -7,7 +7,7 @@
 import { SyncManager } from "./SyncManager";
 import { DEFAULT_SYNC_CONFIG, ALL_SYNC_STRATEGIES } from "./strategies";
 import { SyncStats, SyncEvent, SyncStrategy } from "./types";
-import { Sale, Product, CloseOut } from "../../types";
+import { Sale, Product, CloseOut, UserSettings } from "../../types";
 
 class SyncService {
   private syncManager: SyncManager;
@@ -134,12 +134,12 @@ class SyncService {
   /**
    * Sync user settings to Supabase
    */
-  async syncSettings(settings: Record<string, unknown>): Promise<string> {
+  async syncSettings(settings: UserSettings): Promise<string> {
     this.ensureInitialized();
     return await this.syncManager.enqueue(
       "settings",
       "update", // Settings always use update (upsert)
-      settings,
+      settings as unknown as Record<string, unknown>,
       {
         priority: 9, // High priority - user expects instant saves
       }
