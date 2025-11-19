@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { getGoogleAuthClient } from "@/lib/supabase/api-auth";
 import { Product } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !session.accessToken) {
-      return NextResponse.json(
-        { error: "Unauthorized - Please sign in" },
-        { status: 401 }
-      );
-    }
+    // Authenticate with Google
+    const { authClient, error } = await getGoogleAuthClient();
+    if (error) return error;
 
     const { products, productsSheetId } = await req.json();
 
@@ -25,9 +19,6 @@ export async function POST(req: NextRequest) {
 
     // Use the provided sheet ID
     const { google } = await import("googleapis");
-    const authClient = new google.auth.OAuth2();
-    authClient.setCredentials({ access_token: session.accessToken });
-
     const sheets = google.sheets({ version: "v4", auth: authClient });
 
     // Clear existing data (except header)

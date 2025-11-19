@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { Product, CartItem, PaymentMethod, Sale, SyncStatus } from "@/types";
 import {
@@ -16,6 +16,7 @@ import {
   deleteSyncedSales,
 } from "@/lib/db";
 import { DEFAULT_PRODUCTS } from "@/lib/defaultProducts";
+import syncService from "@/lib/sync/syncService";
 import POSInterface from "@/components/POSInterface";
 import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
@@ -34,7 +35,7 @@ import {
 import { useTheme } from "@/components/ThemeProvider";
 
 export default function Home() {
-  const { data: session, status } = useSession();
+  const { user, session, signOut } = useAuth();
   const router = useRouter();
   const initializingRef = useRef(false); // Prevent multiple initializations
   const productSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce product syncs
@@ -74,25 +75,25 @@ export default function Home() {
 
   // Handle authentication redirect
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (!session && !user) {
       router.push("/auth/signin");
     }
-  }, [status, router]);
+  }, [session, user, router]);
 
   // Monitor session for token refresh errors and auto-logout
   useEffect(() => {
-    if (session?.error === "RefreshAccessTokenError") {
-      console.error("Token refresh failed. Logging out...");
+    if (!session && user) {
+      console.error("Session lost. Logging out...");
       setToast({
         message: "Your session has expired. Please sign in again.",
         type: "error",
       });
       // Sign out after a short delay to show the toast
       setTimeout(() => {
-        signOut({ callbackUrl: "/auth/signin" });
+        signOut();
       }, 2000);
     }
-  }, [session]);
+  }, [session, user, signOut]);
 
   // Load theme from settings on initialization
   useEffect(() => {
@@ -129,6 +130,22 @@ export default function Home() {
       initializeApp();
     }
   }, [session, isInitialized]);
+
+  // Initialize sync service on client side
+  useEffect(() => {
+    const initializeSyncService = async () => {
+      try {
+        await syncService.initialize();
+        console.log("✅ Sync service initialized");
+      } catch (error) {
+        console.error("Failed to initialize sync service:", error);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      initializeSyncService();
+    }
+  }, []);
 
   useEffect(() => {
     if (isInitialized) {
@@ -169,7 +186,9 @@ export default function Home() {
           }
 
           if (hasUnsyncedProducts) {
-            await syncProductsToSheet();
+            // TODO: Replace with new sync service - old function temporarily disabled
+            // await syncProductsToSheet();
+            console.log("Products sync disabled - using new sync service");
             syncParts.push("products");
           }
 
@@ -215,7 +234,9 @@ export default function Home() {
       // Sync products if needed
       if (syncStatus.pendingProductSync) {
         setTimeout(() => {
-          syncProductsToSheet();
+          // TODO: Replace with new sync service - old function temporarily disabled
+          // syncProductsToSheet();
+          console.log("Products sync disabled - using new sync service");
         }, 1500);
       }
     };
@@ -323,7 +344,7 @@ export default function Home() {
               storedProductsSheetId = findData.spreadsheetId;
               storedSalesSheetId = findData.spreadsheetId;
               console.log(
-                "✅ Found existing MERCH TABLE spreadsheet!",
+                "✅ Found existing ROAD DOG spreadsheet!",
                 findData.spreadsheetId
               );
             } else {
@@ -563,12 +584,19 @@ export default function Home() {
       tipAmount,
     };
 
+    // Save to local database first
     await saveSale(sale);
-    await updateSyncStatus();
 
-    if (navigator.onLine) {
-      syncSales();
+    // Use new sync service to handle cloud sync
+    try {
+      await syncService.syncSale(sale);
+      console.log("✅ Sale queued for sync:", sale.id);
+    } catch (error) {
+      console.error("Failed to queue sale for sync:", error);
+      // Don't block the sale - it's already saved locally and will be synced later
     }
+
+    await updateSyncStatus();
   };
 
   const syncSales = async () => {
@@ -621,21 +649,17 @@ export default function Home() {
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
 
-    // Mark products as needing sync
-    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-
-    // Debounce sync to avoid showing sync bar for rapid changes
-    // Clear any existing timeout
-    if (productSyncTimeoutRef.current) {
-      clearTimeout(productSyncTimeoutRef.current);
+    // Use new sync service to handle cloud sync
+    try {
+      await syncService.syncProduct(product);
+      console.log("✅ Product queued for sync:", product.id);
+    } catch (error) {
+      console.error("Failed to queue product for sync:", error);
+      // Don't block the operation - product is already saved locally
     }
 
-    // Sync will happen after 1.5 seconds of inactivity, or on page load/online event
-    productSyncTimeoutRef.current = setTimeout(() => {
-      if (navigator.onLine) {
-        syncProductsToSheet();
-      }
-    }, 1500);
+    // Mark products as needing sync (for legacy status display)
+    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
   };
 
   const handleUpdateProduct = async (product: Product) => {
@@ -643,19 +667,17 @@ export default function Home() {
     const updatedProducts = await getProducts();
     setProducts(updatedProducts);
 
-    // Mark products as needing sync
-    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-
-    // Debounce sync to avoid showing sync bar for rapid changes
-    if (productSyncTimeoutRef.current) {
-      clearTimeout(productSyncTimeoutRef.current);
+    // Use new sync service to handle cloud sync
+    try {
+      await syncService.updateProduct(product);
+      console.log("✅ Product update queued for sync:", product.id);
+    } catch (error) {
+      console.error("Failed to queue product update for sync:", error);
+      // Don't block the operation - product is already saved locally
     }
 
-    productSyncTimeoutRef.current = setTimeout(() => {
-      if (navigator.onLine) {
-        syncProductsToSheet();
-      }
-    }, 1500);
+    // Mark products as needing sync (for legacy status display)
+    setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -664,19 +686,17 @@ export default function Home() {
       const updatedProducts = await getProducts();
       setProducts(updatedProducts);
 
-      // Mark products as needing sync
-      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
-
-      // Debounce sync to avoid showing sync bar for rapid changes
-      if (productSyncTimeoutRef.current) {
-        clearTimeout(productSyncTimeoutRef.current);
+      // Use new sync service to handle cloud sync
+      try {
+        await syncService.deleteProduct(id);
+        console.log("✅ Product deletion queued for sync:", id);
+      } catch (error) {
+        console.error("Failed to queue product deletion for sync:", error);
+        // Don't block the operation - product is already deleted locally
       }
 
-      productSyncTimeoutRef.current = setTimeout(() => {
-        if (navigator.onLine) {
-          syncProductsToSheet();
-        }
-      }, 1500);
+      // Mark products as needing sync (for legacy status display)
+      setSyncStatus((prev) => ({ ...prev, pendingProductSync: true }));
     }
   };
 
@@ -759,16 +779,16 @@ export default function Home() {
       <header className="bg-theme-secondary border-b border-theme p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl sm:text-2xl font-bold text-theme ft-heading">
-            Merch Table
+            Road Dog
           </h1>
           <div className="flex items-center gap-2 sm:gap-4">
-            {session?.user?.email && (
+            {user?.email && (
               <div className="text-right">
                 <p className="text-xs sm:text-sm text-theme-muted hidden sm:block">
                   Signed in as
                 </p>
                 <p className="text-xs sm:text-sm font-medium text-theme truncate max-w-[120px] sm:max-w-none">
-                  {session.user.email}
+                  {user.email}
                 </p>
               </div>
             )}
@@ -981,7 +1001,7 @@ export default function Home() {
                 </ul>
               </div>
 
-              {/* November 5, 2025 - MERCH TABLE Rebrand */}
+              {/* November 5, 2025 - ROAD DOG Rebrand */}
               <div className="border-l-4 border-primary pl-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-2 py-0.5 text-xs font-bold bg-primary text-black rounded">
@@ -992,7 +1012,7 @@ export default function Home() {
                   </span>
                 </div>
                 <h3 className="text-lg font-bold text-theme mb-2">
-                  🧡 Welcome to MERCH TABLE
+                  🧡 Welcome to ROAD DOG
                 </h3>
                 <ul className="space-y-1 text-sm text-theme-secondary">
                   <li>
@@ -1015,7 +1035,7 @@ export default function Home() {
                     • All functionality stays the same - just looks better
                   </li>
                   <li>
-                    • Multiple themes still available in Settings (Merch Table,
+                    • Multiple themes still available in Settings (Road Dog,
                     Default, Girlypop)
                   </li>
                 </ul>

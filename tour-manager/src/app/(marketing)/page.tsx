@@ -25,7 +25,7 @@ export default function HomePage() {
             <div className="flex items-center gap-3">
               <span className="text-3xl">🎸</span>
               <h1 className="text-2xl font-bold text-theme ft-heading">
-                Merch Table
+                Road Dog
               </h1>
             </div>
             <div className="flex items-center gap-4">
@@ -82,32 +82,42 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* What is Merch Table */}
+      {/* What is Road Dog */}
       <section
         id="about"
         className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16"
       >
         <div className="bg-theme-secondary border border-theme rounded-lg p-8 md:p-12">
           <h3 className="text-3xl font-bold text-theme mb-6 text-center">
-            What is Merch Table?
+            What is Road Dog?
           </h3>
           <div className="max-w-3xl mx-auto space-y-4 text-lg text-theme-secondary">
             <p>
-              <strong className="text-theme">Merch Table</strong> is a
+              <strong className="text-theme">Road Dog</strong> is a
               point-of-sale (POS) system designed specifically for touring bands
               and vendors who need to track sales on the road.
             </p>
             <p>
               Unlike traditional POS systems that require constant internet
-              connectivity and charge high fees, Merch Table works completely
+              connectivity and charge high fees, Road Dog works completely
               offline and stores your data in your own Google Sheets spreadsheet
               - giving you full ownership and control.
             </p>
             <p>
-              Whether you're selling t-shirts at a basement show, vinyl at a
-              craft market, or merch on tour, Merch Table helps you track
+              Whether you&apos;re selling t-shirts at a basement show, vinyl at
+              a craft market, or merch on tour, Road Dog helps you track
               inventory, accept multiple payment methods, and sync your sales
-              data when you're back online.
+              data when you&apos;re back online.
+            </p>
+            <p className="text-sm text-theme-muted pt-4 border-t border-theme mt-6">
+              Read our{" "}
+              <Link
+                href="/privacy"
+                className="text-primary hover:underline font-semibold"
+              >
+                Privacy Policy
+              </Link>{" "}
+              to learn how we protect your data.
             </p>
           </div>
         </div>
@@ -276,9 +286,9 @@ export default function HomePage() {
           </h3>
           <div className="max-w-3xl mx-auto space-y-4 text-theme-secondary">
             <p>
-              <strong className="text-theme">Merch Table</strong> uses Google
-              OAuth to access your Google Sheets, allowing you to store and sync
-              your sales data. Here's exactly what we do with your data:
+              <strong className="text-theme">Road Dog</strong> uses Google OAuth
+              to access your Google Sheets, allowing you to store and sync your
+              sales data. Here&apos;s exactly what we do with your data:
             </p>
             <ul className="space-y-3 ml-6">
               <li className="flex items-start gap-3">
@@ -342,7 +352,7 @@ export default function HomePage() {
             href="/auth/signin"
             className="inline-block px-8 py-4 bg-primary text-on-primary font-bold text-lg rounded-lg hover:bg-primary shadow-lg transition-all"
           >
-            Start Using Merch Table Free →
+            Start Using Road Dog Free →
           </Link>
         </div>
       </section>
@@ -355,7 +365,7 @@ export default function HomePage() {
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-3xl">🎸</span>
                 <h4 className="text-xl font-bold text-theme ft-heading">
-                  Merch Table
+                  Road Dog
                 </h4>
               </div>
               <p className="text-theme-secondary">
@@ -418,8 +428,8 @@ export default function HomePage() {
           </div>
           <div className="border-t border-theme mt-8 pt-8 text-center text-theme-secondary">
             <p>
-              © {new Date().getFullYear()} Merch Table. Currently in beta •
-              Built for touring musicians.
+              © {new Date().getFullYear()} Road Dog. Currently in beta • Built
+              for touring musicians.
             </p>
           </div>
         </div>

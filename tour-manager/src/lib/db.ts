@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
-import { Product, Sale } from "@/types";
+import { Product, Sale, CloseOut } from "@/types";
 
 interface MerchPOSDB extends DBSchema {
   products: {
@@ -10,28 +10,53 @@ interface MerchPOSDB extends DBSchema {
     key: string;
     value: Sale;
   };
+  closeouts: {
+    key: string;
+    value: CloseOut;
+    indexes: { timestamp: string };
+  };
 }
 
-const DB_NAME = "merch-pos-db";
-const DB_VERSION = 1;
+const DB_NAME = "road-dog-db";
+const DB_VERSION = 2; // Increment for new close-outs store
 
 let dbPromise: Promise<IDBPDatabase<MerchPOSDB>> | null = null;
 
 export function getDB() {
   dbPromise ??= openDB<MerchPOSDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, oldVersion, newVersion) {
+      console.log(`🔄 Database upgrade: ${oldVersion} → ${newVersion}`);
+
       // Products store
       if (!db.objectStoreNames.contains("products")) {
+        console.log("📦 Creating products store");
         db.createObjectStore("products", { keyPath: "id" });
       }
 
       // Sales store
       if (!db.objectStoreNames.contains("sales")) {
+        console.log("💰 Creating sales store");
         db.createObjectStore("sales", { keyPath: "id" });
+      }
+
+      // Close-outs store (added in v2)
+      if (!db.objectStoreNames.contains("closeouts")) {
+        console.log("📊 Creating closeouts store");
+        const closeoutStore = db.createObjectStore("closeouts", {
+          keyPath: "id",
+        });
+        // Add index for timestamp to enable sorting by date
+        closeoutStore.createIndex("timestamp", "timestamp", { unique: false });
       }
     },
   });
   return dbPromise;
+}
+
+// Force refresh database connection (useful for debugging)
+export function refreshDB() {
+  dbPromise = null;
+  return getDB();
 }
 
 // Products
@@ -86,22 +111,81 @@ export async function markSaleAsSynced(saleId: string) {
 export async function deleteSyncedSales() {
   const db = await getDB();
   const allSales = await db.getAll("sales");
-  const syncedSales = allSales.filter((sale) => sale.synced);
 
-  for (const sale of syncedSales) {
+  // Get all close-outs to see which sales are already closed out
+  const allCloseOuts = await db.getAll("closeouts");
+  const closedOutSaleIds = new Set<string>();
+  for (const closeOut of allCloseOuts) {
+    for (const saleId of closeOut.saleIds) {
+      closedOutSaleIds.add(saleId);
+    }
+  }
+
+  // Only delete synced sales that have been closed out
+  // Keep synced sales that haven't been closed out yet for future close-outs
+  const salesToDelete = allSales.filter(
+    (sale) => sale.synced && closedOutSaleIds.has(sale.id)
+  );
+
+  for (const sale of salesToDelete) {
     await db.delete("sales", sale.id);
   }
 
-  return syncedSales.length;
+  console.log(
+    `🗑️ Deleted ${salesToDelete.length} closed-out sales, keeping ${
+      allSales.filter((s) => s.synced && !closedOutSaleIds.has(s.id)).length
+    } synced sales for future close-outs`
+  );
+
+  return salesToDelete.length;
 }
 
 export async function clearAllData() {
   const db = await getDB();
   await db.clear("products");
   await db.clear("sales");
+  await db.clear("closeouts");
 }
 
 export async function clearAllProducts() {
   const db = await getDB();
   await db.clear("products");
+}
+
+// Close-outs
+export async function saveCloseOut(closeOut: CloseOut) {
+  const db = await getDB();
+  await db.put("closeouts", closeOut);
+}
+
+export async function getCloseOuts(): Promise<CloseOut[]> {
+  const db = await getDB();
+  const closeOuts = await db.getAll("closeouts");
+  // Sort manually by timestamp (newest first)
+  return closeOuts.sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+}
+
+export async function getCloseOutById(
+  id: string
+): Promise<CloseOut | undefined> {
+  const db = await getDB();
+  return db.get("closeouts", id);
+}
+
+export async function updateCloseOut(closeOut: CloseOut) {
+  const db = await getDB();
+  closeOut.updatedAt = new Date().toISOString();
+  await db.put("closeouts", closeOut);
+}
+
+export async function deleteCloseOut(id: string) {
+  const db = await getDB();
+  await db.delete("closeouts", id);
+}
+
+export async function getLastCloseOut(): Promise<CloseOut | undefined> {
+  const closeOuts = await getCloseOuts(); // Already sorted newest first
+  return closeOuts[0];
 }

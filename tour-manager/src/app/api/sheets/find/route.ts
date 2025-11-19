@@ -1,27 +1,22 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
 import { google } from "googleapis";
+import { getGoogleAuthClient } from "@/lib/supabase/api-auth";
 
 /**
- * Find existing Merch Table spreadsheet in user's Google Drive
+ * Find existing Road Dog spreadsheet in user's Google Drive
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const authResult = await getGoogleAuthClient();
+    if ("error" in authResult) {
+      return authResult.error;
     }
 
-    const auth = new google.auth.OAuth2();
-    auth.setCredentials({ access_token: session.accessToken });
-
-    const drive = google.drive({ version: "v3", auth });
+    const drive = google.drive({ version: "v3", auth: authResult.authClient });
 
     // Search for spreadsheet with specific name
     const response = await drive.files.list({
-      q: "name='Merch Table - Sales & Inventory' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+      q: "name='Road Dog - Sales & Inventory' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
       fields: "files(id, name)",
       orderBy: "createdTime desc",
       pageSize: 1,

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import SessionProvider from "@/components/SessionProvider";
+import { AuthProvider } from "@/components/AuthProvider";
 import ThemeProvider from "@/components/ThemeProvider";
 
 const geistSans = Geist({
@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MERCH TABLE",
+  title: "ROAD DOG",
   description:
     "Road-ready POS for bands on tour. Track sales, manage inventory, stay focused on the show.",
   manifest: "/manifest.json",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black",
-    title: "MERCH TABLE",
+    title: "ROAD DOG",
   },
 };
 
@@ -42,9 +42,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SessionProvider>
+        <AuthProvider>
           <ThemeProvider>{children}</ThemeProvider>
-        </SessionProvider>
+        </AuthProvider>
       </body>
     </html>
   );

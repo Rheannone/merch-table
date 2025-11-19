@@ -13,8 +13,10 @@ import {
   ArrowDownTrayIcon,
   EnvelopeIcon,
 } from "@heroicons/react/24/outline";
-import { PaymentSetting, EmailSignupSettings } from "@/types";
+import { PaymentSetting, EmailSignupSettings, CloseOut } from "@/types";
 import Toast, { ToastType } from "./Toast";
+import CloseOutSection from "./CloseOutSection";
+import CloseOutWizard from "./CloseOutWizard";
 import { useTheme } from "./ThemeProvider";
 import { getAllThemes } from "@/lib/themes";
 import { clearAllProducts } from "@/lib/db";
@@ -73,6 +75,7 @@ export default function Settings() {
   const [isProductCategoriesExpanded, setIsProductCategoriesExpanded] =
     useState(false);
   const [isGoogleSheetsExpanded, setIsGoogleSheetsExpanded] = useState(false);
+  const [isAccountExpanded, setIsAccountExpanded] = useState(false);
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
   const [isCurrencyExpanded, setIsCurrencyExpanded] = useState(false);
 
@@ -110,6 +113,12 @@ export default function Settings() {
   const [isManualEntrySubmitting, setIsManualEntrySubmitting] = useState(false);
   const [needsEmailListSheet, setNeedsEmailListSheet] = useState(false);
   const [isAddingEmailSheet, setIsAddingEmailSheet] = useState(false);
+
+  // Close-out state
+  const [showCloseOutWizard, setShowCloseOutWizard] = useState(false);
+  const [editingCloseOut, setEditingCloseOut] = useState<CloseOut | null>(null);
+  const [requireCashReconciliation, setRequireCashReconciliation] =
+    useState(false);
 
   // Unsaved changes tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -609,6 +618,33 @@ export default function Settings() {
     }
   };
 
+  // Close-out handlers
+  const handleCreateCloseOut = () => {
+    setEditingCloseOut(null);
+    setShowCloseOutWizard(true);
+  };
+
+  const handleEditCloseOut = (closeOut: CloseOut) => {
+    setEditingCloseOut(closeOut);
+    setShowCloseOutWizard(true);
+  };
+
+  const handleCloseOutSuccess = () => {
+    setShowCloseOutWizard(false);
+    setEditingCloseOut(null);
+    setToast({
+      message: editingCloseOut
+        ? "Close-out updated successfully!"
+        : "Session closed out successfully! 🎉",
+      type: "success",
+    });
+  };
+
+  const handleCloseOutCancel = () => {
+    setShowCloseOutWizard(false);
+    setEditingCloseOut(null);
+  };
+
   const updatePaymentSetting = (
     index: number,
     field: keyof PaymentSetting,
@@ -754,6 +790,42 @@ export default function Settings() {
         loadSettings();
         window.location.reload(); // Refresh to reload all data
       }, 1000);
+    }
+  };
+
+  // Revoke Google OAuth access
+  const handleRevokeAccess = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to revoke Google access? You will need to sign in again to use Google Sheets features."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+
+      // Sign out from Supabase (this will clear the session and provider tokens)
+      await supabase.auth.signOut();
+
+      setToast({
+        message:
+          "✅ Google access revoked successfully. Redirecting to sign in...",
+        type: "success",
+        duration: 3000,
+      });
+
+      // Redirect to sign in page after a brief delay
+      setTimeout(() => {
+        window.location.href = "/auth/signin";
+      }, 2000);
+    } catch (error) {
+      console.error("Error revoking access:", error);
+      setToast({
+        message: "Failed to revoke access. Please try again.",
+        type: "error",
+        duration: 5000,
+      });
     }
   };
 
@@ -1466,6 +1538,82 @@ export default function Settings() {
           )}
         </div>
 
+        {/* Account & Privacy Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsAccountExpanded(!isAccountExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <svg
+                className="w-7 h-7 text-primary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              <h2 className="text-2xl font-bold text-theme">
+                Account & Privacy
+              </h2>
+            </div>
+            {isAccountExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isAccountExpanded && (
+            <div className="px-6 pb-6">
+              <p className="text-sm text-theme-muted mb-6">
+                Manage your Google account connection and data permissions.
+              </p>
+
+              <div className="space-y-4">
+                {/* Revoke Access Card */}
+                <div className="bg-theme-tertiary rounded-lg p-6 border border-theme">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 text-4xl">🔐</div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-theme mb-2">
+                        Revoke Google Access
+                      </h3>
+                      <p className="text-sm text-theme-muted mb-4">
+                        Remove this app&apos;s access to your Google account and
+                        Google Sheets. You&apos;ll need to sign in again to
+                        continue using the app.
+                      </p>
+                      <button
+                        onClick={handleRevokeAccess}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded transition-all active:scale-95"
+                      >
+                        Revoke Access
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
+                  <p className="text-sm text-theme">
+                    ℹ️ <strong>Note:</strong> Revoking access will sign you out
+                    and clear your session. Your data in Google Sheets will
+                    remain unchanged.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Backup Section */}
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
           {/* Collapsible Header */}
@@ -1551,6 +1699,12 @@ export default function Settings() {
             </div>
           )}
         </div>
+
+        {/* Close-Out Section */}
+        <CloseOutSection
+          onCreateCloseOut={handleCreateCloseOut}
+          onEditCloseOut={handleEditCloseOut}
+        />
 
         {/* Email Signup Section */}
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
@@ -1979,10 +2133,19 @@ export default function Settings() {
             </a>
           </div>
           <p className="text-center text-xs text-theme-muted mt-3 opacity-60">
-            MERCH TABLE • Road-ready POS for bands on tour
+            ROAD DOG • Road-ready POS for bands on tour
           </p>
         </div>
       </div>
+
+      {/* Close-Out Wizard */}
+      <CloseOutWizard
+        isOpen={showCloseOutWizard}
+        onClose={handleCloseOutCancel}
+        onSuccess={handleCloseOutSuccess}
+        editingCloseOut={editingCloseOut}
+        requireCashReconciliation={requireCashReconciliation}
+      />
 
       {/* Toast Notification */}
       {toast && (

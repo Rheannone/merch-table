@@ -1,6 +1,6 @@
 {
-  "name": "merch-table",
-  "version": "1.0.0",
+  "name": "road-dog",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -204,7 +204,7 @@ export async function initializeUserSheets(
   const response = await sheets.spreadsheets.create({
     requestBody: {
       properties: {
-        title: "Merch Table - Sales & Inventory",
+        title: "Road Dog - Sales & Inventory",
       },
       sheets: [
         {

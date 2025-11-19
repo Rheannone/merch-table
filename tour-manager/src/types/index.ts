@@ -136,3 +136,56 @@ export interface EmailSignupSettings {
   collectPhone?: boolean; // Whether to ask for phone (default: false)
   autoDismissSeconds?: number; // Auto-dismiss after X seconds (default: 10)
 }
+
+export interface CloseOut {
+  id: string;
+  timestamp: string; // When the close-out was created
+
+  // Editable metadata
+  sessionName?: string; // "Brooklyn Music Hall", "Christmas Market Day 1"
+  location?: string; // Free-form location text
+  eventDate?: string; // Defaults to timestamp, but editable
+  notes?: string; // "Sold out of XL tees, great crowd"
+
+  // Calculated summary metrics (derived from sales)
+  salesCount: number;
+  totalRevenue: number; // Sum of cart totals
+  actualRevenue: number; // Sum of actual amounts received
+  discountsGiven: number; // Sum of discounts/hookups
+  tipsReceived: number; // Sum of tips
+
+  // Payment method breakdown
+  paymentBreakdown: {
+    [method: string]: {
+      count: number; // Number of transactions
+      amount: number; // Total amount for this method
+    };
+  };
+
+  // Product performance
+  productsSold: {
+    productId: string;
+    productName: string;
+    quantitySold: number;
+    revenue: number; // Revenue from this product
+    sizes?: { [size: string]: number }; // Quantities sold by size
+  }[];
+
+  // Cash reconciliation (optional)
+  expectedCash?: number; // How much cash should be in drawer
+  actualCash?: number; // How much cash was actually counted
+  cashDifference?: number; // actualCash - expectedCash (+ = over, - = short)
+
+  // Links to sales included in this close-out
+  saleIds: string[]; // All sale IDs that were closed out
+
+  // Local tracking
+  syncedToSupabase: boolean; // For future cloud sync
+
+  createdAt: string; // When record was created locally
+  updatedAt?: string; // When record was last modified
+}
+
+export interface CloseOutSettings {
+  requireCashReconciliation: boolean; // Global setting - should cash count be required
+}

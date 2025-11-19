@@ -1,9 +1,87 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/components/AuthProvider";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DebugPage() {
-  const { data: session, status } = useSession();
+  const { user, session } = useAuth();
+
+  const testSupabaseAuth = async () => {
+    try {
+      const supabase = createClient();
+
+      console.log("🔍 Testing Supabase authentication...");
+      console.log("👤 Current user from context:", user);
+      console.log("🎫 Current session from context:", session);
+
+      // Test user authentication
+      const { data: userResponse, error: userError } =
+        await supabase.auth.getUser();
+
+      if (userError) {
+        console.error("❌ Auth error:", userError.message);
+        alert(`Auth error: ${userError.message}`);
+        return;
+      }
+
+      if (!userResponse?.user?.id) {
+        console.error("❌ No authenticated user found");
+        alert("No authenticated user found");
+        return;
+      }
+
+      console.log("✅ User authenticated:", userResponse.user.id);
+      console.log("👤 User email:", userResponse.user.email);
+
+      // Test a simple insert to verify RLS is working
+      const testData = {
+        id: `test-${Date.now()}`,
+        user_id: userResponse.user.id,
+        name: "Test Product",
+        price: 10.0,
+        category: "Test",
+        enabled: true,
+        synced_to_sheets: false,
+        synced_to_supabase: true,
+      };
+
+      console.log("🧪 Testing product insert with data:", testData);
+
+      const { data: insertResult, error: insertError } = await supabase
+        .from("products")
+        .insert(testData)
+        .select();
+
+      if (insertError) {
+        console.error("❌ Insert error:", insertError);
+        alert(`Insert failed: ${insertError.message}`);
+        return;
+      }
+
+      console.log("✅ Test insert successful:", insertResult);
+
+      // Clean up test data
+      const { error: deleteError } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", testData.id);
+
+      if (deleteError) {
+        console.warn("⚠️ Failed to clean up test data:", deleteError);
+      } else {
+        console.log("🧹 Test data cleaned up");
+      }
+
+      alert("✅ Supabase authentication and RLS working correctly!");
+    } catch (error) {
+      console.error("💥 Test failed:", error);
+      alert(
+        `Test failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  };
 
   const handleNuclearReset = async () => {
     if (
@@ -18,7 +96,7 @@ export default function DebugPage() {
           "\n" +
           "You will be signed out and redirected to the home page.\n" +
           "\n" +
-          "⚠️ IMPORTANT: You must manually delete your 'Merch Table' spreadsheet from Google Drive after this.\n" +
+          "⚠️ IMPORTANT: You must manually delete your 'Road Dog' spreadsheet from Google Drive after this.\n" +
           "\n" +
           "Continue?"
       )
@@ -39,7 +117,7 @@ export default function DebugPage() {
 
       // 3. Delete IndexedDB
       await new Promise<void>((resolve, reject) => {
-        const deleteRequest = indexedDB.deleteDatabase("merch-pos-db");
+        const deleteRequest = indexedDB.deleteDatabase("road-dog-db");
         deleteRequest.onsuccess = () => {
           console.log("✅ Deleted IndexedDB");
           resolve();
@@ -51,7 +129,7 @@ export default function DebugPage() {
         deleteRequest.onblocked = () => {
           console.warn("⚠️ IndexedDB deletion blocked - will retry");
           setTimeout(() => {
-            const retryRequest = indexedDB.deleteDatabase("merch-pos-db");
+            const retryRequest = indexedDB.deleteDatabase("road-dog-db");
             retryRequest.onsuccess = () => {
               console.log("✅ Deleted IndexedDB (retry)");
               resolve();
@@ -182,13 +260,34 @@ export default function DebugPage() {
             <li>Service worker & caches</li>
           </ul>
           <p className="mt-2 font-semibold text-yellow-400">
-            ⚠️ After reset, manually delete &quot;Merch Table&quot; spreadsheet
+            ⚠️ After reset, manually delete &quot;Road Dog&quot; spreadsheet
             from Google Drive
           </p>
         </div>
       </div>
 
-      {/* Insights Tools Section */}
+      {/* Supabase Auth Test Section */}
+      <div className="mb-8 p-6 bg-blue-950 border-2 border-blue-600 rounded-lg">
+        <h2 className="text-xl font-bold text-blue-400 mb-3">
+          🔐 Test Supabase Authentication
+        </h2>
+        <p className="text-zinc-300 mb-4">
+          Test if authentication is working with Supabase and RLS policies are
+          properly configured.
+        </p>
+        <button
+          onClick={testSupabaseAuth}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all shadow-lg"
+        >
+          🧪 Test Auth & RLS
+        </button>
+        <p className="text-zinc-400 text-sm mt-2">
+          This will verify user authentication and test a simple database
+          operation
+        </p>
+      </div>
+
+      {/* Insights Sheet Section */}
       <div className="mb-8 p-6 bg-zinc-800 border border-zinc-700 rounded-lg">
         <h2 className="text-xl font-semibold text-zinc-300 mb-3">
           Insights Sheet Tools
@@ -216,10 +315,19 @@ export default function DebugPage() {
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-zinc-400 mb-2">
-            Session Status:
+            Authentication Status:
           </h2>
           <pre className="bg-zinc-800 p-4 rounded border border-zinc-700 overflow-auto text-sm">
-            {status}
+            {user ? "authenticated" : "unauthenticated"}
+          </pre>
+        </div>
+
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-400 mb-2">
+            User Data:
+          </h2>
+          <pre className="bg-zinc-800 p-4 rounded border border-zinc-700 overflow-auto text-sm">
+            {JSON.stringify(user, null, 2)}
           </pre>
         </div>
 

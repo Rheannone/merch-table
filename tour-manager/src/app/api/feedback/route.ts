@@ -6,12 +6,9 @@ import { Resend } from "resend";
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { type, message } = await req.json();
@@ -36,9 +33,11 @@ export async function POST(req: NextRequest) {
 
     // Send email notification
     await resend.emails.send({
-      from: "Merch Table <onboarding@resend.dev>",
+      from: "Road Dog <onboarding@resend.dev>",
       to: "rheannone@gmail.com",
-      subject: `${type === "feature" ? "💡 Feature Request" : "🐛 Bug Report"} - Merch Table`,
+      subject: `${
+        type === "feature" ? "💡 Feature Request" : "🐛 Bug Report"
+      } - Road Dog`,
       html: `
         <h2>${type === "feature" ? "Feature Request" : "Bug Report"}</h2>
         <p><strong>From:</strong> ${session.user.email}</p>
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
         <p style="white-space: pre-wrap;">${message}</p>
         <hr />
         <p style="font-size: 12px; color: #666;">
-          <em>Sent from Merch Table feedback system</em>
+          <em>Sent from Road Dog feedback system</em>
         </p>
       `,
     });

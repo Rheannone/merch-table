@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { getGoogleAuthClient } from "@/lib/supabase/api-auth";
+import { google } from "googleapis";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !session.accessToken) {
-      return NextResponse.json(
-        { error: "Unauthorized - Please sign in" },
-        { status: 401 }
-      );
+    const authResult = await getGoogleAuthClient();
+    if ("error" in authResult) {
+      return authResult.error;
     }
 
     const { spreadsheetId } = await req.json();
@@ -22,11 +18,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { google } = await import("googleapis");
-    const authClient = new google.auth.OAuth2();
-    authClient.setCredentials({ access_token: session.accessToken });
-
-    const sheets = google.sheets({ version: "v4", auth: authClient });
+    const sheets = google.sheets({
+      version: "v4",
+      auth: authResult.authClient,
+    });
 
     // Check if Insights sheet exists
     const spreadsheet = await sheets.spreadsheets.get({

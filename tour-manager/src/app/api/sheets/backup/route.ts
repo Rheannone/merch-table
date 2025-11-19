@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { getGoogleAuthClient } from "@/lib/supabase/api-auth";
 import { google } from "googleapis";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const authResult = await getGoogleAuthClient();
+    if ("error" in authResult) {
+      return authResult.error;
     }
 
     const { spreadsheetId } = await req.json();
@@ -20,13 +18,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Set up OAuth2 client
-    const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({
-      access_token: session.accessToken,
+    const sheets = google.sheets({
+      version: "v4",
+      auth: authResult.authClient,
     });
-
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
 
     // Generate backup name with current date
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format

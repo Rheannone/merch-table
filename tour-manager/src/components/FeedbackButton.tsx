@@ -159,7 +159,7 @@ export default function FeedbackButton() {
 
           {/* Footer Note */}
           <div className="bg-theme-tertiary border-t border-theme p-3 text-xs text-theme-muted text-center">
-            Your feedback helps make Merch Table better!
+            Your feedback helps make Road Dog better!
           </div>
         </div>
       )}

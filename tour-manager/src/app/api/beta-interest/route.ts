@@ -23,16 +23,16 @@ export async function POST(req: NextRequest) {
 
     // Send email notification via Resend
     await resend.emails.send({
-      from: "Merch Table <onboarding@resend.dev>", // Resend's verified sender for testing
+      from: "Road Dog <onboarding@resend.dev>", // Resend's verified sender for testing
       to: "rheannone@gmail.com",
-      subject: "🎸 New Beta Interest - Merch Table",
+      subject: "🎸 New Beta Interest - Road Dog",
       html: `
         <h2>New Beta Tester Interest!</h2>
         <p><strong>Email:</strong> ${email}</p>
         ${name ? `<p><strong>Name:</strong> ${name}</p>` : ""}
         <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
         <hr />
-        <p><em>Sent from your Merch Table landing page</em></p>
+        <p><em>Sent from your Road Dog landing page</em></p>
       `,
     });
 
