@@ -377,7 +377,7 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
                 success: false,
                 error: error instanceof Error ? error.message : String(error),
               };
-              
+
               // Resolve ALL pending promises with the error result
               const resolvesToCall = [...pendingProductSheetsSyncResolves];
               pendingProductSheetsSyncResolves = [];
