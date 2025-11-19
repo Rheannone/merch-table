@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  uploadProductImage,
-  compressImageForStorage,
-} from "@/lib/supabase/storage";
+import { uploadProductImage } from "@/lib/supabase/storage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,19 +40,16 @@ export async function POST(req: NextRequest) {
       ).toFixed(0)}KB)`
     );
 
-    // Compress image for web delivery (high quality)
-    const compressedImage = await compressImageForStorage(image);
-
-    // Upload to Supabase Storage
-    const publicUrl = await uploadProductImage(compressedImage, productId);
+    // Upload directly to Supabase Storage (no server-side compression needed)
+    // The client already compressed it before sending
+    const publicUrl = await uploadProductImage(image, productId);
 
     console.log(`✅ Image upload complete: ${publicUrl}`);
 
     return NextResponse.json({
       success: true,
       url: publicUrl, // CDN URL instead of base64
-      originalSize: `${(image.size / 1024).toFixed(0)}KB`,
-      compressedSize: `${(compressedImage.size / 1024).toFixed(0)}KB`,
+      size: `${(image.size / 1024).toFixed(0)}KB`,
     });
   } catch (error) {
     console.error("❌ Image upload error:", error);

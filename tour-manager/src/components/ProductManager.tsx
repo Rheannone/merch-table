@@ -219,6 +219,75 @@ export default function ProductManager({
     setSizeQuantities(newQuantities);
   };
 
+  // Client-side image compression
+  const compressImage = async (
+    file: File,
+    maxWidth: number = 1200,
+    quality: number = 0.85
+  ): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            reject(new Error("Failed to get canvas context"));
+            return;
+          }
+
+          // Calculate new dimensions
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // Draw with high quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to blob with high quality
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Failed to compress image"));
+                return;
+              }
+
+              const compressedFile = new File([blob], file.name, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+
+              console.log(
+                `🖼️  Image compressed: ${(file.size / 1024).toFixed(0)}KB → ${(
+                  compressedFile.size / 1024
+                ).toFixed(0)}KB`
+              );
+
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+    });
+  };
+
   // Handle image upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,6 +313,13 @@ export default function ProductManager({
 
     try {
       setIsUploading(true);
+      setUploadProgress("Compressing image...");
+
+      // Compress image on client side before uploading
+      const compressedFile = await compressImage(file);
+      const originalSize = (file.size / 1024).toFixed(0);
+      const compressedSize = (compressedFile.size / 1024).toFixed(0);
+
       setUploadProgress("Uploading to cloud storage...");
 
       // Generate temporary product ID if creating new product
@@ -251,7 +327,7 @@ export default function ProductManager({
 
       // Upload to Supabase Storage via API route
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("image", compressedFile); // Upload compressed file
       formData.append("productId", productId);
 
       const response = await fetch("/api/upload-image", {
@@ -265,15 +341,13 @@ export default function ProductManager({
         throw new Error(data.error || "Upload failed");
       }
 
-      setUploadProgress(
-        `Uploaded (${data.originalSize} → ${data.compressedSize})`
-      );
+      setUploadProgress(`Uploaded (${originalSize}KB → ${compressedSize}KB)`);
 
       // Update image URL with Supabase CDN URL
       setNewProduct({ ...newProduct, id: productId, imageUrl: data.url });
 
       setToast({
-        message: `Image uploaded to cloud! (${data.originalSize} → ${data.compressedSize})`,
+        message: `Image uploaded to cloud! (${originalSize}KB → ${compressedSize}KB)`,
         type: "success",
       });
 
