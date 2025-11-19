@@ -386,12 +386,14 @@ export default function Home() {
       // ===== NEW APPROACH: Load from Supabase first =====
       let loadedProducts: Product[] = [];
       const currentProducts = await getProducts(); // Get cached products for comparison
+      console.log("🔍 Current IndexedDB products:", currentProducts.length, currentProducts.map(p => ({ id: p.id, name: p.name })));
 
       if (navigator.onLine) {
         // Online: Try Supabase first
         try {
           console.log("📥 Loading products from Supabase...");
           const supabaseProducts = await loadProductsFromSupabase();
+          console.log("🔍 Supabase returned:", supabaseProducts.length, supabaseProducts.map(p => ({ id: p.id, name: p.name })));
 
           if (supabaseProducts.length > 0) {
             loadedProducts = supabaseProducts;
@@ -399,7 +401,7 @@ export default function Home() {
             console.log(
               "✅ Loaded",
               loadedProducts.length,
-              "products from Supabase"
+              "products from Supabase and cached to IndexedDB"
             );
           } else {
             console.log("ℹ️ No products in Supabase, trying IndexedDB...");
@@ -428,9 +430,10 @@ export default function Home() {
 
       // If still no products, use defaults
       if (loadedProducts.length === 0) {
+        console.log("🎯 No products found, using defaults");
         await saveProducts(DEFAULT_PRODUCTS);
         loadedProducts = DEFAULT_PRODUCTS;
-        console.log("🎯 Using default products");
+        console.log("🎯 Using default products:", DEFAULT_PRODUCTS.map(p => ({ id: p.id, name: p.name })));
 
         // Queue default products for sync
         for (const product of DEFAULT_PRODUCTS) {
@@ -505,6 +508,18 @@ export default function Home() {
   const updateSyncStatus = async () => {
     const unsyncedSales = await getUnsyncedSales();
     const allSales = await getSales();
+    
+    // Also check the actual sync queue
+    const queueStats = syncService.getStats();
+    console.log("🔍 Sync Status Check:", {
+      unsyncedSalesInDB: unsyncedSales.length,
+      totalSales: allSales.length,
+      queueSize: queueStats.queueSize,
+      isOnline: queueStats.isOnline,
+      isProcessing: queueStats.isProcessing,
+      errors: queueStats.errors.length
+    });
+    
     setSyncStatus((prev) => ({
       ...prev,
       pendingSales: unsyncedSales.length,
