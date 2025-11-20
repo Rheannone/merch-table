@@ -31,6 +31,7 @@ export default function ProductManager({
 }: ProductManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: "",
     price: 0,
@@ -87,6 +88,46 @@ export default function ProductManager({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCategories();
   }, [loadCategories]);
+
+  // Track unsaved changes when editing a product
+  useEffect(() => {
+    if (!editingProduct) {
+      setHasUnsavedChanges(false);
+      return;
+    }
+
+    // Check if anything has changed from the original product
+    const hasChanges =
+      newProduct.name !== editingProduct.name ||
+      newProduct.price !== editingProduct.price ||
+      newProduct.category !== editingProduct.category ||
+      newProduct.description !== editingProduct.description ||
+      newProduct.imageUrl !== editingProduct.imageUrl ||
+      newProduct.showTextOnButton !== editingProduct.showTextOnButton ||
+      sizesInput !== (editingProduct.sizes?.join(", ") || "") ||
+      JSON.stringify(sizeQuantities) !==
+        JSON.stringify(editingProduct.inventory || {}) ||
+      (sizesInput === "" &&
+        defaultQuantity !==
+          (editingProduct.inventory?.default?.toString() || "3")) ||
+      JSON.stringify(currencyPrices) !==
+        JSON.stringify(
+          Object.fromEntries(
+            Object.entries(editingProduct.currencyPrices || {}).map(
+              ([k, v]) => [k, v.toString()]
+            )
+          )
+        );
+
+    setHasUnsavedChanges(hasChanges);
+  }, [
+    editingProduct,
+    newProduct,
+    sizesInput,
+    sizeQuantities,
+    defaultQuantity,
+    currencyPrices,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +199,7 @@ export default function ProductManager({
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    setHasUnsavedChanges(false); // Reset when starting edit
     setNewProduct({
       name: product.name,
       price: product.price,
@@ -195,6 +237,7 @@ export default function ProductManager({
 
   const handleCancelEdit = () => {
     setEditingProduct(null);
+    setHasUnsavedChanges(false);
     setNewProduct({ name: "", price: 0, category: "Apparel", description: "" });
     setSizesInput("");
     setSizeQuantities({});
@@ -373,7 +416,57 @@ export default function ProductManager({
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto bg-theme min-h-screen">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+      {/* Sticky Unsaved Changes Bar */}
+      {hasUnsavedChanges && editingProduct && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-primary shadow-lg">
+          <div className="px-4 py-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 max-w-7xl mx-auto">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="bg-on-primary rounded-full p-1 flex-shrink-0">
+                  <svg
+                    className="w-4 h-4 text-primary"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <p className="text-on-primary font-bold text-sm">
+                  Unsaved changes to {editingProduct.name}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="flex-1 sm:flex-none px-6 py-2.5 bg-on-primary/20 text-on-primary border-2 border-on-primary/30 font-bold rounded transition-all active:scale-95 hover:bg-on-primary/30"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="edit-product-form"
+                  className="flex-1 sm:flex-none px-6 py-2.5 bg-black text-primary border-2 border-black font-bold rounded transition-all active:scale-95 hover:bg-black/90 shadow-lg"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 ${
+          hasUnsavedChanges && editingProduct ? "pt-20" : ""
+        }`}
+      >
         <h2 className="text-2xl sm:text-3xl font-bold text-theme">
           Product Management
         </h2>
@@ -831,7 +924,11 @@ export default function ProductManager({
                       colSpan={6}
                       className="px-4 sm:px-6 py-4 bg-theme-secondary/50"
                     >
-                      <form onSubmit={handleSubmit} className="space-y-4">
+                      <form
+                        id="edit-product-form"
+                        onSubmit={handleSubmit}
+                        className="space-y-4"
+                      >
                         <h3 className="text-lg font-semibold text-theme mb-4">
                           Edit Product
                         </h3>
@@ -1079,22 +1176,6 @@ export default function ProductManager({
                                 );
                               })}
                           </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-4">
-                          <button
-                            type="submit"
-                            className="px-6 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary touch-manipulation"
-                          >
-                            Update Product
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelEdit}
-                            className="px-6 py-2 bg-theme-tertiary text-theme-secondary rounded-lg hover:bg-theme-tertiary touch-manipulation"
-                          >
-                            Cancel
-                          </button>
                         </div>
                       </form>
                     </td>

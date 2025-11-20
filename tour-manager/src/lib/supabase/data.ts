@@ -39,10 +39,11 @@ export async function loadProductsFromSupabase(): Promise<Product[]> {
       price: Number(row.price),
       imageUrl: row.image_url || undefined,
       category: row.category || undefined,
+      description: row.description || undefined,
+      showTextOnButton: row.show_text_on_button ?? true,
+      sizes: row.sizes || undefined,
       inventory: row.inventory || {},
-      sku: row.sku || undefined,
-      cost: row.cost ? Number(row.cost) : undefined,
-      notes: row.notes || undefined,
+      currencyPrices: row.currency_prices || undefined,
       synced: true, // Products from Supabase are synced
     }));
 
@@ -195,16 +196,71 @@ export async function loadSettingsFromSupabase(): Promise<UserSettings | null> {
       .single();
 
     if (error) {
-      // If no settings exist yet, that's okay
+      // If no settings exist yet, check IndexedDB and migrate
       if (error.code === "PGRST116") {
-        console.log("No settings found in Supabase (first time user)");
+        console.log(
+          "🔄 No settings row in Supabase, checking IndexedDB for migration..."
+        );
+        const { getSettings } = await import("@/lib/db");
+        const indexedDBSettings = await getSettings(userData.user.id);
+
+        if (indexedDBSettings && Object.keys(indexedDBSettings).length > 0) {
+          console.log(
+            "📦 Found settings in IndexedDB, migrating to Supabase..."
+          );
+          const migrated = await saveSettingsToSupabase(indexedDBSettings);
+          if (migrated) {
+            console.log(
+              "✅ Successfully migrated IndexedDB settings to Supabase"
+            );
+            return indexedDBSettings;
+          } else {
+            console.warn("⚠️ Migration failed, using IndexedDB settings");
+            return indexedDBSettings;
+          }
+        }
+
+        console.log(
+          "ℹ️ No settings in Supabase or IndexedDB (first time user)"
+        );
         return null;
       }
-      console.error("Error loading settings from Supabase:", error);
+      console.error("Error loading settings from Supabase:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        fullError: error,
+      });
       return null;
     }
 
     const settings = data?.settings || null;
+
+    // Migration: If Supabase settings are empty but IndexedDB has settings, migrate them
+    if (!settings || Object.keys(settings).length === 0) {
+      console.log(
+        "🔄 Supabase settings empty, checking IndexedDB for migration..."
+      );
+      const { getSettings } = await import("@/lib/db");
+      const indexedDBSettings = await getSettings(userData.user.id);
+
+      if (indexedDBSettings && Object.keys(indexedDBSettings).length > 0) {
+        console.log("📦 Found settings in IndexedDB, migrating to Supabase...");
+        const migrated = await saveSettingsToSupabase(indexedDBSettings);
+        if (migrated) {
+          console.log(
+            "✅ Successfully migrated IndexedDB settings to Supabase"
+          );
+          return indexedDBSettings;
+        } else {
+          console.warn("⚠️ Migration failed, using IndexedDB settings");
+          return indexedDBSettings;
+        }
+      }
+
+      return null;
+    }
 
     // Cache settings to IndexedDB for offline use
     if (settings) {

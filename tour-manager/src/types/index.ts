@@ -209,4 +209,5 @@ export interface UserSettings {
     exchangeRate: number;
   };
   emailSignup?: EmailSignupSettings;
+  closeOutSettings?: CloseOutSettings;
 }

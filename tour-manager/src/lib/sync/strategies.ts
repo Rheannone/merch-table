@@ -257,9 +257,13 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
           image_url: data.imageUrl,
           category: data.category,
           inventory: data.inventory || {},
-          sku: null, // Not in current Product interface
-          cost: null, // Not in current Product interface
-          notes: data.description, // Use description field
+          description: data.description || null,
+          show_text_on_button: data.showTextOnButton ?? true,
+          sizes: data.sizes || [],
+          currency_prices: data.currencyPrices || {},
+          sku: null, // Legacy field
+          cost: null, // Legacy field
+          notes: null, // Legacy field
         };
 
         console.log("📝 Product data being inserted:", productData);
@@ -692,7 +696,6 @@ export const emailSignupsSyncStrategy: SyncStrategy<
           phone: data.phone || null,
           source: data.source,
           sale_id: data.saleId || null,
-          synced: true,
         };
 
         console.log("📧 Email signup data being inserted:", emailSignupData);

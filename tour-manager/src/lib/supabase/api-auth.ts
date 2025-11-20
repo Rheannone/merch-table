@@ -44,6 +44,7 @@ export async function getGoogleAuthClient() {
 
   // Get Google OAuth access token from Supabase session
   const providerToken = session.provider_token;
+  const providerRefreshToken = session.provider_refresh_token;
 
   if (!providerToken) {
     console.error("❌ No Google access token in session");
@@ -61,10 +62,31 @@ export async function getGoogleAuthClient() {
     };
   }
 
-  // Create Google Auth client
+  // Create Google Auth client with refresh token support
   const { google } = await import("googleapis");
-  const authClient = new google.auth.OAuth2();
-  authClient.setCredentials({ access_token: providerToken });
+  const authClient = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+
+  // Set credentials with both access and refresh tokens
+  authClient.setCredentials({
+    access_token: providerToken,
+    refresh_token: providerRefreshToken,
+  });
+
+  // Handle token refresh automatically
+  authClient.on("tokens", async (tokens) => {
+    if (tokens.refresh_token) {
+      // New refresh token received, store it
+      console.log("🔄 Received new refresh token");
+    }
+    if (tokens.access_token) {
+      // New access token received, update Supabase session
+      console.log("✅ Access token refreshed automatically");
+      // Note: Supabase handles this internally, we just log it
+    }
+  });
 
   return { authClient };
 }

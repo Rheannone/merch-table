@@ -23,8 +23,8 @@ import {
   clearAllProducts,
   saveSettings as saveSettingsToIndexedDB,
 } from "@/lib/db";
+import syncService from "@/lib/sync/syncService";
 import {
-  getCurrencySettings,
   saveCurrencySettings,
   CURRENCIES,
   CurrencyCode,
@@ -145,6 +145,10 @@ export default function Settings() {
       collectPhone: false,
       autoDismissSeconds: 10,
     });
+  const [
+    originalRequireCashReconciliation,
+    setOriginalRequireCashReconciliation,
+  ] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -166,6 +170,8 @@ export default function Settings() {
     const emailSignupChanged =
       JSON.stringify(emailSignupSettings) !==
       JSON.stringify(originalEmailSignupSettings);
+    const closeOutSettingsChanged =
+      requireCashReconciliation !== originalRequireCashReconciliation;
 
     const hasChanges =
       paymentChanged ||
@@ -174,7 +180,8 @@ export default function Settings() {
       themeChanged ||
       currencyChanged ||
       rateChanged ||
-      emailSignupChanged;
+      emailSignupChanged ||
+      closeOutSettingsChanged;
 
     setHasUnsavedChanges(hasChanges);
   }, [
@@ -192,6 +199,8 @@ export default function Settings() {
     originalExchangeRate,
     emailSignupSettings,
     originalEmailSignupSettings,
+    requireCashReconciliation,
+    originalRequireCashReconciliation,
   ]);
 
   // Helper to check if specific section has changes
@@ -222,12 +231,6 @@ export default function Settings() {
       default:
         return false;
     }
-  };
-
-  const loadCurrencySettings = () => {
-    const settings = getCurrencySettings();
-    setSelectedCurrency(settings.displayCurrency);
-    setExchangeRate(settings.exchangeRate.toString());
   };
 
   const handleCurrencyChange = (newCurrency: CurrencyCode) => {
@@ -316,26 +319,40 @@ export default function Settings() {
           }
 
           if (supabaseSettings.currency) {
-            setSelectedCurrency(
-              (supabaseSettings.currency.displayCurrency ||
-                "USD") as CurrencyCode
-            );
-            setExchangeRate(
-              (supabaseSettings.currency.exchangeRate || 1).toString()
-            );
-            setOriginalCurrency(
-              (supabaseSettings.currency.displayCurrency ||
-                "USD") as CurrencyCode
-            );
-            setOriginalExchangeRate(
-              (supabaseSettings.currency.exchangeRate || 1).toString()
-            );
+            const currencyCode = (supabaseSettings.currency.displayCurrency ||
+              "USD") as CurrencyCode;
+            const rate = supabaseSettings.currency.exchangeRate || 1;
+
+            setSelectedCurrency(currencyCode);
+            setExchangeRate(rate.toString());
+            setOriginalCurrency(currencyCode);
+            setOriginalExchangeRate(rate.toString());
+
+            // Sync to localStorage cache for helper functions
+            const currencyInfo = CURRENCIES[currencyCode];
+            saveCurrencySettings({
+              displayCurrency: currencyCode,
+              exchangeRate: rate,
+              symbol: currencyInfo.symbol,
+              code: currencyCode,
+            });
           }
 
           if (supabaseSettings.emailSignup) {
             setEmailSignupSettings(supabaseSettings.emailSignup);
             setOriginalEmailSignupSettings(
               JSON.parse(JSON.stringify(supabaseSettings.emailSignup))
+            );
+          }
+
+          if (supabaseSettings.closeOutSettings) {
+            setRequireCashReconciliation(
+              supabaseSettings.closeOutSettings.requireCashReconciliation ??
+                false
+            );
+            setOriginalRequireCashReconciliation(
+              supabaseSettings.closeOutSettings.requireCashReconciliation ??
+                false
             );
           }
 
@@ -379,26 +396,40 @@ export default function Settings() {
             }
 
             if (cachedSettings.currency) {
-              setSelectedCurrency(
-                (cachedSettings.currency.displayCurrency ||
-                  "USD") as CurrencyCode
-              );
-              setExchangeRate(
-                (cachedSettings.currency.exchangeRate || 1).toString()
-              );
-              setOriginalCurrency(
-                (cachedSettings.currency.displayCurrency ||
-                  "USD") as CurrencyCode
-              );
-              setOriginalExchangeRate(
-                (cachedSettings.currency.exchangeRate || 1).toString()
-              );
+              const currencyCode = (cachedSettings.currency.displayCurrency ||
+                "USD") as CurrencyCode;
+              const rate = cachedSettings.currency.exchangeRate || 1;
+
+              setSelectedCurrency(currencyCode);
+              setExchangeRate(rate.toString());
+              setOriginalCurrency(currencyCode);
+              setOriginalExchangeRate(rate.toString());
+
+              // Sync to localStorage cache for helper functions
+              const currencyInfo = CURRENCIES[currencyCode];
+              saveCurrencySettings({
+                displayCurrency: currencyCode,
+                exchangeRate: rate,
+                symbol: currencyInfo.symbol,
+                code: currencyCode,
+              });
             }
 
             if (cachedSettings.emailSignup) {
               setEmailSignupSettings(cachedSettings.emailSignup);
               setOriginalEmailSignupSettings(
                 JSON.parse(JSON.stringify(cachedSettings.emailSignup))
+              );
+            }
+
+            if (cachedSettings.closeOutSettings) {
+              setRequireCashReconciliation(
+                cachedSettings.closeOutSettings.requireCashReconciliation ??
+                  false
+              );
+              setOriginalRequireCashReconciliation(
+                cachedSettings.closeOutSettings.requireCashReconciliation ??
+                  false
               );
             }
 
@@ -445,6 +476,9 @@ export default function Settings() {
           exchangeRate: Number.parseFloat(exchangeRate),
         },
         emailSignup: emailSignupSettings,
+        closeOutSettings: {
+          requireCashReconciliation,
+        },
       };
 
       // Save to Supabase immediately
@@ -474,8 +508,11 @@ export default function Settings() {
       setOriginalEmailSignupSettings(
         JSON.parse(JSON.stringify(emailSignupSettings))
       );
+      setOriginalRequireCashReconciliation(requireCashReconciliation);
 
-      // Save currency to localStorage so it persists across sessions
+      // IMPORTANT: Also cache currency to localStorage so helper functions
+      // (formatPrice, convertToDisplayCurrency, etc.) can access it
+      // Source of truth is Supabase, but localStorage is used as a cache
       const currencyInfo = CURRENCIES[selectedCurrency];
       saveCurrencySettings({
         displayCurrency: selectedCurrency,
@@ -597,52 +634,68 @@ export default function Settings() {
     setIsManualEntrySubmitting(true);
 
     try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) {
-        setToast({ message: "No spreadsheet found", type: "error" });
-        return;
-      }
+      // Create EmailSignup object
+      const { nanoid } = await import("nanoid");
+      const emailSignup = {
+        id: nanoid(),
+        timestamp: new Date().toISOString(),
+        email: manualEmail.trim().toLowerCase(),
+        name: manualName.trim() || undefined,
+        phone: manualPhone.trim() || undefined,
+        source: "manual-entry" as const,
+        saleId: undefined,
+        synced: false,
+      };
 
-      const response = await fetch("/api/sheets/email-signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          spreadsheetId,
-          email: manualEmail.trim().toLowerCase(),
-          name: manualName.trim() || undefined,
-          phone: manualPhone.trim() || undefined,
-          // No saleId for manual entry
-        }),
-      });
+      // Save to IndexedDB first (immediate local save)
+      const { saveEmailSignup } = await import("@/lib/db");
+      await saveEmailSignup(emailSignup);
+      console.log("📧 Email signup saved to IndexedDB:", emailSignup.id);
 
-      if (response.ok) {
-        setToast({ message: "Email added successfully! 📧", type: "success" });
-        setNeedsEmailListSheet(false);
-        // Clear form
-        setManualEmail("");
-        setManualName("");
-        setManualPhone("");
-      } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.error || "Failed to add email";
-        console.error("Email signup error:", errorData);
-
-        if (errorMessage.includes("Email List sheet not found")) {
-          setNeedsEmailListSheet(true);
-          setToast({
-            message:
-              "Email List sheet missing - Toggle the feature off and on again to auto-create it",
-            type: "error",
-            duration: 6000,
-          });
-        } else {
-          setToast({
-            message: errorMessage,
-            type: "error",
-            duration: 5000,
-          });
+      // Queue for Supabase sync (will sync when online)
+      if (syncService) {
+        try {
+          await syncService.syncEmailSignup(emailSignup);
+          console.log("📤 Email signup queued for Supabase sync");
+        } catch (syncError) {
+          console.error("⚠️ Failed to queue email signup for sync:", syncError);
+          // Continue - it's saved in IndexedDB, will retry on network return
         }
       }
+
+      // Keep Google Sheets sync as fallback for legacy compatibility
+      const spreadsheetId = localStorage.getItem("salesSheetId");
+      if (spreadsheetId) {
+        try {
+          const response = await fetch("/api/sheets/email-signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              spreadsheetId,
+              email: emailSignup.email,
+              name: emailSignup.name,
+              phone: emailSignup.phone,
+              // No saleId for manual entry
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error("Google Sheets sync error:", errorData);
+            // Don't fail the whole operation if Sheets sync fails
+          }
+        } catch (sheetsError) {
+          console.error("Google Sheets sync error:", sheetsError);
+          // Don't fail the whole operation if Sheets sync fails
+        }
+      }
+
+      setToast({ message: "Email added successfully! 📧", type: "success" });
+      setNeedsEmailListSheet(false);
+      // Clear form
+      setManualEmail("");
+      setManualName("");
+      setManualPhone("");
     } catch (error) {
       console.error("Error adding manual email:", error);
       setToast({ message: "Failed to add email", type: "error" });
