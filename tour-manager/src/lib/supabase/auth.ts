@@ -18,8 +18,8 @@ export class SupabaseAuth {
         scopes: "openid email profile",
         // Force fresh consent to clear old cached scopes
         queryParams: {
-          prompt: 'consent',
-          access_type: 'online',
+          prompt: "consent",
+          access_type: "online",
         },
         // Note: Google Sheets export will be added as a future premium feature
       },
