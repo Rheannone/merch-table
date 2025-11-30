@@ -110,9 +110,7 @@ export async function POST(req: NextRequest) {
             category: row[3] || "",
             description: row[4] || "",
             imageUrl: row[5] || "",
-            trackInventory: row[6] === "TRUE",
             inventory: inventory,
-            soldCount: parseInt(row[8]) || 0,
             currencyPrices: currencyPrices,
           };
 
@@ -176,12 +174,10 @@ export async function POST(req: NextRequest) {
               ? new Date(row[1]).toISOString()
               : new Date().toISOString(),
             total: parseFloat(row[2]) || 0,
+            actualAmount: parseFloat(row[2]) || 0, // Assume no discount in old data
             paymentMethod: row[3] || "cash",
-            location: row[4] || "",
             items: items,
-            currency: row[6] || "USD",
-            exchangeRate: row[7] ? parseFloat(row[7]) : 1,
-            usdTotal: row[8] ? parseFloat(row[8]) : parseFloat(row[2]) || 0,
+            synced: false,
           };
 
           // Upsert to Supabase
@@ -191,12 +187,10 @@ export async function POST(req: NextRequest) {
               organization_id: organizationId,
               timestamp: sale.timestamp,
               total: sale.total,
+              actual_amount: sale.actualAmount,
               payment_method: sale.paymentMethod,
-              location: row[4] || "",
               sale_items: items,
-              currency: row[6] || "USD",
-              exchange_rate: row[7] ? parseFloat(row[7]) : 1,
-              usd_total: row[8] ? parseFloat(row[8]) : parseFloat(row[2]) || 0,
+              synced: false,
             },
             { onConflict: "id" }
           );

@@ -306,11 +306,6 @@ export default function OrganizationsPage() {
                             </span>
                           )}
                         </h3>
-                        {org.description && (
-                          <p className="text-theme-muted mt-1">
-                            {org.description}
-                          </p>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span
@@ -350,9 +345,7 @@ export default function OrganizationsPage() {
 
                       {(org.role === "owner" || org.role === "admin") && (
                         <button
-                          onClick={() =>
-                            startEdit(org.id, org.name, org.description)
-                          }
+                          onClick={() => startEdit(org.id, org.name, "")}
                           className="px-4 py-2 bg-theme-tertiary hover:bg-theme text-theme rounded-lg transition-colors border border-theme text-sm flex items-center gap-2"
                         >
                           <PencilIcon className="w-4 h-4" />

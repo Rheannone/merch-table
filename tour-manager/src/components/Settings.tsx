@@ -2483,7 +2483,7 @@ export default function Settings() {
                       Currently viewing
                     </p>
                     <h3 className="text-lg font-bold text-theme">
-                      {currentOrganization.name}
+                      {currentOrganization?.name || "No Organization"}
                     </h3>
                     <p className="text-sm text-theme-secondary mt-1">
                       Your role: {userRole}
@@ -2597,7 +2597,7 @@ export default function Settings() {
                   <div
                     key={org.id}
                     className={`border rounded-lg p-4 ${
-                      org.id === currentOrganization.id
+                      org.id === currentOrganization?.id
                         ? "border-primary bg-primary/5"
                         : "border-theme bg-theme-tertiary"
                     }`}
@@ -2679,28 +2679,23 @@ export default function Settings() {
                               <h4 className="font-bold text-theme">
                                 {org.name}
                               </h4>
-                              {org.id === currentOrganization.id && (
+                              {org.id === currentOrganization?.id && (
                                 <span className="text-xs bg-primary text-white px-2 py-0.5 rounded">
                                   Active
                                 </span>
                               )}
                             </div>
-                            {org.description && (
-                              <p className="text-sm text-theme-secondary mt-1">
-                                {org.description}
-                              </p>
-                            )}
                             <p className="text-xs text-theme-muted mt-1">
                               Role: {org.role}
                             </p>
                           </div>
                           <div className="flex gap-1">
-                            {hasRole(org.id, ["owner", "admin"]) && (
+                            {(org.role === "owner" || org.role === "admin") && (
                               <button
                                 onClick={() => {
                                   setEditingOrgId(org.id);
                                   setEditOrgName(org.name);
-                                  setEditOrgDescription(org.description || "");
+                                  setEditOrgDescription("");
                                 }}
                                 className="p-1.5 hover:bg-theme-tertiary rounded transition-colors"
                                 title="Edit"
