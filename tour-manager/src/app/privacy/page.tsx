@@ -119,7 +119,7 @@ export default function PrivacyPolicy() {
             </h3>
             <p>
               Authentication tokens are stored securely in your browser session
-              and are encrypted using NextAuth.js security standards.
+              and are encrypted using Supabase Auth security standards.
             </p>
           </section>
 
@@ -267,7 +267,7 @@ export default function PrivacyPolicy() {
             </h2>
             <p className="mb-4">We implement security measures including:</p>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>Encrypted OAuth tokens using NextAuth.js</li>
+              <li>Encrypted OAuth tokens using Supabase Auth</li>
               <li>HTTPS encryption for all data transmission</li>
               <li>Secure browser storage using IndexedDB</li>
               <li>Regular security updates and dependency management</li>

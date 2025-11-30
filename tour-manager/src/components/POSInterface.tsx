@@ -781,33 +781,7 @@ export default function POSInterface({
         }
       }
 
-      // Keep Google Sheets sync as fallback for legacy compatibility
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (spreadsheetId) {
-        try {
-          const response = await fetch("/api/sheets/email-signup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              spreadsheetId,
-              email: data.email,
-              name: data.name,
-              phone: data.phone,
-              saleId: lastSaleId,
-            }),
-          });
-
-          if (response.ok) {
-            console.log("✅ Email also synced to Google Sheets (legacy)");
-          }
-        } catch (sheetsError) {
-          console.warn(
-            "⚠️ Google Sheets sync failed (non-critical):",
-            sheetsError
-          );
-          // Non-critical - Supabase is primary storage
-        }
-      }
+      console.log("✅ Email signup saved to Supabase");
 
       setToast({
         message: "Email saved! Thanks for signing up! 🎉",

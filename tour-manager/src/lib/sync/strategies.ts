@@ -17,17 +17,21 @@ import { createClient, getAuthenticatedUser } from "../supabase/client";
 const DEFAULT_RETRY_DELAYS = [1000, 3000, 10000]; // 1s, 3s, 10s
 const HIGH_PRIORITY_RETRY_DELAYS = [500, 2000, 8000, 20000]; // Faster retries for important data
 
-// Debouncing for Sheets product sync
-let productSheetsSyncTimeout: NodeJS.Timeout | null = null;
-let pendingProductSheetsSyncResolves: ((result: SyncResult) => void)[] = []; // Track ALL pending resolves
-const PRODUCT_SHEETS_DEBOUNCE_MS = 2000; // Wait 2 seconds before syncing
+/**
+ * Get current organization ID from localStorage
+ * OrganizationContext stores this as 'road-dog-current-org-id'
+ */
+function getCurrentOrganizationId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("road-dog-current-org-id");
+}
 
 /**
- * Sales Sync Strategy - Sync to both Supabase and Google Sheets
+ * Sales Sync Strategy - Sync to Supabase (Google Sheets disabled for now)
  */
 export const salesSyncStrategy: SyncStrategy<Sale> = {
   dataType: "sale",
-  destinations: ["supabase", "sheets"],
+  destinations: ["supabase"], // Removed "sheets" - will add as premium export feature later
   maxAttempts: 3,
   retryDelays: DEFAULT_RETRY_DELAYS,
   priority: 8, // High priority
@@ -47,12 +51,22 @@ export const salesSyncStrategy: SyncStrategy<Sale> = {
           throw new Error("Authentication failed - please sign in again");
         }
 
+        // Get current organization ID
+        const organizationId = getCurrentOrganizationId();
+        if (!organizationId) {
+          throw new Error(
+            "No organization selected - please select an organization"
+          );
+        }
+
         console.log("🔒 User ID for sale sync:", user.id);
+        console.log("🏢 Organization ID for sale sync:", organizationId);
 
         // Insert/update the main sale record
         const saleData = {
           id: data.id,
-          user_id: user.id,
+          organization_id: organizationId,
+          created_by: user.id,
           timestamp: data.timestamp,
           total: data.total,
           actual_amount: data.actualAmount,
@@ -150,30 +164,13 @@ export const salesSyncStrategy: SyncStrategy<Sale> = {
         };
       }
 
-      const salesSheetId = localStorage.getItem("salesSheetId");
-      if (!salesSheetId) {
-        throw new Error("Sales sheet ID not found in localStorage");
-      }
-
-      // Call the existing sync-sales API endpoint
-      const response = await fetch("/api/sheets/sync-sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sales: [data], salesSheetId }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to sync to Sheets");
-      }
-
-      const result = await response.json();
-      console.log(`✅ Sale synced to Sheets: ${data.id}`);
+      // Sheets sync removed - using Supabase only
+      console.log(`ℹ️ Sheets sync skipped for sale: ${data.id}`);
 
       return {
         destination: "sheets",
         success: true,
-        responseData: result,
+        responseData: { message: "Sheets sync disabled" },
       };
     } catch (error) {
       console.error("Failed to sync sale to Sheets:", error);
@@ -223,11 +220,11 @@ export const salesSyncStrategy: SyncStrategy<Sale> = {
 };
 
 /**
- * Products Sync Strategy - Sync to both Supabase and Google Sheets
+ * Products Sync Strategy - Sync to Supabase (Google Sheets disabled for now)
  */
 export const productsSyncStrategy: SyncStrategy<Product> = {
   dataType: "product",
-  destinations: ["supabase", "sheets"],
+  destinations: ["supabase"], // Removed "sheets" - will add as premium export feature later
   maxAttempts: 3,
   retryDelays: DEFAULT_RETRY_DELAYS,
   priority: 5, // Medium priority
@@ -247,11 +244,22 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
           throw new Error("Authentication failed - please sign in again");
         }
 
+        // Get current organization ID
+        const organizationId = getCurrentOrganizationId();
+        if (!organizationId) {
+          throw new Error(
+            "No organization selected - please select an organization"
+          );
+        }
+
         console.log("🔒 User ID for product sync:", user.id);
+        console.log("🏢 Organization ID for product sync:", organizationId);
 
         const productData = {
           id: data.id,
-          user_id: user.id,
+          organization_id: organizationId,
+          created_by: user.id,
+          updated_by: user.id,
           name: data.name,
           price: data.price,
           image_url: data.imageUrl,
@@ -316,7 +324,7 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
 
   async syncToSheets(
     operation: SyncOperation,
-    data: Product // eslint-disable-line @typescript-eslint/no-unused-vars -- Needed for type signature, actual sync fetches all products
+    data: Product
   ): Promise<SyncResult> {
     try {
       const productsSheetId = localStorage.getItem("productsSheetId");
@@ -324,102 +332,16 @@ export const productsSyncStrategy: SyncStrategy<Product> = {
         throw new Error("Products sheet ID not found in localStorage");
       }
 
-      // For products, we sync the entire product list, not individual products
-      // This is because the sync-products API clears and re-writes the sheet
-      if (operation === "create" || operation === "update") {
-        // DEBOUNCE: If multiple product updates happen in quick succession
-        // (e.g., inventory updates from a multi-item sale), only sync once
-        return new Promise<SyncResult>((resolve) => {
-          // Add this resolve to the pending array
-          pendingProductSheetsSyncResolves.push(resolve);
+      // Sheets sync removed - using Supabase only
+      console.log(
+        `ℹ️ Sheets sync skipped for product: ${data.id} (operation: ${operation})`
+      );
 
-          // Clear any existing timeout
-          if (productSheetsSyncTimeout) {
-            clearTimeout(productSheetsSyncTimeout);
-          }
-
-          // Set new timeout to actually perform the sync
-          productSheetsSyncTimeout = setTimeout(async () => {
-            try {
-              const { getProducts } = await import("../db");
-              const allProducts = await getProducts();
-
-              const response = await fetch("/api/sheets/sync-products", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  products: allProducts,
-                  productsSheetId,
-                }),
-              });
-
-              if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(
-                  errorData.error || "Failed to sync products to Sheets"
-                );
-              }
-
-              const result = await response.json();
-              console.log(
-                `✅ Products synced to Sheets (${allProducts.length} products) - debounced (${pendingProductSheetsSyncResolves.length} pending)`
-              );
-
-              const syncResult: SyncResult = {
-                destination: "sheets",
-                success: true,
-                responseData: result,
-              };
-
-              // Resolve ALL pending promises with the same result
-              const resolvesToCall = [...pendingProductSheetsSyncResolves];
-              pendingProductSheetsSyncResolves = [];
-              resolvesToCall.forEach((r) => r(syncResult));
-            } catch (error) {
-              const syncResult: SyncResult = {
-                destination: "sheets",
-                success: false,
-                error: error instanceof Error ? error.message : String(error),
-              };
-
-              // Resolve ALL pending promises with the error result
-              const resolvesToCall = [...pendingProductSheetsSyncResolves];
-              pendingProductSheetsSyncResolves = [];
-              resolvesToCall.forEach((r) => r(syncResult));
-            } finally {
-              productSheetsSyncTimeout = null;
-            }
-          }, PRODUCT_SHEETS_DEBOUNCE_MS);
-        });
-      } else if (operation === "delete") {
-        // For delete, we also re-sync all remaining products
-        const { getProducts } = await import("../db");
-        const allProducts = await getProducts();
-
-        const response = await fetch("/api/sheets/sync-products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ products: allProducts, productsSheetId }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error || "Failed to sync products to Sheets"
-          );
-        }
-
-        const result = await response.json();
-        console.log(`✅ Products synced to Sheets after deletion`);
-
-        return {
-          destination: "sheets",
-          success: true,
-          responseData: result,
-        };
-      }
-
-      throw new Error(`Unsupported operation: ${operation}`);
+      return {
+        destination: "sheets",
+        success: true,
+        responseData: { message: "Sheets sync disabled" },
+      };
     } catch (error) {
       console.error("Failed to sync products to Sheets:", error);
       return {
@@ -469,11 +391,21 @@ export const closeOutsSyncStrategy: SyncStrategy<CloseOut> = {
           throw new Error("Authentication failed - please sign in again");
         }
 
+        // Get current organization ID
+        const organizationId = getCurrentOrganizationId();
+        if (!organizationId) {
+          throw new Error(
+            "No organization selected - please select an organization"
+          );
+        }
+
         console.log("🔒 User ID for close-out sync:", user.id);
+        console.log("🏢 Organization ID for close-out sync:", organizationId);
 
         const closeOutData = {
           id: data.id,
-          user_id: user.id,
+          organization_id: organizationId,
+          created_by: user.id,
           timestamp: data.timestamp,
           session_name: data.sessionName,
           location: data.location,
@@ -685,11 +617,24 @@ export const emailSignupsSyncStrategy: SyncStrategy<
           throw new Error("Authentication failed - please sign in again");
         }
 
+        // Get current organization ID
+        const organizationId = getCurrentOrganizationId();
+        if (!organizationId) {
+          throw new Error(
+            "No organization selected - please select an organization"
+          );
+        }
+
         console.log("🔒 User ID for email signup sync:", user.id);
+        console.log(
+          "🏢 Organization ID for email signup sync:",
+          organizationId
+        );
 
         const emailSignupData = {
           id: data.id,
-          user_id: user.id,
+          organization_id: organizationId,
+          collected_by: user.id,
           timestamp: data.timestamp,
           email: data.email,
           name: data.name || null,

@@ -14,14 +14,14 @@ export class SupabaseAuth {
         redirectTo: `${window.location.origin}/auth/callback`,
         // Use PKCE flow for better security
         skipBrowserRedirect: false,
-        // Request Google Sheets and Drive scopes
-        scopes:
-          "openid email profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file",
-        // Request access to provider token so we can use it for Google APIs
+        // Request only basic profile scopes (no sensitive scopes = no OAuth verification required)
+        scopes: "openid email profile",
+        // Force fresh consent to clear old cached scopes
         queryParams: {
-          access_type: "offline",
-          prompt: "consent",
+          prompt: 'consent',
+          access_type: 'online',
         },
+        // Note: Google Sheets export will be added as a future premium feature
       },
     });
 

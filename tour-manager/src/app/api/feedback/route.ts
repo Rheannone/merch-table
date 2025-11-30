@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
       } - Road Dog`,
       html: `
         <h2>${type === "feature" ? "Feature Request" : "Bug Report"}</h2>
-        <p><strong>From:</strong> ${session.user.email}</p>
+        <p><strong>From:</strong> ${user.email}</p>
         <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
         <hr />
         <h3>Message:</h3>
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
       `,
     });
 
-    console.log(`[Feedback] ${type} from ${session.user.email}:`, message);
+    console.log(`[Feedback] ${type} from ${user.email}:`, message);
 
     return NextResponse.json({
       success: true,

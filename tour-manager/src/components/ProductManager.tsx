@@ -1,7 +1,7 @@
 "use client";
 
 import { Product } from "@/types";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   PlusIcon,
   TrashIcon,
@@ -55,39 +55,8 @@ export default function ProductManager({
     [currencyCode: string]: string;
   }>({}); // Currency price overrides
 
-  const loadCategories = useCallback(async () => {
-    try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) return;
-
-      const response = await fetch("/api/sheets/settings/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-
-      const data = await response.json();
-      if (response.ok && data.categories) {
-        setCategories(data.categories);
-        // Update newProduct category if current one doesn't exist
-        if (
-          newProduct.category &&
-          !data.categories.includes(newProduct.category)
-        ) {
-          setNewProduct({ ...newProduct, category: data.categories[0] });
-        }
-      }
-    } catch (error) {
-      console.error("Error loading categories:", error);
-      // Keep default categories if load fails
-    }
-  }, [newProduct]);
-
-  // Load categories from settings on component mount
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadCategories();
-  }, [loadCategories]);
+  // Categories are now managed in Settings and synced via Supabase
+  // No need to load from Sheets API
 
   // Track unsaved changes when editing a product
   useEffect(() => {

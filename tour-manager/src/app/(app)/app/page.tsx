@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useRouter } from "next/navigation";
 import { Product, CartItem, PaymentMethod, Sale, SyncStatus } from "@/types";
 import {
@@ -42,6 +43,12 @@ import { useTheme } from "@/components/ThemeProvider";
 
 export default function Home() {
   const { user, session, signOut } = useAuth();
+  const {
+    currentOrganization,
+    organizations,
+    loading: orgLoading,
+    switchOrganization,
+  } = useOrganization();
   const router = useRouter();
   const initializingRef = useRef(false); // Prevent multiple initializations
   const [products, setProducts] = useState<Product[]>([]);
@@ -62,16 +69,7 @@ export default function Home() {
     message: string;
     type: ToastType;
   } | null>(null);
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
-
-  // Check localStorage on client side only
-  useEffect(() => {
-    const dismissed = localStorage.getItem("announcement-v3-dismissed");
-    if (dismissed === "true") {
-      setShowAnnouncement(false);
-    }
-  }, []);
 
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
@@ -133,11 +131,26 @@ export default function Home() {
   }, [session, isInitialized, setTheme]);
 
   useEffect(() => {
-    if (session && !isInitialized && !initializingRef.current) {
+    if (
+      session &&
+      !isInitialized &&
+      !initializingRef.current &&
+      currentOrganization
+    ) {
       initializingRef.current = true;
       initializeApp();
     }
-  }, [session, isInitialized]);
+  }, [session, isInitialized, currentOrganization]);
+
+  // Reload data when organization changes (after initial load)
+  useEffect(() => {
+    if (isInitialized && currentOrganization) {
+      console.log(`🔄 Organization changed to: ${currentOrganization.name}`);
+      // Re-initialize to load data for new organization
+      initializingRef.current = false; // Reset flag
+      setIsInitialized(false); // Trigger re-initialization
+    }
+  }, [currentOrganization?.id]); // Only watch ID changes
 
   // Initialize sync service on client side
   useEffect(() => {
@@ -347,6 +360,12 @@ export default function Home() {
   };
 
   const initializeApp = async () => {
+    // Guard: Ensure we have an organization before initializing
+    if (!currentOrganization) {
+      console.error("Cannot initialize app without organization");
+      return;
+    }
+
     try {
       // Check for force-new parameter to bypass cached IDs (for testing)
       const urlParams = new URLSearchParams(window.location.search);
@@ -360,83 +379,10 @@ export default function Home() {
         window.history.replaceState({}, "", window.location.pathname);
       }
 
-      // Check if user has sheet IDs stored locally
-      let storedProductsSheetId = localStorage.getItem("productsSheetId");
-      let storedSalesSheetId = localStorage.getItem("salesSheetId");
-
-      // If no local IDs, search for existing spreadsheet in Google Drive
-      if (!storedProductsSheetId || !storedSalesSheetId) {
-        console.log("🔍 No local sheet IDs found, searching Google Drive...");
-        try {
-          const findResponse = await fetch("/api/sheets/find");
-          console.log("📡 Search response status:", findResponse.status);
-
-          if (findResponse.ok) {
-            const findData = await findResponse.json();
-            console.log("📄 Search result:", findData);
-
-            if (findData.found) {
-              // Found existing spreadsheet - use it
-              localStorage.setItem("productsSheetId", findData.spreadsheetId);
-              localStorage.setItem("salesSheetId", findData.spreadsheetId);
-              storedProductsSheetId = findData.spreadsheetId;
-              storedSalesSheetId = findData.spreadsheetId;
-              console.log(
-                "✅ Found existing ROAD DOG spreadsheet!",
-                findData.spreadsheetId
-              );
-            } else {
-              console.log(
-                "ℹ️ No existing spreadsheet found, will create new one"
-              );
-            }
-          } else {
-            const errorText = await findResponse.text();
-            console.error("❌ Search request failed:", errorText);
-          }
-        } catch (error) {
-          console.error("❌ Error searching for existing spreadsheet:", error);
-        }
-      } else {
-        console.log("✅ Using cached sheet IDs:", {
-          storedProductsSheetId,
-          storedSalesSheetId,
-        });
-      }
-
-      // If still no sheet IDs, create new spreadsheet
-      if (!storedProductsSheetId || !storedSalesSheetId) {
-        console.log("📝 Creating new spreadsheet...");
-        setIsInitializingSheets(true);
-        try {
-          const response = await fetch("/api/sheets/initialize", {
-            method: "POST",
-          });
-
-          console.log("📡 Create response status:", response.status);
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log("📄 Create result:", data);
-            localStorage.setItem("productsSheetId", data.productsSheetId);
-            localStorage.setItem("salesSheetId", data.salesSheetId);
-            if (data.sheetName) {
-              localStorage.setItem("salesSheetName", data.sheetName);
-            }
-            console.log(
-              "✅ Google Sheets created successfully!",
-              data.productsSheetId
-            );
-          } else {
-            const errorText = await response.text();
-            console.error("❌ Failed to initialize sheets:", errorText);
-          }
-        } catch (error) {
-          console.error("❌ Error initializing sheets:", error);
-        } finally {
-          setIsInitializingSheets(false);
-        }
-      }
+      // Google Sheets initialization removed - using Supabase only
+      console.log(
+        `✅ Using Supabase for all data storage (organization: ${currentOrganization.name})`
+      );
 
       // ===== NEW APPROACH: Load from Supabase first =====
       let loadedProducts: Product[] = [];
@@ -451,7 +397,9 @@ export default function Home() {
         // Online: Try Supabase first
         try {
           console.log("📥 Loading products from Supabase...");
-          const supabaseProducts = await loadProductsFromSupabase();
+          const supabaseProducts = await loadProductsFromSupabase(
+            currentOrganization.id
+          );
           console.log(
             "🔍 Supabase returned:",
             supabaseProducts.length,
@@ -524,7 +472,9 @@ export default function Home() {
       if (navigator.onLine) {
         try {
           console.log("📥 Loading sales from Supabase...");
-          const supabaseSales = await loadSalesFromSupabase();
+          const supabaseSales = await loadSalesFromSupabase(
+            currentOrganization.id
+          );
           console.log("🔍 Supabase returned:", supabaseSales.length, "sales");
 
           if (supabaseSales.length > 0) {
@@ -550,7 +500,9 @@ export default function Home() {
           const { loadCloseOutsFromSupabase } = await import(
             "@/lib/supabase/data"
           );
-          const supabaseCloseOuts = await loadCloseOutsFromSupabase();
+          const supabaseCloseOuts = await loadCloseOutsFromSupabase(
+            currentOrganization.id
+          );
           console.log(
             "🔍 Supabase returned:",
             supabaseCloseOuts.length,
@@ -583,7 +535,9 @@ export default function Home() {
           const { loadEmailSignupsFromSupabase } = await import(
             "@/lib/supabase/data"
           );
-          const supabaseEmailSignups = await loadEmailSignupsFromSupabase();
+          const supabaseEmailSignups = await loadEmailSignupsFromSupabase(
+            currentOrganization.id
+          );
           console.log(
             "🔍 Supabase returned:",
             supabaseEmailSignups.length,
@@ -613,40 +567,36 @@ export default function Home() {
       }
 
       // Load category order from settings
-      if (storedSalesSheetId) {
-        try {
-          if (navigator.onLine) {
-            // Online: Load from Supabase (auto-caches to IndexedDB)
-            const settingsData = await loadSettingsFromSupabase();
+      try {
+        if (navigator.onLine) {
+          // Online: Load from Supabase (auto-caches to IndexedDB)
+          const settingsData = await loadSettingsFromSupabase();
+          if (
+            settingsData?.categories &&
+            Array.isArray(settingsData.categories)
+          ) {
+            setCategoryOrder(settingsData.categories);
+            console.log("✅ Loaded category order:", settingsData.categories);
+          }
+        } else {
+          // Offline: Load from IndexedDB cache
+          const { getSettings } = await import("@/lib/db");
+          const {
+            data: { user },
+          } = await createClient().auth.getUser();
+          if (user) {
+            const cachedSettings = await getSettings(user.id);
             if (
-              settingsData?.categories &&
-              Array.isArray(settingsData.categories)
+              cachedSettings?.categories &&
+              Array.isArray(cachedSettings.categories)
             ) {
-              setCategoryOrder(settingsData.categories);
-              console.log("✅ Loaded category order:", settingsData.categories);
-            }
-          } else {
-            // Offline: Load from IndexedDB cache
-            const { getSettings } = await import("@/lib/db");
-            const {
-              data: { user },
-            } = await createClient().auth.getUser();
-            if (user) {
-              const cachedSettings = await getSettings(user.id);
-              if (
-                cachedSettings?.categories &&
-                Array.isArray(cachedSettings.categories)
-              ) {
-                setCategoryOrder(cachedSettings.categories);
-                console.log(
-                  "📱 Loaded category order from IndexedDB (offline)"
-                );
-              }
+              setCategoryOrder(cachedSettings.categories);
+              console.log("📱 Loaded category order from IndexedDB (offline)");
             }
           }
-        } catch (error) {
-          console.error("❌ Failed to load category order:", error);
         }
+      } catch (error) {
+        console.error("❌ Failed to load category order:", error);
       }
 
       setIsInitialized(true);
@@ -843,13 +793,53 @@ export default function Home() {
     );
   }
 
+  // Wait for organization to load before showing content
+  if (orgLoading || !currentOrganization) {
+    return (
+      <div className="min-h-screen bg-theme flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-theme-muted">Loading organization...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-theme">
       <header className="bg-theme-secondary border-b border-theme p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-theme ft-heading">
-            Road Dog
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-theme ft-heading">
+              Road Dog
+            </h1>
+
+            {/* Organization Switcher */}
+            {organizations.length > 1 && (
+              <div className="relative">
+                <select
+                  value={currentOrganization.id}
+                  onChange={(e) => switchOrganization(e.target.value)}
+                  className="text-sm bg-theme-tertiary border border-theme rounded px-3 py-1.5 text-theme focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                  title="Switch organization"
+                >
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name} ({org.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Show current org name if only one org */}
+            {organizations.length === 1 && (
+              <div className="hidden sm:block text-sm text-theme-muted">
+                {currentOrganization.name}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-2 sm:gap-4">
             {user?.email && (
               <div className="text-right">
@@ -891,45 +881,6 @@ export default function Home() {
           </div>
         </div>
       </header>
-
-      {/* Announcement Banner */}
-      {showAnnouncement && (
-        <div
-          className="relative border-b border-amber-900 overflow-hidden"
-          style={{
-            backgroundImage:
-              "url(https://www.fashionfabricla.com/cdn/shop/products/IMG_2041.jpg)",
-            backgroundSize: "600px auto",
-            backgroundPosition: "center",
-            backgroundRepeat: "repeat",
-          }}
-        >
-          <div className="flex items-center justify-between gap-4 px-4 py-3 relative">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="flex-1 min-w-0 bg-black/85 px-3 py-2 rounded-lg">
-                <p className="text-white font-bold text-sm sm:text-base">
-                  v3 Features: Email List Signup + Direct Image Uploads!
-                </p>
-                <p className="text-white text-xs sm:text-sm mt-0.5">
-                  Collect emails from customers after checkout, upload product
-                  images & QR codes directly from your device, and more settings
-                  improvements. Check Settings → Email Signup to enable!
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setShowAnnouncement(false);
-                localStorage.setItem("announcement-v3-dismissed", "true");
-              }}
-              className="text-white hover:bg-primary/90 transition-colors flex-shrink-0 p-2 rounded-lg bg-primary border-2 border-black drop-shadow-lg"
-              title="Dismiss"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-      )}
 
       <SyncStatusBar
         status={syncStatus}

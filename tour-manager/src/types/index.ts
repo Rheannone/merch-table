@@ -1,3 +1,62 @@
+// ============================================
+// ORGANIZATION TYPES
+// ============================================
+
+/**
+ * Organization role types
+ * Hierarchy: owner > admin > member > viewer
+ */
+export type OrganizationRole = "owner" | "admin" | "member" | "viewer";
+
+/**
+ * Organization (band, seller, team)
+ * Represents a selling entity that owns products, sales, etc.
+ */
+export interface Organization {
+  id: string;
+  name: string; // "Jane's Merch", "The Rockers"
+  slug: string; // URL-friendly: "janes-merch", "the-rockers"
+  description?: string;
+  avatarUrl?: string;
+  createdBy: string; // User ID who created this org
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean; // Soft delete flag
+}
+
+/**
+ * Organization Member (junction table entry)
+ * Represents a user's membership in an organization with a role
+ */
+export interface OrganizationMember {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: OrganizationRole;
+  joinedAt: string;
+  invitedBy?: string; // User ID who invited this member (nullable)
+}
+
+/**
+ * Organization with user's membership info
+ * Used for displaying user's organizations in switcher/list
+ */
+export interface OrganizationWithRole {
+  id: string;
+  name: string;
+  slug: string;
+  avatarUrl?: string;
+  role: OrganizationRole; // Current user's role in this org
+  memberCount?: number; // Optional: number of members
+  isActive: boolean;
+}
+
+// Note: OrganizationSettings defined at bottom of file after dependencies
+
+// ============================================
+// PRODUCT TYPES
+// ============================================
+
 export interface Product {
   id: string;
   name: string;
@@ -198,11 +257,30 @@ export interface CurrencySettings {
 /**
  * User Settings stored in Supabase as JSONB
  * This is what gets saved to the user_settings table
+ * These are PERSONAL preferences (like theme) that don't affect the whole org
  */
 export interface UserSettings {
   paymentSettings?: PaymentSetting[];
   categories?: string[];
   theme?: string;
+  showTipJar?: boolean;
+  currency?: {
+    displayCurrency: string;
+    exchangeRate: number;
+  };
+  emailSignup?: EmailSignupSettings;
+  closeOutSettings?: CloseOutSettings;
+}
+
+/**
+ * Organization Settings stored in organization_settings table
+ * These are ORG-WIDE settings shared by all members
+ * Payment methods, categories, email signup settings apply to entire org
+ */
+export interface OrganizationSettings {
+  paymentSettings?: PaymentSetting[];
+  categories?: string[];
+  theme?: string; // Org default theme (users can override with personal pref)
   showTipJar?: boolean;
   currency?: {
     displayCurrency: string;

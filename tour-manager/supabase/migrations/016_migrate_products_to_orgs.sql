@@ -1,0 +1,1 @@
+-- In Supabase SQL Editor, run the updated 016_migrate_products_to_orgs.sql

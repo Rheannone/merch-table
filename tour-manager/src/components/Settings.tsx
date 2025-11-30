@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -12,12 +12,25 @@ import {
   PaintBrushIcon,
   ArrowDownTrayIcon,
   EnvelopeIcon,
+  ArrowPathIcon,
+  BuildingOfficeIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  ArrowLeftOnRectangleIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import { PaymentSetting, EmailSignupSettings, CloseOut } from "@/types";
+import {
+  PaymentSetting,
+  EmailSignupSettings,
+  CloseOut,
+  OrganizationMember,
+} from "@/types";
 import Toast, { ToastType } from "./Toast";
 import CloseOutSection from "./CloseOutSection";
 import CloseOutWizard from "./CloseOutWizard";
 import { useTheme } from "./ThemeProvider";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { getAllThemes } from "@/lib/themes";
 import {
   clearAllProducts,
@@ -34,6 +47,16 @@ import { processImageForUpload } from "@/lib/imageCompression";
 import {
   loadSettingsFromSupabase,
   saveSettingsToSupabase,
+  loadOrganizationSettings,
+  saveOrganizationSettings,
+  createOrganization,
+  updateOrganization,
+  deleteOrganization,
+  leaveOrganization,
+  loadOrganizationMembers,
+  addMemberByEmail,
+  updateMemberRole,
+  removeMember,
 } from "@/lib/supabase/data";
 
 // TypeScript declarations for Google Picker API
@@ -51,6 +74,13 @@ interface ToastState {
 }
 
 export default function Settings() {
+  const {
+    currentOrganization,
+    userRole,
+    hasRole,
+    organizations,
+    refreshOrganizations,
+  } = useOrganization();
   const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
@@ -85,6 +115,26 @@ export default function Settings() {
   const [isAccountExpanded, setIsAccountExpanded] = useState(false);
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
   const [isCurrencyExpanded, setIsCurrencyExpanded] = useState(false);
+  const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(false);
+
+  // Organization management state
+  const [isCreatingOrg, setIsCreatingOrg] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [newOrgDescription, setNewOrgDescription] = useState("");
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
+  const [editOrgName, setEditOrgName] = useState("");
+  const [editOrgDescription, setEditOrgDescription] = useState("");
+
+  // Member management state
+  const [orgMembers, setOrgMembers] = useState<
+    (OrganizationMember & { email?: string; name?: string })[]
+  >([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [addMemberRole, setAddMemberRole] = useState<"member" | "admin">(
+    "member"
+  );
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   // Currency settings state
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>("USD");
@@ -101,6 +151,11 @@ export default function Settings() {
   // Backup state
   const [isBackupExpanded, setIsBackupExpanded] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+
+  // Migration state
+  const [isMigrationExpanded, setIsMigrationExpanded] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResults, setMigrationResults] = useState<any>(null);
 
   // Email Signup state
   const [isEmailSignupExpanded, setIsEmailSignupExpanded] = useState(false);
@@ -155,6 +210,32 @@ export default function Settings() {
     loadCurrentSheetInfo();
     loadGooglePickerScript();
   }, []);
+
+  // Load members when Organizations section is expanded
+  useEffect(() => {
+    if (isOrganizationsExpanded && currentOrganization) {
+      loadMembers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOrganizationsExpanded, currentOrganization?.id]);
+
+  // Load organization members
+  const loadMembers = useCallback(async () => {
+    if (!currentOrganization) return;
+    setIsLoadingMembers(true);
+    try {
+      const members = await loadOrganizationMembers(currentOrganization.id);
+      setOrgMembers(members || []);
+    } catch (error) {
+      console.error("Error loading members:", error);
+      setToast({
+        message: "Failed to load members",
+        type: "error",
+      });
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  }, [currentOrganization]);
 
   // Detect changes
   useEffect(() => {
@@ -242,31 +323,11 @@ export default function Settings() {
   // Load current sheet info from localStorage and fetch name if needed
   const loadCurrentSheetInfo = async () => {
     const sheetId = localStorage.getItem("salesSheetId");
-    let sheetName = localStorage.getItem("salesSheetName");
+    const sheetName = localStorage.getItem("salesSheetName");
 
     setCurrentSheetId(sheetId);
 
-    // If we have a sheet ID but no name, fetch it from Google Sheets API
-    if (sheetId && !sheetName) {
-      try {
-        const response = await fetch("/api/sheets/get-sheet-name", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ spreadsheetId: sheetId }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const fetchedName = data.name || "Your Current Sheet";
-          sheetName = fetchedName;
-          // Save it for next time
-          localStorage.setItem("salesSheetName", fetchedName);
-        }
-      } catch (error) {
-        console.error("Error fetching sheet name:", error);
-      }
-    }
-
+    // Sheet name is stored in localStorage, no need to fetch from Sheets API
     setCurrentSheetName(sheetName || "Your Current Sheet");
   };
 
@@ -288,40 +349,48 @@ export default function Settings() {
   };
 
   const loadSettings = async () => {
+    if (!currentOrganization) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       if (navigator.onLine) {
         // Online: Load from Supabase (auto-caches to IndexedDB)
         console.log("📥 Loading settings from Supabase...");
-        const supabaseSettings = await loadSettingsFromSupabase();
 
-        if (supabaseSettings) {
-          // Apply settings from Supabase
-          if (supabaseSettings.paymentSettings) {
-            setPaymentSettings(supabaseSettings.paymentSettings);
+        // Load ORG-WIDE settings
+        const orgSettings = await loadOrganizationSettings(
+          currentOrganization.id
+        );
+
+        // Load PERSONAL settings
+        const userSettings = await loadSettingsFromSupabase();
+
+        // Apply org settings
+        if (orgSettings) {
+          if (orgSettings.paymentSettings) {
+            setPaymentSettings(orgSettings.paymentSettings);
             setOriginalPaymentSettings(
-              JSON.parse(JSON.stringify(supabaseSettings.paymentSettings))
+              JSON.parse(JSON.stringify(orgSettings.paymentSettings))
             );
           }
 
-          if (supabaseSettings.categories) {
-            setCategories(supabaseSettings.categories);
-            setOriginalCategories([...supabaseSettings.categories]);
+          if (orgSettings.categories) {
+            setCategories(orgSettings.categories);
+            setOriginalCategories([...orgSettings.categories]);
           }
 
-          if (supabaseSettings.theme) {
-            setSelectedThemeId(supabaseSettings.theme);
+          if (orgSettings.showTipJar !== undefined) {
+            setShowTipJar(orgSettings.showTipJar);
+            setOriginalShowTipJar(orgSettings.showTipJar);
           }
 
-          if (supabaseSettings.showTipJar !== undefined) {
-            setShowTipJar(supabaseSettings.showTipJar);
-            setOriginalShowTipJar(supabaseSettings.showTipJar);
-          }
-
-          if (supabaseSettings.currency) {
-            const currencyCode = (supabaseSettings.currency.displayCurrency ||
+          if (orgSettings.currency) {
+            const currencyCode = (orgSettings.currency.displayCurrency ||
               "USD") as CurrencyCode;
-            const rate = supabaseSettings.currency.exchangeRate || 1;
+            const rate = orgSettings.currency.exchangeRate || 1;
 
             setSelectedCurrency(currencyCode);
             setExchangeRate(rate.toString());
@@ -338,27 +407,29 @@ export default function Settings() {
             });
           }
 
-          if (supabaseSettings.emailSignup) {
-            setEmailSignupSettings(supabaseSettings.emailSignup);
+          if (orgSettings.emailSignup) {
+            setEmailSignupSettings(orgSettings.emailSignup);
             setOriginalEmailSignupSettings(
-              JSON.parse(JSON.stringify(supabaseSettings.emailSignup))
+              JSON.parse(JSON.stringify(orgSettings.emailSignup))
             );
           }
 
-          if (supabaseSettings.closeOutSettings) {
+          if (orgSettings.closeOutSettings) {
             setRequireCashReconciliation(
-              supabaseSettings.closeOutSettings.requireCashReconciliation ??
-                false
+              orgSettings.closeOutSettings.requireCashReconciliation ?? false
             );
             setOriginalRequireCashReconciliation(
-              supabaseSettings.closeOutSettings.requireCashReconciliation ??
-                false
+              orgSettings.closeOutSettings.requireCashReconciliation ?? false
             );
           }
 
-          console.log("✅ Settings loaded from Supabase");
-        } else {
-          console.log("ℹ️ No settings in Supabase yet");
+          console.log("✅ Organization settings loaded");
+        }
+
+        // Apply user settings (personal theme)
+        if (userSettings?.theme) {
+          setSelectedThemeId(userSettings.theme);
+          console.log("✅ User settings loaded");
         }
       } else {
         // Offline: Load from IndexedDB cache
@@ -451,6 +522,14 @@ export default function Settings() {
   };
 
   const saveSettings = async () => {
+    if (!currentOrganization) {
+      setToast({
+        message: "No organization selected",
+        type: "error",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       // Log QR codes before saving
@@ -465,11 +544,11 @@ export default function Settings() {
         }
       });
 
-      // Build settings object
-      const settingsObject = {
+      // Split settings into ORG-WIDE and PERSONAL
+      // ORG-WIDE: Shared by all members (payment methods, categories, etc.)
+      const orgSettings = {
         paymentSettings,
         categories,
-        theme: selectedThemeId,
         showTipJar,
         currency: {
           displayCurrency: selectedCurrency,
@@ -481,13 +560,37 @@ export default function Settings() {
         },
       };
 
-      // Save to Supabase immediately
-      const success = await saveSettingsToSupabase(settingsObject);
+      // PERSONAL: User-specific preferences (theme)
+      const userSettings = {
+        theme: selectedThemeId,
+      };
 
-      // Check if save was successful (only fails if online and error occurred)
-      if (!success && navigator.onLine) {
-        throw new Error("Failed to save settings to Supabase");
+      // Save org settings (requires admin or owner role)
+      if (hasRole("admin")) {
+        const orgSuccess = await saveOrganizationSettings(
+          currentOrganization.id,
+          orgSettings
+        );
+        if (!orgSuccess && navigator.onLine) {
+          throw new Error("Failed to save organization settings to Supabase");
+        }
+        console.log("✅ Organization settings saved");
+      } else {
+        setToast({
+          message:
+            "You need admin or owner role to change organization settings",
+          type: "error",
+        });
+        setIsSaving(false);
+        return;
       }
+
+      // Save user settings (always allowed)
+      const userSuccess = await saveSettingsToSupabase(userSettings);
+      if (!userSuccess && navigator.onLine) {
+        throw new Error("Failed to save user settings to Supabase");
+      }
+      console.log("✅ User settings saved");
 
       // Cache to IndexedDB for offline access
       const { createClient } = await import("@/lib/supabase/client");
@@ -495,7 +598,11 @@ export default function Settings() {
         data: { user },
       } = await createClient().auth.getUser();
       if (user) {
-        await saveSettingsToIndexedDB(user.id, settingsObject);
+        // Cache combined settings locally
+        await saveSettingsToIndexedDB(user.id, {
+          ...orgSettings,
+          ...userSettings,
+        });
         console.log("✅ Cached settings to IndexedDB");
       }
 
@@ -546,46 +653,13 @@ export default function Settings() {
   };
 
   const handleAddEmailListSheet = async () => {
-    setIsAddingEmailSheet(true);
-
-    try {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) {
-        setToast({ message: "No spreadsheet found", type: "error" });
-        return;
-      }
-
-      const response = await fetch("/api/sheets/add-email-list", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setNeedsEmailListSheet(false);
-        setToast({
-          message: data.alreadyExists
-            ? "Email List sheet already exists!"
-            : "Email List sheet created successfully! 🎉",
-          type: "success",
-        });
-        return true;
-      } else {
-        setToast({
-          message: data.error || "Failed to create Email List sheet",
-          type: "error",
-        });
-        return false;
-      }
-    } catch (error) {
-      console.error("Error creating Email List sheet:", error);
-      setToast({ message: "Failed to create Email List sheet", type: "error" });
-      return false;
-    } finally {
-      setIsAddingEmailSheet(false);
-    }
+    // Email List sheet creation is no longer needed - all data goes to Supabase
+    setToast({
+      message: "Email signups are now saved directly to Supabase",
+      type: "success",
+    });
+    setNeedsEmailListSheet(false);
+    return true;
   };
 
   const handleToggleEmailSignup = async () => {
@@ -660,33 +734,6 @@ export default function Settings() {
         } catch (syncError) {
           console.error("⚠️ Failed to queue email signup for sync:", syncError);
           // Continue - it's saved in IndexedDB, will retry on network return
-        }
-      }
-
-      // Keep Google Sheets sync as fallback for legacy compatibility
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (spreadsheetId) {
-        try {
-          const response = await fetch("/api/sheets/email-signup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              spreadsheetId,
-              email: emailSignup.email,
-              name: emailSignup.name,
-              phone: emailSignup.phone,
-              // No saleId for manual entry
-            }),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Google Sheets sync error:", errorData);
-            // Don't fail the whole operation if Sheets sync fails
-          }
-        } catch (sheetsError) {
-          console.error("Google Sheets sync error:", sheetsError);
-          // Don't fail the whole operation if Sheets sync fails
         }
       }
 
@@ -915,47 +962,84 @@ export default function Settings() {
     }
   };
 
-  // Create backup of current spreadsheet
-  const handleCreateBackup = async () => {
+  // Migrate data from Google Sheets to Supabase
+  const handleMigrateFromSheets = async () => {
     if (!currentSheetId) {
       setToast({
-        message: "No spreadsheet found to backup.",
+        message: "No Google Sheet found. Please select your sheet first.",
         type: "error",
       });
       return;
     }
 
-    setIsCreatingBackup(true);
+    if (!currentOrganization) {
+      setToast({
+        message:
+          "No organization selected. Please select an organization first.",
+        type: "error",
+      });
+      return;
+    }
+
+    if (
+      !confirm(
+        `This will import all your data from Google Sheets to "${currentOrganization.name}". Continue?`
+      )
+    ) {
+      return;
+    }
+
+    setIsMigrating(true);
+    setMigrationResults(null);
+
     try {
-      const response = await fetch("/api/sheets/backup", {
+      const response = await fetch("/api/sheets/migrate-to-supabase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId: currentSheetId }),
+        body: JSON.stringify({
+          spreadsheetId: currentSheetId,
+          organizationId: currentOrganization.id,
+        }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
+        setMigrationResults(data.results);
+        const totalMigrated =
+          data.results.products.migrated + data.results.sales.migrated;
         setToast({
-          message: `✅ Backup created successfully! "${data.backupName}"`,
+          message: `✅ Migration complete! Imported ${totalMigrated} items to ${currentOrganization.name}`,
           type: "success",
-          duration: 5000,
+          duration: 8000,
         });
+
+        // Reload the page to show migrated data
+        setTimeout(() => window.location.reload(), 2000);
       } else {
-        throw new Error(data.error || "Failed to create backup");
+        throw new Error(data.error || "Migration failed");
       }
     } catch (error) {
-      console.error("Error creating backup:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to create backup";
+      console.error("Migration error:", error);
       setToast({
-        message: errorMessage,
+        message:
+          error instanceof Error ? error.message : "Failed to migrate data",
         type: "error",
-        duration: 5000,
+        duration: 8000,
       });
     } finally {
-      setIsCreatingBackup(false);
+      setIsMigrating(false);
     }
+  };
+
+  // Create backup of current spreadsheet
+  const handleCreateBackup = async () => {
+    // Backup functionality removed - data is now in Supabase
+    setToast({
+      message: "All data is automatically backed up in Supabase",
+      type: "success",
+      duration: 5000,
+    });
   };
 
   if (isLoading) {
@@ -1016,6 +1100,46 @@ export default function Settings() {
             Settings
           </h1>
         </div>
+
+        {/* Migration Banner - for existing users */}
+        {currentSheetId && (
+          <div className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 shadow-xl border-2 border-blue-400">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-shrink-0 text-4xl">🎸</div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-2">
+                  Looking for your data?
+                </h2>
+                <p className="text-blue-100 text-sm mb-3">
+                  Merch Table grew up and now we&apos;re{" "}
+                  <strong>Road Dog</strong>. All your data is still backed up to
+                  your own Google account, but the app now runs off a more
+                  stable database hosted on our servers.
+                </p>
+                <button
+                  onClick={() => {
+                    setIsMigrationExpanded(true);
+                    // Scroll to migration section
+                    setTimeout(() => {
+                      const migrationSection = document.querySelector(
+                        "[data-migration-section]"
+                      );
+                      if (migrationSection) {
+                        migrationSection.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                      }
+                    }, 100);
+                  }}
+                  className="px-5 py-2.5 bg-white text-blue-600 font-bold rounded-lg hover:bg-blue-50 transition-all active:scale-95 shadow-lg"
+                >
+                  Click to Migrate Your Data →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Payment Options Section */}
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
@@ -1786,6 +1910,134 @@ export default function Settings() {
           )}
         </div>
 
+        {/* Migration Section - NEW! */}
+        <div
+          data-migration-section
+          className="bg-theme-secondary rounded-lg mb-6 overflow-hidden border-2 border-yellow-600/50"
+        >
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsMigrationExpanded(!isMigrationExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <ArrowPathIcon className="w-7 h-7 text-yellow-500" />
+              <div className="text-left">
+                <h2 className="text-2xl font-bold text-theme">
+                  Migrate from Google Sheets
+                </h2>
+                <p className="text-xs text-yellow-500 mt-1">
+                  For existing users only
+                </p>
+              </div>
+            </div>
+            {isMigrationExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isMigrationExpanded && (
+            <div className="px-6 pb-6">
+              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4 mb-6">
+                <p className="text-sm text-yellow-200 mb-2">
+                  ⚠️ <strong>Important:</strong> This is a one-time migration
+                  tool for users who have existing data in Google Sheets.
+                </p>
+                <p className="text-xs text-yellow-300 mt-2">
+                  This will import all your products, sales, and settings from
+                  your Google Sheet into Supabase. After migration, the app will
+                  use Supabase as the primary data source.
+                </p>
+              </div>
+
+              {currentSheetId ? (
+                <div className="space-y-4">
+                  {/* Migration Action */}
+                  <div className="bg-theme-tertiary rounded-lg p-6 border border-theme text-center">
+                    <div className="mb-4">
+                      <div className="text-4xl mb-3">📦➡️☁️</div>
+                      <h3 className="text-lg font-semibold text-theme mb-2">
+                        Import from Google Sheets
+                      </h3>
+                      <p className="text-sm text-theme-muted mb-2">
+                        Current sheet:{" "}
+                        <span className="font-mono text-theme">
+                          {currentSheetName}
+                        </span>
+                      </p>
+                      <p className="text-xs text-theme-muted mb-4">
+                        This will import all data from your Google Sheet
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleMigrateFromSheets}
+                      disabled={isMigrating}
+                      className="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                    >
+                      {isMigrating ? "Migrating..." : "🚀 Start Migration"}
+                    </button>
+                  </div>
+
+                  {/* Migration Results */}
+                  {migrationResults && (
+                    <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-4">
+                      <p className="text-sm text-green-300 mb-2">
+                        ✅ <strong>Migration Complete!</strong>
+                      </p>
+                      <ul className="text-sm text-green-200 space-y-1 ml-4 list-disc">
+                        <li>
+                          Products: {migrationResults.products.migrated}{" "}
+                          imported, {migrationResults.products.errors} errors
+                        </li>
+                        <li>
+                          Sales: {migrationResults.sales.migrated} imported,{" "}
+                          {migrationResults.sales.errors} errors
+                        </li>
+                        <li>
+                          Settings:{" "}
+                          {migrationResults.settings.migrated
+                            ? "✅ Imported"
+                            : "❌ Failed"}
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Info Box */}
+                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+                    <p className="text-sm text-blue-300 mb-2">
+                      ℹ️ <strong>What gets migrated:</strong>
+                    </p>
+                    <ul className="text-sm text-blue-200 space-y-1 ml-4 list-disc">
+                      <li>All products and inventory</li>
+                      <li>All sales history</li>
+                      <li>Payment settings and categories</li>
+                      <li>Currency preferences and theme</li>
+                    </ul>
+                    <p className="text-xs text-blue-300 mt-3">
+                      💡 After migration, your data will be stored in Supabase.
+                      Your Google Sheet will remain unchanged as a backup.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-theme-muted mb-2">
+                    No spreadsheet selected
+                  </p>
+                  <p className="text-sm text-theme-muted">
+                    Please select your Google Sheet first using the &quot;Change
+                    Sheet&quot; option above.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Close-Out Section */}
         <CloseOutSection
           onCreateCloseOut={handleCreateCloseOut}
@@ -2191,6 +2443,587 @@ export default function Settings() {
                   ✨ <strong>Preview Mode:</strong> You&apos;re seeing the theme
                   in real-time! Click &quot;Save Settings&quot; below to make it
                   permanent.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Organizations Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsOrganizationsExpanded(!isOrganizationsExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <BuildingOfficeIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">Organizations</h2>
+            </div>
+            {isOrganizationsExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Collapsible Content */}
+          {isOrganizationsExpanded && (
+            <div className="px-6 pb-6">
+              <p className="text-sm text-theme-muted mb-6">
+                Manage your organizations, teams, and collaborations. Switch
+                between organizations or create new ones.
+              </p>
+
+              {/* Current Organization Info */}
+              <div className="bg-theme-tertiary border border-theme rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-theme-muted mb-1">
+                      Currently viewing
+                    </p>
+                    <h3 className="text-lg font-bold text-theme">
+                      {currentOrganization.name}
+                    </h3>
+                    <p className="text-sm text-theme-secondary mt-1">
+                      Your role: {userRole}
+                    </p>
+                  </div>
+                  <UserGroupIcon className="w-8 h-8 text-primary opacity-50" />
+                </div>
+              </div>
+
+              {/* Create New Organization */}
+              {!isCreatingOrg ? (
+                <button
+                  onClick={() => setIsCreatingOrg(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors mb-6"
+                >
+                  <PlusIcon className="w-5 h-5" />
+                  Create New Organization
+                </button>
+              ) : (
+                <div className="bg-theme-tertiary border border-theme rounded-lg p-4 mb-6">
+                  <h4 className="font-bold text-theme mb-3">
+                    New Organization
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-theme mb-1">
+                        Organization Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={newOrgName}
+                        onChange={(e) => setNewOrgName(e.target.value)}
+                        placeholder="e.g., The Awesome Band"
+                        className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-theme mb-1">
+                        Description (optional)
+                      </label>
+                      <textarea
+                        value={newOrgDescription}
+                        onChange={(e) => setNewOrgDescription(e.target.value)}
+                        placeholder="What's this organization for?"
+                        rows={2}
+                        className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!newOrgName.trim()) return;
+                          try {
+                            setIsSaving(true);
+                            const org = await createOrganization(
+                              newOrgName.trim(),
+                              newOrgDescription.trim() || undefined
+                            );
+                            if (org) {
+                              setToast({
+                                message: `Created: ${org.name}`,
+                                type: "success",
+                              });
+                              setNewOrgName("");
+                              setNewOrgDescription("");
+                              setIsCreatingOrg(false);
+                              await refreshOrganizations();
+                            } else {
+                              setToast({
+                                message: "Failed to create organization",
+                                type: "error",
+                              });
+                            }
+                          } catch (error) {
+                            console.error("Error:", error);
+                            setToast({
+                              message: "Error creating organization",
+                              type: "error",
+                            });
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        }}
+                        disabled={!newOrgName.trim() || isSaving}
+                        className="flex-1 px-4 py-2 bg-success hover:bg-success-dark text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSaving ? "Creating..." : "Create"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsCreatingOrg(false);
+                          setNewOrgName("");
+                          setNewOrgDescription("");
+                        }}
+                        className="px-4 py-2 bg-theme-tertiary hover:bg-theme text-theme border border-theme rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Organizations List */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-theme text-sm uppercase tracking-wide">
+                  My Organizations ({organizations.length})
+                </h4>
+                {organizations.map((org) => (
+                  <div
+                    key={org.id}
+                    className={`border rounded-lg p-4 ${
+                      org.id === currentOrganization.id
+                        ? "border-primary bg-primary/5"
+                        : "border-theme bg-theme-tertiary"
+                    }`}
+                  >
+                    {editingOrgId === org.id ? (
+                      // Edit Mode
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={editOrgName}
+                          onChange={(e) => setEditOrgName(e.target.value)}
+                          className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <textarea
+                          value={editOrgDescription}
+                          onChange={(e) =>
+                            setEditOrgDescription(e.target.value)
+                          }
+                          rows={2}
+                          className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              if (!editOrgName.trim()) return;
+                              try {
+                                setIsSaving(true);
+                                const success = await updateOrganization(
+                                  org.id,
+                                  {
+                                    name: editOrgName.trim(),
+                                    description:
+                                      editOrgDescription.trim() || undefined,
+                                  }
+                                );
+                                if (success) {
+                                  setToast({
+                                    message: "Updated successfully",
+                                    type: "success",
+                                  });
+                                  setEditingOrgId(null);
+                                  await refreshOrganizations();
+                                } else {
+                                  setToast({
+                                    message:
+                                      "Failed to update (admin/owner required)",
+                                    type: "error",
+                                  });
+                                }
+                              } catch (error) {
+                                console.error("Error:", error);
+                                setToast({
+                                  message: "Error updating organization",
+                                  type: "error",
+                                });
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }}
+                            disabled={!editOrgName.trim() || isSaving}
+                            className="px-3 py-1.5 bg-success hover:bg-success-dark text-white text-sm rounded disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingOrgId(null)}
+                            className="px-3 py-1.5 bg-theme-tertiary hover:bg-theme text-theme border border-theme text-sm rounded"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View Mode
+                      <div>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-theme">
+                                {org.name}
+                              </h4>
+                              {org.id === currentOrganization.id && (
+                                <span className="text-xs bg-primary text-white px-2 py-0.5 rounded">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            {org.description && (
+                              <p className="text-sm text-theme-secondary mt-1">
+                                {org.description}
+                              </p>
+                            )}
+                            <p className="text-xs text-theme-muted mt-1">
+                              Role: {org.role}
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            {hasRole(org.id, ["owner", "admin"]) && (
+                              <button
+                                onClick={() => {
+                                  setEditingOrgId(org.id);
+                                  setEditOrgName(org.name);
+                                  setEditOrgDescription(org.description || "");
+                                }}
+                                className="p-1.5 hover:bg-theme-tertiary rounded transition-colors"
+                                title="Edit"
+                              >
+                                <PencilIcon className="w-4 h-4 text-theme-muted" />
+                              </button>
+                            )}
+                            {org.role !== "owner" && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Leave "${org.name}"?`)) return;
+                                  try {
+                                    setIsSaving(true);
+                                    const success = await leaveOrganization(
+                                      org.id
+                                    );
+                                    if (success) {
+                                      setToast({
+                                        message: `Left ${org.name}`,
+                                        type: "success",
+                                      });
+                                      await refreshOrganizations();
+                                    } else {
+                                      setToast({
+                                        message: "Cannot leave",
+                                        type: "error",
+                                      });
+                                    }
+                                  } catch (error) {
+                                    console.error("Error:", error);
+                                    setToast({
+                                      message: "Error leaving organization",
+                                      type: "error",
+                                    });
+                                  } finally {
+                                    setIsSaving(false);
+                                  }
+                                }}
+                                className="p-1.5 hover:bg-theme-tertiary rounded transition-colors"
+                                title="Leave Organization"
+                              >
+                                <ArrowLeftOnRectangleIcon className="w-4 h-4 text-theme-muted" />
+                              </button>
+                            )}
+                            {org.role === "owner" &&
+                              organizations.length > 1 && (
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm(
+                                        `Delete "${org.name}"? This cannot be undone.`
+                                      )
+                                    )
+                                      return;
+                                    try {
+                                      setIsSaving(true);
+                                      const success = await deleteOrganization(
+                                        org.id
+                                      );
+                                      if (success) {
+                                        setToast({
+                                          message: `Deleted ${org.name}`,
+                                          type: "success",
+                                        });
+                                        await refreshOrganizations();
+                                      } else {
+                                        setToast({
+                                          message: "Failed to delete",
+                                          type: "error",
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error("Error:", error);
+                                      setToast({
+                                        message: "Error deleting organization",
+                                        type: "error",
+                                      });
+                                    } finally {
+                                      setIsSaving(false);
+                                    }
+                                  }}
+                                  className="p-1.5 hover:bg-red-500/10 rounded transition-colors"
+                                  title="Delete Organization"
+                                >
+                                  <TrashIcon className="w-4 h-4 text-red-500" />
+                                </button>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Members Section - Only for current org with admin/owner permissions */}
+              {currentOrganization &&
+                (hasRole("admin") || hasRole("owner")) && (
+                  <div className="space-y-4 mt-6 pt-6 border-t border-theme">
+                    <div className="flex items-center gap-2">
+                      <UserGroupIcon className="w-5 h-5 text-theme" />
+                      <h4 className="font-bold text-theme text-sm uppercase tracking-wide">
+                        Members ({orgMembers.length})
+                      </h4>
+                    </div>
+
+                    {/* Add Member Form */}
+                    <div className="bg-theme-tertiary border border-theme rounded-lg p-4">
+                      <h5 className="text-sm font-semibold text-theme mb-3">
+                        Invite Member
+                      </h5>
+                      <div className="space-y-3">
+                        <input
+                          type="email"
+                          placeholder="Email address"
+                          value={addMemberEmail}
+                          onChange={(e) => setAddMemberEmail(e.target.value)}
+                          className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        <div className="flex gap-3">
+                          <select
+                            value={addMemberRole}
+                            onChange={(e) =>
+                              setAddMemberRole(
+                                e.target.value as "member" | "admin"
+                              )
+                            }
+                            className="flex-1 px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
+                          >
+                            <option value="member">Member</option>
+                            <option value="admin">Admin</option>
+                            {hasRole("owner") && (
+                              <option value="owner">Owner</option>
+                            )}
+                          </select>
+                          <button
+                            onClick={async () => {
+                              if (!addMemberEmail.trim()) {
+                                setToast({
+                                  message: "Enter an email address",
+                                  type: "error",
+                                });
+                                return;
+                              }
+                              setIsAddingMember(true);
+                              try {
+                                const result = await addMemberByEmail(
+                                  currentOrganization.id,
+                                  addMemberEmail.trim(),
+                                  addMemberRole
+                                );
+                                if (result.success) {
+                                  setToast({
+                                    message: "Member added successfully",
+                                    type: "success",
+                                  });
+                                  setAddMemberEmail("");
+                                  await loadMembers();
+                                } else {
+                                  setToast({
+                                    message:
+                                      result.error || "Failed to add member",
+                                    type: "error",
+                                  });
+                                }
+                              } catch (error) {
+                                console.error("Error adding member:", error);
+                                setToast({
+                                  message: "Error adding member",
+                                  type: "error",
+                                });
+                              } finally {
+                                setIsAddingMember(false);
+                              }
+                            }}
+                            disabled={!addMemberEmail.trim() || isAddingMember}
+                            className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded disabled:opacity-50 flex items-center gap-2"
+                          >
+                            <PlusIcon className="w-4 h-4" />
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Members List */}
+                    {isLoadingMembers ? (
+                      <div className="text-center py-4 text-theme-muted">
+                        Loading members...
+                      </div>
+                    ) : orgMembers.length === 0 ? (
+                      <div className="text-center py-4 text-theme-muted">
+                        No members yet
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {orgMembers.map((member) => (
+                          <div
+                            key={member.id}
+                            className="border border-theme rounded-lg p-3 bg-theme flex items-center justify-between"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-theme">
+                                  {member.email ||
+                                    member.name ||
+                                    "Unknown User"}
+                                </p>
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded ${
+                                    member.role === "owner"
+                                      ? "bg-purple-500 text-white"
+                                      : member.role === "admin"
+                                      ? "bg-blue-500 text-white"
+                                      : "bg-theme-tertiary text-theme"
+                                  }`}
+                                >
+                                  {member.role}
+                                </span>
+                              </div>
+                              <p className="text-xs text-theme-muted mt-1">
+                                Joined{" "}
+                                {new Date(member.joinedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {/* Role Change - Only owners can change roles */}
+                              {hasRole("owner") && member.role !== "owner" && (
+                                <select
+                                  value={member.role}
+                                  onChange={async (e) => {
+                                    const newRole = e.target.value as
+                                      | "member"
+                                      | "admin"
+                                      | "owner";
+                                    try {
+                                      const success = await updateMemberRole(
+                                        member.id,
+                                        newRole
+                                      );
+                                      if (success) {
+                                        setToast({
+                                          message: `Updated role to ${newRole}`,
+                                          type: "success",
+                                        });
+                                        await loadMembers();
+                                      } else {
+                                        setToast({
+                                          message: "Failed to update role",
+                                          type: "error",
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error("Error:", error);
+                                      setToast({
+                                        message: "Error updating role",
+                                        type: "error",
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 text-xs bg-theme border border-theme rounded text-theme"
+                                >
+                                  <option value="member">Member</option>
+                                  <option value="admin">Admin</option>
+                                  <option value="owner">Owner</option>
+                                </select>
+                              )}
+                              {/* Remove Member - Can't remove owner */}
+                              {member.role !== "owner" && (
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm(
+                                        `Remove ${
+                                          member.email || "this member"
+                                        }?`
+                                      )
+                                    )
+                                      return;
+                                    try {
+                                      const success = await removeMember(
+                                        member.id
+                                      );
+                                      if (success) {
+                                        setToast({
+                                          message: "Member removed",
+                                          type: "success",
+                                        });
+                                        await loadMembers();
+                                      } else {
+                                        setToast({
+                                          message: "Failed to remove member",
+                                          type: "error",
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error("Error:", error);
+                                      setToast({
+                                        message: "Error removing member",
+                                        type: "error",
+                                      });
+                                    }
+                                  }}
+                                  className="p-1.5 hover:bg-red-500/10 rounded transition-colors"
+                                  title="Remove Member"
+                                >
+                                  <TrashIcon className="w-4 h-4 text-red-500" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Info Box */}
+              <div className="bg-theme-secondary border border-theme rounded-lg p-4 mt-6 opacity-70">
+                <p className="text-sm text-theme">
+                  💡 <strong>Tip:</strong> Use the dropdown in the header to
+                  quickly switch between organizations. All your data (products,
+                  sales, etc.) is isolated per organization.
                 </p>
               </div>
             </div>

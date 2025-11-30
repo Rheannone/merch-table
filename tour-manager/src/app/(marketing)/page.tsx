@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -100,8 +100,8 @@ export default function HomePage() {
             <p>
               Unlike traditional POS systems that require constant internet
               connectivity and charge high fees, Road Dog works completely
-              offline and stores your data in your own Google Sheets spreadsheet
-              - giving you full ownership and control.
+              offline and stores your data securely in the cloud - giving you
+              full ownership and control.
             </p>
             <p>
               Whether you&apos;re selling t-shirts at a basement show, vinyl at
@@ -146,12 +146,12 @@ export default function HomePage() {
           <div className="bg-theme-secondary border border-theme rounded-lg p-6">
             <div className="text-4xl mb-4">📊</div>
             <h4 className="text-xl font-bold text-theme mb-3">
-              Your Data, Your Sheets
+              Your Data, Securely Stored
             </h4>
             <p className="text-theme-secondary">
-              All sales data is stored in your own Google Sheets. Export to
-              Excel, share with your band, or analyze however you want. You own
-              it.
+              All sales data is stored securely in the cloud with automatic
+              backups. Export your data anytime. You own it, we just keep it
+              safe.
             </p>
           </div>
 
@@ -221,9 +221,9 @@ export default function HomePage() {
                 Sign In with Google
               </h4>
               <p className="text-theme-secondary">
-                Use your Google account to sign in. We'll create a spreadsheet
-                in your Google Drive to store your sales data. You stay in
-                control.
+                Use your Google account to sign in quickly and securely. All
+                your sales data is stored safely in the cloud with automatic
+                backups.
               </p>
             </div>
           </div>
@@ -238,8 +238,8 @@ export default function HomePage() {
               </h4>
               <p className="text-theme-secondary">
                 Set up your inventory - t-shirts, vinyl, CDs, stickers, whatever
-                you're selling. Add sizes, prices, and images. Takes just a few
-                minutes.
+                you&apos;re selling. Add sizes, prices, and images. Takes just a
+                few minutes.
               </p>
             </div>
           </div>
@@ -269,8 +269,8 @@ export default function HomePage() {
                 Sync Your Data
               </h4>
               <p className="text-theme-secondary">
-                When you're back online, all your sales automatically sync to
-                your Google Sheet. View reports, export data, or share with your
+                When you&apos;re back online, all your sales automatically sync
+                to the cloud. View reports, export data, or share with your
                 bandmates.
               </p>
             </div>
@@ -286,37 +286,40 @@ export default function HomePage() {
           </h3>
           <div className="max-w-3xl mx-auto space-y-4 text-theme-secondary">
             <p>
-              <strong className="text-theme">Road Dog</strong> uses Google OAuth
-              to access your Google Sheets, allowing you to store and sync your
-              sales data. Here&apos;s exactly what we do with your data:
+              <strong className="text-theme">Road Dog</strong> uses Google
+              Sign-In for secure authentication. Here&apos;s exactly what we do
+              with your data:
             </p>
             <ul className="space-y-3 ml-6">
               <li className="flex items-start gap-3">
                 <span className="text-success text-xl">✓</span>
                 <span>
-                  <strong>We create one spreadsheet</strong> in your Google
-                  Drive to store your sales, products, and settings
+                  <strong>Secure cloud storage</strong> - Your sales, products,
+                  and settings are stored in an encrypted database with
+                  automatic backups
                 </span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-success text-xl">✓</span>
                 <span>
-                  <strong>We only access that one spreadsheet</strong> - we
-                  cannot see or access any other files in your Google Drive
+                  <strong>We only access your email and profile</strong> - we
+                  don&apos;t access any of your Google Drive files or other
+                  Google services
                 </span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-success text-xl">✓</span>
                 <span>
-                  <strong>You own all your data</strong> - it's stored in your
-                  Google account, not on our servers
+                  <strong>You own all your data</strong> - export it anytime in
+                  standard formats. Delete your account and all data is
+                  permanently removed
                 </span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-success text-xl">✓</span>
                 <span>
-                  <strong>We don't sell or share your data</strong> with anyone
-                  - your sales information stays private
+                  <strong>We don&apos;t sell or share your data</strong> with
+                  anyone - your sales information stays private
                 </span>
               </li>
               <li className="flex items-start gap-3">
