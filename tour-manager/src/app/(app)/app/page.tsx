@@ -21,6 +21,8 @@ import {
   loadProductsFromSupabase,
   loadSalesFromSupabase,
   loadSettingsFromSupabase,
+  loadOrganizationSettings,
+  saveOrganizationSettings,
 } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/client";
 import { deleteProductImage } from "@/lib/supabase/storage";
@@ -73,6 +75,11 @@ export default function Home() {
 
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
+
+  // Debug: Log when categoryOrder changes
+  useEffect(() => {
+    console.log("🔄 categoryOrder state changed:", categoryOrder);
+  }, [categoryOrder]);
 
   // Handle authentication redirect
   useEffect(() => {
@@ -568,17 +575,28 @@ export default function Home() {
 
       // Load category order from settings
       try {
-        if (navigator.onLine) {
-          // Online: Load from Supabase (auto-caches to IndexedDB)
-          const settingsData = await loadSettingsFromSupabase();
+        if (navigator.onLine && currentOrganization?.id) {
+          // Online: Load from Supabase organization settings
+          const orgSettings = await loadOrganizationSettings(
+            currentOrganization.id
+          );
+          console.log("📋 app/page.tsx loaded org settings:", orgSettings);
           if (
-            settingsData?.categories &&
-            Array.isArray(settingsData.categories)
+            orgSettings?.categories &&
+            Array.isArray(orgSettings.categories)
           ) {
-            setCategoryOrder(settingsData.categories);
-            console.log("✅ Loaded category order:", settingsData.categories);
+            setCategoryOrder(orgSettings.categories);
+            console.log(
+              "✅ Loaded category order from org settings:",
+              orgSettings.categories
+            );
+          } else {
+            console.warn(
+              "⚠️ No categories found in org settings, using defaults"
+            );
+            setCategoryOrder(["Apparel", "Merch", "Music"]);
           }
-        } else {
+        } else if (!navigator.onLine) {
           // Offline: Load from IndexedDB cache
           const { getSettings } = await import("@/lib/db");
           const {
@@ -594,9 +612,13 @@ export default function Home() {
               console.log("📱 Loaded category order from IndexedDB (offline)");
             }
           }
+        } else {
+          console.warn("⚠️ No organization selected, using default categories");
+          setCategoryOrder(["Apparel", "Merch", "Music"]);
         }
       } catch (error) {
         console.error("❌ Failed to load category order:", error);
+        setCategoryOrder(["Apparel", "Merch", "Music"]);
       }
 
       setIsInitialized(true);
@@ -750,6 +772,61 @@ export default function Home() {
       const updatedProducts = await getProducts();
       setProducts(updatedProducts);
     }
+  };
+
+  const handleCategoryCreated = async (newCategory: string) => {
+    try {
+      // Check if category already exists
+      if (categoryOrder.includes(newCategory)) {
+        console.log("Category already exists:", newCategory);
+        return;
+      }
+
+      // Make sure we have an organization
+      if (!currentOrganization?.id) {
+        console.error("No current organization");
+        setToast({
+          message: "No organization selected",
+          type: "error",
+        });
+        return;
+      }
+
+      // Add the new category to the end of the category order
+      const updatedCategories = [...categoryOrder, newCategory];
+      setCategoryOrder(updatedCategories);
+      console.log("📋 Updated categoryOrder state:", updatedCategories);
+
+      // Load current organization settings to preserve other fields
+      const currentSettings = await loadOrganizationSettings(
+        currentOrganization.id
+      );
+
+      // Save updated category order to organization settings
+      await saveOrganizationSettings(currentOrganization.id, {
+        ...currentSettings,
+        categories: updatedCategories,
+      });
+
+      console.log("✅ New category added and synced:", newCategory);
+      setToast({
+        message: `Category "${newCategory}" added successfully`,
+        type: "success",
+      });
+    } catch (error) {
+      console.error("❌ Failed to save new category:", error);
+      setToast({
+        message: "Failed to save new category. Please try again.",
+        type: "error",
+      });
+    }
+  };
+
+  const handleCategoriesChange = (updatedCategories: string[]) => {
+    console.log("📋 Categories updated from Settings:", updatedCategories);
+    console.log("📋 Current categoryOrder:", categoryOrder);
+    setCategoryOrder(updatedCategories);
+    console.log("📋 Called setCategoryOrder with:", updatedCategories);
   };
 
   if (isInitializingSheets) {
@@ -930,6 +1007,7 @@ export default function Home() {
           <POSInterface
             products={products}
             categoryOrder={categoryOrder}
+            organizationId={currentOrganization?.id}
             onCompleteSale={handleCompleteSale}
             onUpdateProduct={handleUpdateProduct}
           />
@@ -937,13 +1015,20 @@ export default function Home() {
         {activeTab === "setup" && (
           <ProductManager
             products={products}
+            categories={categoryOrder}
             onAddProduct={handleAddProduct}
             onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
+            onCategoryCreated={handleCategoryCreated}
           />
         )}
         {activeTab === "analytics" && <Analytics />}
-        {activeTab === "settings" && <Settings />}
+        {activeTab === "settings" && (
+          <Settings
+            products={products}
+            onCategoriesChange={handleCategoriesChange}
+          />
+        )}
       </main>
 
       <FeedbackButton />

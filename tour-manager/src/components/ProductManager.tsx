@@ -1,7 +1,7 @@
 "use client";
 
 import { Product } from "@/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   PlusIcon,
   TrashIcon,
@@ -13,9 +13,11 @@ import { CURRENCIES, type CurrencyCode } from "@/lib/currency";
 
 interface ProductManagerProps {
   products: Product[];
+  categories?: string[]; // Categories from org settings
   onAddProduct: (product: Product) => Promise<void>;
   onUpdateProduct: (product: Product) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
+  onCategoryCreated?: (category: string) => Promise<void>; // Callback when new category is created
 }
 
 interface ToastState {
@@ -25,9 +27,11 @@ interface ToastState {
 
 export default function ProductManager({
   products,
+  categories: propCategories,
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
+  onCategoryCreated,
 }: ProductManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -38,11 +42,19 @@ export default function ProductManager({
     category: "Apparel",
     description: "",
   });
-  const [categories, setCategories] = useState<string[]>([
-    "Apparel",
-    "Merch",
-    "Music",
-  ]);
+  // Use categories from props (org settings) with fallback to defaults
+  const categories = useMemo(
+    () =>
+      propCategories && propCategories.length > 0
+        ? propCategories
+        : ["Apparel", "Merch", "Music"],
+    [propCategories]
+  );
+
+  // Debug logging
+  useEffect(() => {
+    console.log("📋 ProductManager received categories:", categories);
+  }, [categories]);
   const [sizesInput, setSizesInput] = useState(""); // Separate state for sizes input
   const [sizeQuantities, setSizeQuantities] = useState<{
     [size: string]: number;
@@ -495,17 +507,36 @@ export default function ProductManager({
               </label>
               <select
                 value={newProduct.category}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, category: e.target.value })
-                }
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "__new__") {
+                    const newCat = prompt("Enter new category name:");
+                    if (newCat && newCat.trim()) {
+                      setNewProduct({ ...newProduct, category: newCat.trim() });
+                      if (
+                        onCategoryCreated &&
+                        !categories.includes(newCat.trim())
+                      ) {
+                        onCategoryCreated(newCat.trim());
+                      }
+                    }
+                  } else {
+                    setNewProduct({ ...newProduct, category: value });
+                  }
+                }}
                 className="w-full px-4 py-2 bg-theme border border-theme text-theme rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
               >
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
                 ))}
+                <option value="__new__">+ Add New Category...</option>
               </select>
+              <p className="text-xs text-theme-muted mt-1">
+                💡 {categories.length} categories available
+              </p>
             </div>
 
             <div>
@@ -946,20 +977,46 @@ export default function ProductManager({
                             </label>
                             <select
                               value={newProduct.category || ""}
-                              onChange={(e) =>
-                                setNewProduct({
-                                  ...newProduct,
-                                  category: e.target.value,
-                                })
-                              }
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === "__new__") {
+                                  const newCat = prompt(
+                                    "Enter new category name:"
+                                  );
+                                  if (newCat && newCat.trim()) {
+                                    setNewProduct({
+                                      ...newProduct,
+                                      category: newCat.trim(),
+                                    });
+                                    if (
+                                      onCategoryCreated &&
+                                      !categories.includes(newCat.trim())
+                                    ) {
+                                      onCategoryCreated(newCat.trim());
+                                    }
+                                  }
+                                } else {
+                                  setNewProduct({
+                                    ...newProduct,
+                                    category: value,
+                                  });
+                                }
+                              }}
                               className="w-full px-3 py-2 bg-theme border border-theme rounded-lg text-theme focus:outline-none focus:border-red-500"
+                              required
                             >
                               {categories.map((cat) => (
                                 <option key={cat} value={cat}>
                                   {cat}
                                 </option>
                               ))}
+                              <option value="__new__">
+                                + Add New Category...
+                              </option>
                             </select>
+                            <p className="text-xs text-theme-muted mt-1">
+                              💡 {categories.length} categories available
+                            </p>
                           </div>
 
                           <div>

@@ -307,10 +307,15 @@ export async function saveSettingsToSupabase(
       return false;
     }
 
-    const { error } = await supabase.from("user_settings").upsert({
-      user_id: userData.user.id,
-      settings,
-    });
+    const { error } = await supabase.from("user_settings").upsert(
+      {
+        user_id: userData.user.id,
+        settings,
+      },
+      {
+        onConflict: "user_id", // Update if row exists
+      }
+    );
 
     if (error) {
       console.error("Error saving settings to Supabase:", error);
@@ -1003,10 +1008,15 @@ export async function saveOrganizationSettings(
     }
 
     // RLS will enforce permissions (admin or owner only)
-    const { error } = await supabase.from("organization_settings").upsert({
-      organization_id: organizationId,
-      settings,
-    });
+    const { error } = await supabase.from("organization_settings").upsert(
+      {
+        organization_id: organizationId,
+        settings,
+      },
+      {
+        onConflict: "organization_id", // Update if row exists
+      }
+    );
 
     if (error) {
       console.error("Error saving organization settings:", error);

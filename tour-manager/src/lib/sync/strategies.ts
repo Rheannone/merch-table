@@ -536,10 +536,15 @@ export const settingsSyncStrategy: SyncStrategy<UserSettings> = {
         }
 
         // Upsert settings (creates or updates)
-        const { error } = await supabase.from("user_settings").upsert({
-          user_id: user.id,
-          settings: data,
-        });
+        const { error } = await supabase.from("user_settings").upsert(
+          {
+            user_id: user.id,
+            settings: data,
+          },
+          {
+            onConflict: "user_id", // Update if row exists
+          }
+        );
 
         if (error) throw error;
 

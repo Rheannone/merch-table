@@ -32,6 +32,7 @@ import syncService from "@/lib/sync/syncService";
 interface POSInterfaceProps {
   products: Product[];
   categoryOrder?: string[]; // Optional prop to avoid loading flash
+  organizationId?: string; // Organization ID for loading settings
   onCompleteSale: (
     items: CartItem[],
     total: number,
@@ -52,6 +53,7 @@ interface ToastState {
 export default function POSInterface({
   products,
   categoryOrder: initialCategoryOrder = [],
+  organizationId,
   onCompleteSale,
   onUpdateProduct,
 }: POSInterfaceProps) {
@@ -101,26 +103,57 @@ export default function POSInterface({
     });
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
+  // Debug: Track modal state changes
+  useEffect(() => {
+    console.log("🔔 showEmailSignupModal changed to:", showEmailSignupModal);
+  }, [showEmailSignupModal]);
+
   // Update categoryOrder when prop changes (e.g., after settings save)
   useEffect(() => {
-    if (initialCategoryOrder.length > 0) {
+    console.log(
+      "🎯 POSInterface prop changed, initialCategoryOrder:",
+      initialCategoryOrder
+    );
+    if (initialCategoryOrder && initialCategoryOrder.length > 0) {
+      console.log(
+        "🎯 POSInterface updating categoryOrder from prop:",
+        initialCategoryOrder
+      );
       setCategoryOrder(initialCategoryOrder);
+    } else {
+      console.log("🎯 POSInterface skipping update - prop is empty");
     }
   }, [initialCategoryOrder]);
 
   // Load payment settings and currency on mount
   useEffect(() => {
-    loadPaymentSettings();
+    if (organizationId) {
+      loadPaymentSettings();
+    }
     updateBillDenominations();
 
     // Listen for currency changes
     const handleCurrencyChange = () => {
       updateBillDenominations();
     };
+
+    // Listen for settings changes (e.g., email signup toggle)
+    const handleSettingsChange = () => {
+      console.log("⚙️ Settings changed event received, reloading settings...");
+      if (organizationId) {
+        loadPaymentSettings();
+      }
+    };
+
     window.addEventListener("currency-changed", handleCurrencyChange);
-    return () =>
+    window.addEventListener("settings-changed", handleSettingsChange);
+
+    return () => {
       window.removeEventListener("currency-changed", handleCurrencyChange);
-  }, []);
+      window.removeEventListener("settings-changed", handleSettingsChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId]); // Reload when organization changes
 
   const updateBillDenominations = () => {
     const denominations = getBillDenominations();
@@ -130,11 +163,24 @@ export default function POSInterface({
   const loadPaymentSettings = async () => {
     try {
       if (navigator.onLine) {
-        // Online: Load from Supabase (auto-caches to IndexedDB)
-        const { loadSettingsFromSupabase } = await import(
-          "@/lib/supabase/data"
-        );
-        const settings = await loadSettingsFromSupabase();
+        // Load BOTH user settings and organization settings
+        const { loadSettingsFromSupabase, loadOrganizationSettings } =
+          await import("@/lib/supabase/data");
+
+        // Use organization ID from props
+        if (!organizationId) {
+          console.error("No organization ID provided");
+          return;
+        }
+
+        // Load organization settings (payment methods, email signup, etc.)
+        const orgSettings = await loadOrganizationSettings(organizationId);
+
+        // Also load user settings for backward compatibility
+        const userSettings = await loadSettingsFromSupabase();
+
+        // Merge settings (org settings take precedence for shared features)
+        const settings = { ...userSettings, ...orgSettings };
 
         if (settings) {
           // Filter to only enabled payment types
@@ -154,18 +200,15 @@ export default function POSInterface({
           // Set tip jar visibility
           setShowTipJar(settings.showTipJar !== false); // Default to true if not set
 
-          // Only update category order if not provided via props
-          if (
-            initialCategoryOrder.length === 0 &&
-            settings.categories &&
-            Array.isArray(settings.categories)
-          ) {
-            setCategoryOrder(settings.categories);
-          }
+          // DON'T load categories here - they come from the prop (categoryOrder)
+          // The parent component (app/page.tsx) loads from org settings
+          console.log(
+            "🎯 POSInterface skipping category load - using prop instead"
+          );
 
-          // Load email signup settings
+          // Load email signup settings from ORGANIZATION settings
           if (settings.emailSignup) {
-            setEmailSignupSettings({
+            const emailSettings = {
               enabled: settings.emailSignup.enabled !== false,
               promptMessage:
                 settings.emailSignup.promptMessage ||
@@ -173,7 +216,11 @@ export default function POSInterface({
               collectName: settings.emailSignup.collectName !== false,
               collectPhone: settings.emailSignup.collectPhone !== false,
               autoDismissSeconds: settings.emailSignup.autoDismissSeconds || 15,
-            });
+            };
+            console.log("📧 Loaded email signup settings:", emailSettings);
+            setEmailSignupSettings(emailSettings);
+          } else {
+            console.log("📧 No email signup settings found in Supabase");
           }
         }
       } else {
@@ -207,14 +254,11 @@ export default function POSInterface({
             // Set tip jar visibility
             setShowTipJar(cachedSettings.showTipJar !== false);
 
-            // Only update category order if not provided via props
-            if (
-              initialCategoryOrder.length === 0 &&
-              cachedSettings.categories &&
-              Array.isArray(cachedSettings.categories)
-            ) {
-              setCategoryOrder(cachedSettings.categories);
-            }
+            // DON'T load categories here - they come from the prop (categoryOrder)
+            // The parent component (app/page.tsx) loads from org settings
+            console.log(
+              "🎯 POSInterface (offline) skipping category load - using prop instead"
+            );
 
             // Load email signup settings
             if (cachedSettings.emailSignup) {
@@ -445,7 +489,16 @@ export default function POSInterface({
 
       // Show email signup modal if enabled
       if (emailSignupSettings.enabled) {
+        console.log(
+          "📧 Email signup is enabled, showing modal (processCompleteSale)"
+        );
+        console.log("📧 Email signup settings:", emailSignupSettings);
+        console.log("📧 Setting showEmailSignupModal to true");
         setShowEmailSignupModal(true);
+      } else {
+        console.log(
+          "📧 Email signup is disabled, skipping modal (processCompleteSale)"
+        );
       }
     } catch (error) {
       console.error("Failed to complete sale:", error);
@@ -529,7 +582,14 @@ export default function POSInterface({
 
       // Show email signup modal if enabled
       if (emailSignupSettings.enabled) {
+        console.log(
+          "📧 Email signup is enabled, showing modal (processCompleteSaleWithTip)"
+        );
         setShowEmailSignupModal(true);
+      } else {
+        console.log(
+          "📧 Email signup is disabled, skipping modal (processCompleteSaleWithTip)"
+        );
       }
     } catch (error) {
       console.error("Failed to complete sale:", error);

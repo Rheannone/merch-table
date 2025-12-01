@@ -73,7 +73,15 @@ interface ToastState {
   duration?: number;
 }
 
-export default function Settings() {
+interface SettingsProps {
+  products?: import("@/types").Product[];
+  onCategoriesChange?: (categories: string[]) => void;
+}
+
+export default function Settings({
+  products = [],
+  onCategoriesChange,
+}: SettingsProps) {
   const {
     currentOrganization,
     userRole,
@@ -320,6 +328,33 @@ export default function Settings() {
     setExchangeRate(currencyInfo.defaultRate.toString());
   };
 
+  // Helper to check if a category is in use by any products
+  const isCategoryInUse = (category: string): number => {
+    return products.filter((p) => p.category === category).length;
+  };
+
+  // Helper to handle category removal with validation
+  const handleRemoveCategory = (category: string) => {
+    const productCount = isCategoryInUse(category);
+
+    if (productCount > 0) {
+      const confirmed = window.confirm(
+        `⚠️ ${productCount} product${
+          productCount > 1 ? "s are" : " is"
+        } assigned to "${category}".\n\n` +
+          `If you remove this category, those products will keep "${category}" as their category, ` +
+          `but you won't be able to assign it to new products.\n\n` +
+          `Are you sure you want to remove "${category}"?`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setCategories(categories.filter((c) => c !== category));
+  };
+
   // Load current sheet info from localStorage and fetch name if needed
   const loadCurrentSheetInfo = async () => {
     const sheetId = localStorage.getItem("salesSheetId");
@@ -544,6 +579,17 @@ export default function Settings() {
         }
       });
 
+      // Validate exchange rate
+      const parsedRate = Number.parseFloat(exchangeRate);
+      if (Number.isNaN(parsedRate) || parsedRate <= 0) {
+        setToast({
+          message: "Exchange rate must be a positive number",
+          type: "error",
+        });
+        setIsSaving(false);
+        return;
+      }
+
       // Split settings into ORG-WIDE and PERSONAL
       // ORG-WIDE: Shared by all members (payment methods, categories, etc.)
       const orgSettings = {
@@ -552,7 +598,7 @@ export default function Settings() {
         showTipJar,
         currency: {
           displayCurrency: selectedCurrency,
-          exchangeRate: Number.parseFloat(exchangeRate),
+          exchangeRate: parsedRate, // Use validated rate
         },
         emailSignup: emailSignupSettings,
         closeOutSettings: {
@@ -575,6 +621,11 @@ export default function Settings() {
           throw new Error("Failed to save organization settings to Supabase");
         }
         console.log("✅ Organization settings saved");
+
+        // Notify parent component that categories changed
+        if (onCategoriesChange) {
+          onCategoriesChange(categories);
+        }
       } else {
         setToast({
           message:
@@ -629,6 +680,9 @@ export default function Settings() {
         code: selectedCurrency,
       });
 
+      // Notify other components that settings have changed
+      window.dispatchEvent(new Event("settings-changed"));
+
       // Provide accurate feedback based on online/offline status
       if (navigator.onLine) {
         setToast({
@@ -665,35 +719,48 @@ export default function Settings() {
   const handleToggleEmailSignup = async () => {
     const newEnabledState = !emailSignupSettings.enabled;
 
-    // If enabling, check if Email List sheet exists first
-    if (newEnabledState) {
-      const spreadsheetId = localStorage.getItem("salesSheetId");
-      if (!spreadsheetId) {
+    // Update local state
+    const updatedSettings = {
+      ...emailSignupSettings,
+      enabled: newEnabledState,
+    };
+    setEmailSignupSettings(updatedSettings);
+
+    // Save immediately to Supabase so POS can use it
+    if (currentOrganization && hasRole("admin")) {
+      try {
+        const orgSettings = {
+          paymentSettings,
+          categories,
+          showTipJar,
+          currency: {
+            displayCurrency: selectedCurrency,
+            exchangeRate: Number.parseFloat(exchangeRate),
+          },
+          emailSignup: updatedSettings, // Use the updated settings
+          closeOutSettings: {
+            requireCashReconciliation,
+          },
+        };
+
+        await saveOrganizationSettings(currentOrganization.id, orgSettings);
+
+        // Notify other components (e.g., POS) to reload settings
+        window.dispatchEvent(new Event("settings-changed"));
+
         setToast({
-          message: "No spreadsheet found. Please initialize sheets first.",
+          message: `Email signup ${newEnabledState ? "enabled" : "disabled"}`,
+          type: "success",
+        });
+      } catch (error) {
+        console.error("Failed to save email signup settings:", error);
+        setToast({
+          message: "Failed to save email signup settings",
           type: "error",
         });
-        return;
+        // Revert the state on error
+        setEmailSignupSettings(emailSignupSettings);
       }
-
-      setIsAddingEmailSheet(true);
-
-      // Try to add the Email List sheet (it will return success if it already exists)
-      const success = await handleAddEmailListSheet();
-
-      if (success) {
-        // Only enable if sheet was created/exists
-        setEmailSignupSettings((prev) => ({
-          ...prev,
-          enabled: true,
-        }));
-      }
-    } else {
-      // If disabling, just update the state
-      setEmailSignupSettings((prev) => ({
-        ...prev,
-        enabled: false,
-      }));
     }
   };
 
@@ -1641,11 +1708,7 @@ export default function Settings() {
 
                       {/* Remove Button */}
                       <button
-                        onClick={() => {
-                          setCategories(
-                            categories.filter((c) => c !== category)
-                          );
-                        }}
+                        onClick={() => handleRemoveCategory(category)}
                         className="px-3 py-1 bg-error text-theme text-sm font-medium rounded transition-all"
                       >
                         🗑️ Remove
@@ -1664,9 +1727,9 @@ export default function Settings() {
           )}
         </div>
 
-        {/* Google Sheets Section */}
+        {/* Google Sheets Section - COMMENTED OUT (not currently hooked up) */}
+        {/* 
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
-          {/* Collapsible Header */}
           <button
             onClick={() => setIsGoogleSheetsExpanded(!isGoogleSheetsExpanded)}
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
@@ -1682,7 +1745,6 @@ export default function Settings() {
             )}
           </button>
 
-          {/* Collapsible Content */}
           {isGoogleSheetsExpanded && (
             <div className="px-6 pb-6">
               <p className="text-sm text-theme-muted mb-6">
@@ -1692,7 +1754,6 @@ export default function Settings() {
 
               {currentSheetId ? (
                 <div className="space-y-4">
-                  {/* Current Sheet Display */}
                   <div className="bg-theme-tertiary rounded-lg p-4 border border-theme">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
@@ -1722,7 +1783,6 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  {/* Info Box */}
                   <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
                     <p className="text-sm text-theme">
                       💡 <strong>Tip:</strong> Switching sheets will reload all
@@ -1747,10 +1807,11 @@ export default function Settings() {
             </div>
           )}
         </div>
+        */}
 
-        {/* Account & Privacy Section */}
+        {/* Account & Privacy Section - COMMENTED OUT (Google Sheets related) */}
+        {/*
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
-          {/* Collapsible Header */}
           <button
             onClick={() => setIsAccountExpanded(!isAccountExpanded)}
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
@@ -1780,7 +1841,6 @@ export default function Settings() {
             )}
           </button>
 
-          {/* Collapsible Content */}
           {isAccountExpanded && (
             <div className="px-6 pb-6">
               <p className="text-sm text-theme-muted mb-6">
@@ -1788,7 +1848,6 @@ export default function Settings() {
               </p>
 
               <div className="space-y-4">
-                {/* Revoke Access Card */}
                 <div className="bg-theme-tertiary rounded-lg p-6 border border-theme">
                   <div className="flex items-start gap-4">
                     <div className="flex-shrink-0 text-4xl">🔐</div>
@@ -1811,7 +1870,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Info Box */}
                 <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
                   <p className="text-sm text-theme">
                     ℹ️ <strong>Note:</strong> Revoking access will sign you out
@@ -1823,10 +1881,11 @@ export default function Settings() {
             </div>
           )}
         </div>
+        */}
 
-        {/* Backup Section */}
+        {/* Backup Section - COMMENTED OUT (Google Sheets related) */}
+        {/*
         <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
-          {/* Collapsible Header */}
           <button
             onClick={() => setIsBackupExpanded(!isBackupExpanded)}
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
@@ -1842,7 +1901,6 @@ export default function Settings() {
             )}
           </button>
 
-          {/* Collapsible Content */}
           {isBackupExpanded && (
             <div className="px-6 pb-6">
               <p className="text-sm text-theme-muted mb-6">
@@ -1852,7 +1910,6 @@ export default function Settings() {
 
               {currentSheetId ? (
                 <div className="space-y-4">
-                  {/* Backup Action */}
                   <div className="bg-theme-tertiary rounded-lg p-6 border border-theme text-center">
                     <div className="mb-4">
                       <div className="text-4xl mb-3">💾</div>
@@ -1878,7 +1935,6 @@ export default function Settings() {
                     </button>
                   </div>
 
-                  {/* Info Box */}
                   <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
                     <p className="text-sm text-blue-300 mb-2">
                       ℹ️ <strong>What gets backed up:</strong>
@@ -1909,13 +1965,14 @@ export default function Settings() {
             </div>
           )}
         </div>
+        */}
 
-        {/* Migration Section - NEW! */}
+        {/* Migration Section - COMMENTED OUT (Google Sheets related) */}
+        {/*
         <div
           data-migration-section
           className="bg-theme-secondary rounded-lg mb-6 overflow-hidden border-2 border-yellow-600/50"
         >
-          {/* Collapsible Header */}
           <button
             onClick={() => setIsMigrationExpanded(!isMigrationExpanded)}
             className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
@@ -1938,7 +1995,6 @@ export default function Settings() {
             )}
           </button>
 
-          {/* Collapsible Content */}
           {isMigrationExpanded && (
             <div className="px-6 pb-6">
               <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4 mb-6">
@@ -1955,7 +2011,6 @@ export default function Settings() {
 
               {currentSheetId ? (
                 <div className="space-y-4">
-                  {/* Migration Action */}
                   <div className="bg-theme-tertiary rounded-lg p-6 border border-theme text-center">
                     <div className="mb-4">
                       <div className="text-4xl mb-3">📦➡️☁️</div>
@@ -1981,7 +2036,6 @@ export default function Settings() {
                     </button>
                   </div>
 
-                  {/* Migration Results */}
                   {migrationResults && (
                     <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-4">
                       <p className="text-sm text-green-300 mb-2">
@@ -2006,7 +2060,6 @@ export default function Settings() {
                     </div>
                   )}
 
-                  {/* Info Box */}
                   <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
                     <p className="text-sm text-blue-300 mb-2">
                       ℹ️ <strong>What gets migrated:</strong>
@@ -2037,6 +2090,7 @@ export default function Settings() {
             </div>
           )}
         </div>
+        */}
 
         {/* Close-Out Section */}
         <CloseOutSection
@@ -2301,16 +2355,7 @@ export default function Settings() {
                         : "Add to Email List"}
                     </button>
 
-                    {/* Helper message if Email List sheet is missing */}
-                    {needsEmailListSheet && (
-                      <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
-                        <p className="text-sm text-yellow-200">
-                          ⚠️ The Email List sheet is missing. Toggle the
-                          &quot;Enable Email Signup&quot; off and back on to
-                          auto-create it.
-                        </p>
-                      </div>
-                    )}
+                    {/* Email List sheet warning - REMOVED (now using Supabase) */}
                   </form>
                 </div>
               </div>
