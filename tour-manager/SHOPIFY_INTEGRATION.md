@@ -1,16 +1,23 @@
-# 🛍️ Shopify Integration Guide
+# 🛍️ Shopify CSV Import Guide
 
 ## Overview
 
-Import products from your existing Shopify store directly into your POS system. This is a **one-way import** that copies product data without modifying your Shopify store.
+Import products from your existing Shopify store using Shopify's built-in CSV export feature. This is a **simple, one-way import** that copies product data without requiring API access or modifying your Shopify store.
+
+## Why CSV Import?
+
+✅ **No API credentials needed** - Just export and upload  
+✅ **No custom app setup** - Use Shopify's built-in export  
+✅ **Super simple** - 3 clicks in Shopify, then upload  
+✅ **Works for everyone** - No technical setup required
 
 ## What Gets Imported
 
 ✅ **Product Information:**
 
 - Product names
-- Descriptions (first 200 characters)
-- Base prices (USD)
+- Descriptions (first 200 characters, HTML stripped)
+- Base prices
 - Product categories (from Shopify product type)
 
 ✅ **Variants & Inventory:**
@@ -21,83 +28,64 @@ Import products from your existing Shopify store directly into your POS system. 
 
 ✅ **Images:**
 
-- First product image
-- Automatically imported and stored
+- First product image URL
+- Automatically displayed in your POS
 
-## How to Set Up
+## How to Import
 
-### Step 1: Create a Custom Shopify App
+### Step 1: Export from Shopify
 
-1. Go to your Shopify admin
-2. Navigate to **Settings** → **Apps and sales channels**
-3. Click **"Develop apps"**
-4. Click **"Allow custom app development"** (if prompted)
-5. Click **"Create an app"**
-6. Give it a name (e.g., "POS Import")
+1. Log into your **Shopify admin**
+2. Go to **Products**
+3. Click the **"Export"** button (top right corner)
+4. Select:
+   - **Products:** "All products" (or select specific products)
+   - **Export as:** "Plain CSV file"
+5. Click **"Export products"**
+6. Download the CSV file to your computer
 
-### Step 2: Configure API Access
+### Step 2: Import to ROAD DOG
 
-1. Go to **Configuration** tab
-2. Click **"Configure"** under "Admin API integration"
-3. Under **"Admin API access scopes"**, enable:
-   - `read_products`
-   - `read_product_listings`
-   - `read_inventory`
-4. Click **"Save"**
+1. Open your ROAD DOG app
+2. Go to **Settings** tab
+3. Scroll to **"Import from Shopify"** section
+4. Click **"Choose File"** and select your downloaded CSV
+5. The import starts automatically
+6. Wait for success message
 
-### Step 3: Install the App & Get Access Token
-
-1. Go to **"API credentials"** tab
-2. Click **"Install app"**
-3. Copy the **"Admin API access token"** (starts with `shpat_`)
-4. ⚠️ **Save this token securely** - you won't be able to see it again!
-
-### Step 4: Import to Your POS
-
-1. Open your POS app
-2. Go to **Settings** → **Import from Shopify**
-3. Enter your **Store URL** (e.g., `yourstore.myshopify.com`)
-4. Paste your **Access Token**
-5. Click **"Test Connection"** to verify
-6. Click **"Import Products"** to start the import
+That's it! Your products are now in the POS.
 
 ## Data Mapping
 
-### Shopify → POS
+### Shopify CSV → ROAD DOG Product
 
 ```
-title → name
-variants[0].price → price (base USD price)
-product_type → category
-body_html → description (cleaned, truncated to 200 chars)
-images[0].src → imageUrl
-variants → sizes[] (if multiple variants)
-variants[].title → inventory keys
-variants[].inventory_quantity → inventory values
+Title → name
+Body (HTML) → description (cleaned, truncated to 200 chars)
+Variant Price → price (base price from first variant)
+Type → category
+Image Src → imageUrl
+Option1 Value → sizes[] (if product has variants)
+Variant Inventory Qty → inventory{} (quantity per size)
+Status → Only "active" products imported
 ```
 
 ### Example
 
-**Shopify Product:**
+**Shopify CSV Row:**
 
-```json
-{
-  "title": "Band T-Shirt",
-  "product_type": "Apparel",
-  "variants": [
-    { "title": "Small", "price": "25.00", "inventory_quantity": 10 },
-    { "title": "Medium", "price": "25.00", "inventory_quantity": 15 },
-    { "title": "Large", "price": "25.00", "inventory_quantity": 8 }
-  ],
-  "images": [{ "src": "https://..." }]
-}
+```csv
+Handle,Title,Type,Variant Price,Variant Inventory Qty,Option1 Value,Image Src,Status
+band-tshirt,Band T-Shirt,Apparel,25.00,10,Small,https://...,active
+band-tshirt,Band T-Shirt,Apparel,25.00,15,Medium,https://...,active
+band-tshirt,Band T-Shirt,Apparel,25.00,8,Large,https://...,active
 ```
 
 **Imported as:**
 
 ```json
 {
-  "id": "shopify-123456",
+  "id": "shopify-band-tshirt",
   "name": "Band T-Shirt",
   "price": 25.0,
   "category": "Apparel",
@@ -115,9 +103,10 @@ variants[].inventory_quantity → inventory values
 
 ### ✅ What This Does
 
-- Copies product data from Shopify to your POS
-- Products are synced to Supabase (your database)
+- Copies product data from Shopify CSV to your POS
+- Products are synced to your database (Supabase)
 - All standard POS features work with imported products
+- Fast and simple - no API setup required
 
 ### ❌ What This Doesn't Do
 
@@ -125,63 +114,75 @@ variants[].inventory_quantity → inventory values
 - **Does NOT sync inventory changes back to Shopify**
 - **Does NOT create a two-way connection**
 - **Does NOT sync future Shopify updates automatically**
+- **Re-importing creates duplicates** (new product IDs)
+
+## Shopify CSV Format
+
+The CSV must be a standard Shopify product export. Required columns:
+
+- `Handle` - Unique product identifier
+- `Title` - Product name
+- `Status` - Must be "active" (drafts/archived are skipped)
+- `Variant Price` - Price for each variant
+- Other columns are optional but recommended
+
+If you see "Missing required columns" error, make sure you exported using Shopify's **"Plain CSV file"** format (not Excel or Google Sheets format).
 
 ## Limitations
 
-- **Maximum Products:** 250 per import (Shopify API limit)
-- **Product Statuses:** Only imports "active" products
+- **No Product Limit** - Import as many as your CSV contains
+- **Product Statuses:** Only imports "active" products (drafts/archived skipped)
 - **Variants:** If products have different prices per variant, only the first variant's price is used
-- **Images:** Only the first product image is imported
-- **One-Time Import:** Re-importing will create duplicate products (with new IDs)
-
-## Security
-
-- ✅ Access tokens are **never stored** in the app
-- ✅ Tokens are only used during the import process
-- ✅ All API calls use HTTPS
-- ⚠️ Keep your access token secure - treat it like a password!
+- **Images:** Only the first product image URL is imported
+- **One-Time Import:** Re-importing the same CSV will create duplicate products
 
 ## Troubleshooting
 
-### "Invalid access token"
+### "File is empty"
 
-- Make sure you copied the complete token (starts with `shpat_`)
-- Verify the app is installed in your Shopify admin
-- Check that the required scopes are enabled
+- Make sure you downloaded the complete CSV file
+- Try exporting again from Shopify
 
-### "Store not found"
+### "This doesn't look like a Shopify product export"
 
-- Use the format: `yourstore.myshopify.com`
-- Don't include `https://` or trailing slashes
-- Make sure the store name is correct
+- Verify you used Shopify's **"Plain CSV file"** export option
+- Don't modify the CSV in Excel (it can change formatting)
+- Required columns: `Handle`, `Title`
 
-### "No products found"
+### "No active products found in CSV"
 
-- Check that you have "active" products in Shopify
-- Products must be published to at least one sales channel
-- Verify products aren't in "draft" status
+- Check that products have "active" status in Shopify
+- Products in "draft" or "archived" status are skipped
+- Make sure the CSV isn't empty
 
-### Import is slow
+### Products imported but missing data
 
-- Shopify API has rate limits (2 requests/second)
-- Large catalogs may take a few minutes
-- Don't close the Settings page during import
+- **No sizes:** Product only has one variant (normal for single-variant products)
+- **No image:** Product doesn't have an image in Shopify
+- **Category = "Uncategorized":** Product doesn't have a Type set in Shopify
+
+### Import creates duplicate products
+
+- This is expected - re-importing the same CSV creates new products
+- Each import generates new product IDs (e.g., `shopify-handle-1`, `shopify-handle-2`)
+- Delete old products manually if you need to re-import
+
+## Tips
+
+1. **Test with small batches first** - Export just a few products to test
+2. **Clean up before export** - Set product types/categories in Shopify first
+3. **Check image URLs** - Make sure products have images before exporting
+4. **One-time setup** - Use this for initial catalog import, then manage products in ROAD DOG
 
 ## Need Two-Way Sync?
 
-This is a one-way import to get you started quickly. If you need ongoing synchronization between Shopify and your POS:
+This CSV import is designed for **one-time setup**. If you need ongoing synchronization:
 
-- **Option 1:** Manually re-import when products change
-- **Option 2:** Consider Shopify POS integration (more complex, requires webhooks)
-- **Option 3:** Use your POS as the source of truth and manually update Shopify
+- **Option 1:** Manually re-import CSV when products change
+- **Option 2:** Manage inventory in ROAD DOG after initial import
+- **Option 3:** Keep Shopify as your source of truth for online sales, ROAD DOG for in-person
 
-## Support
-
-For issues or questions:
-
-1. Check the console for detailed error messages
-2. Verify your Shopify app permissions
-3. Test with a small product catalog first
+Most touring bands use this once to bootstrap their POS, then manage products directly in ROAD DOG.
 
 ---
 

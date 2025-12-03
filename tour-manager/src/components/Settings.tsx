@@ -46,11 +46,6 @@ import {
 } from "@/lib/currency";
 import { processImageForUpload } from "@/lib/imageCompression";
 import {
-  importProductsFromShopify,
-  testShopifyConnection,
-  validateShopifyUrl,
-} from "@/lib/shopify";
-import {
   loadSettingsFromSupabase,
   saveSettingsToSupabase,
   loadOrganizationSettings,
@@ -157,14 +152,11 @@ export default function Settings({
   const [currentSheetName, setCurrentSheetName] = useState<string>("");
   const [isPickerLoaded, setIsPickerLoaded] = useState(false);
 
-  // Shopify import state
-  const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
-  const [shopifyAccessToken, setShopifyAccessToken] = useState("");
+  // Shopify CSV import state
   const [isImportingShopify, setIsImportingShopify] = useState(false);
-  const [isTestingShopify, setIsTestingShopify] = useState(false);
-  const [shopifyTestResult, setShopifyTestResult] = useState<{
+  const [shopifyImportResult, setShopifyImportResult] = useState<{
     success: boolean;
-    productCount?: number;
+    count?: number;
     error?: string;
   } | null>(null);
 
@@ -1130,55 +1122,20 @@ export default function Settings({
     });
   };
 
-  // Test Shopify connection
-  const handleTestShopify = async () => {
-    if (!shopifyStoreUrl || !shopifyAccessToken) {
+  // Import products from Shopify CSV
+  const handleShopifyCSVImport = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.endsWith(".csv")) {
       setToast({
-        message: "Please enter both Store URL and Access Token",
+        message: "Please select a CSV file",
         type: "error",
       });
-      return;
-    }
-
-    if (!validateShopifyUrl(shopifyStoreUrl)) {
-      setToast({
-        message: "Invalid Shopify URL format. Use: mystore.myshopify.com",
-        type: "error",
-      });
-      return;
-    }
-
-    setIsTestingShopify(true);
-    setShopifyTestResult(null);
-
-    const result = await testShopifyConnection(
-      shopifyStoreUrl,
-      shopifyAccessToken
-    );
-
-    setShopifyTestResult(result);
-    setIsTestingShopify(false);
-
-    if (result.success) {
-      setToast({
-        message: `✅ Connected! Found ${result.productCount} active products`,
-        type: "success",
-      });
-    } else {
-      setToast({
-        message: result.error || "Connection failed",
-        type: "error",
-      });
-    }
-  };
-
-  // Import products from Shopify
-  const handleShopifyImport = async () => {
-    if (!shopifyStoreUrl || !shopifyAccessToken) {
-      setToast({
-        message: "Please enter both Store URL and Access Token",
-        type: "error",
-      });
+      event.target.value = ""; // Reset input
       return;
     }
 
@@ -1187,16 +1144,16 @@ export default function Settings({
         message: "Product import not available",
         type: "error",
       });
+      event.target.value = "";
       return;
     }
 
     setIsImportingShopify(true);
+    setShopifyImportResult(null);
 
     try {
-      const result = await importProductsFromShopify(
-        shopifyStoreUrl,
-        shopifyAccessToken
-      );
+      const { importProductsFromShopifyCSV } = await import("@/lib/shopify");
+      const result = await importProductsFromShopifyCSV(file);
 
       if (result.success && result.products) {
         // Add each product
@@ -1210,17 +1167,22 @@ export default function Settings({
           }
         }
 
+        setShopifyImportResult({
+          success: true,
+          count: successCount,
+        });
+
         setToast({
           message: `🎉 Successfully imported ${successCount} products from Shopify!`,
           type: "success",
           duration: 5000,
         });
-
-        // Clear form
-        setShopifyStoreUrl("");
-        setShopifyAccessToken("");
-        setShopifyTestResult(null);
       } else {
+        setShopifyImportResult({
+          success: false,
+          error: result.error,
+        });
+
         setToast({
           message: result.error || "Import failed",
           type: "error",
@@ -1229,12 +1191,19 @@ export default function Settings({
       }
     } catch (error) {
       console.error("Shopify import error:", error);
+
+      setShopifyImportResult({
+        success: false,
+        error: error instanceof Error ? error.message : "Import failed",
+      });
+
       setToast({
         message: "Failed to import products. Please try again.",
         type: "error",
       });
     } finally {
       setIsImportingShopify(false);
+      event.target.value = ""; // Reset input for next upload
     }
   };
 
@@ -1880,100 +1849,91 @@ export default function Settings({
           {isShopifyExpanded && (
             <div className="px-6 pb-6 space-y-6">
               <p className="text-sm text-theme-secondary">
-                Already have products in a Shopify store? Import them instantly
-                to your POS. This is a one-way import that copies products,
+                Already have products in a Shopify store? Export them as CSV and
+                import them here. This is a one-way import that copies products,
                 prices, sizes, and inventory levels.
               </p>
 
-              {/* Store URL Input */}
-              <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-2">
-                  Shopify Store URL
-                </label>
-                <input
-                  type="text"
-                  value={shopifyStoreUrl}
-                  onChange={(e) => setShopifyStoreUrl(e.target.value)}
-                  placeholder="mystore.myshopify.com"
-                  className="w-full p-3 bg-theme border border-theme rounded-lg text-theme"
-                />
-                <p className="text-xs text-theme-muted mt-1">
-                  Enter your store URL (e.g., yourstore.myshopify.com)
-                </p>
-              </div>
-
-              {/* Access Token Input */}
-              <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-2">
-                  Admin API Access Token
-                </label>
-                <input
-                  type="password"
-                  value={shopifyAccessToken}
-                  onChange={(e) => setShopifyAccessToken(e.target.value)}
-                  placeholder="shpat_xxxxxxxxxxxxx"
-                  className="w-full p-3 bg-theme border border-theme rounded-lg text-theme font-mono text-sm"
-                />
-                <p className="text-xs text-theme-muted mt-1">
-                  Create a custom app in your Shopify admin to get an access
-                  token
-                </p>
-              </div>
-
-              {/* How to Get Access Token */}
-              <details className="bg-theme-tertiary border border-theme rounded-lg p-4">
-                <summary className="cursor-pointer text-sm font-medium text-theme mb-2">
-                  📖 How to get your Shopify access token
-                </summary>
-                <ol className="text-xs text-theme-secondary space-y-2 mt-3 list-decimal list-inside">
+              {/* How to Export from Shopify */}
+              <div className="bg-theme-tertiary border border-theme rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-theme mb-3">
+                  📦 How to export from Shopify:
+                </h3>
+                <ol className="text-xs text-theme-secondary space-y-2 list-decimal list-inside">
                   <li>
-                    Go to your Shopify admin → Settings → Apps and sales
-                    channels
-                  </li>
-                  <li>Click "Develop apps" → "Allow custom app development"</li>
-                  <li>
-                    Click "Create an app" and give it a name (e.g., "POS
-                    Import")
+                    Go to <strong>Products</strong> in your Shopify admin
                   </li>
                   <li>
-                    Go to "Configuration" → "Admin API integration" →
-                    "Configure"
+                    Click the <strong>&quot;Export&quot;</strong> button (top
+                    right)
                   </li>
                   <li>
-                    Under "Admin API access scopes", enable:
-                    <ul className="ml-6 mt-1 space-y-1">
-                      <li>• read_products</li>
-                      <li>• read_product_listings</li>
-                      <li>• read_inventory</li>
-                    </ul>
+                    Select &quot;All products&quot; or choose specific products
                   </li>
-                  <li>Save, then go to "API credentials"</li>
-                  <li>Click "Install app" to generate your access token</li>
                   <li>
-                    Copy the "Admin API access token" (starts with shpat_)
+                    Choose <strong>&quot;Plain CSV file&quot;</strong> as the
+                    format
                   </li>
+                  <li>Click &quot;Export products&quot;</li>
+                  <li>Download the CSV file and upload it below</li>
                 </ol>
-              </details>
+              </div>
 
-              {/* Test Connection Result */}
-              {shopifyTestResult && (
+              {/* File Upload */}
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-2">
+                  Upload Shopify Products CSV
+                </label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleShopifyCSVImport}
+                    disabled={isImportingShopify}
+                    className="block w-full text-sm text-theme-secondary
+                      file:mr-4 file:py-3 file:px-6
+                      file:rounded-lg file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-primary file:text-on-primary
+                      hover:file:bg-primary/90
+                      file:cursor-pointer
+                      cursor-pointer
+                      border border-theme rounded-lg
+                      bg-theme
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <p className="text-xs text-theme-muted mt-2">
+                  {isImportingShopify ? (
+                    <span className="flex items-center gap-2">
+                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                      Importing products...
+                    </span>
+                  ) : (
+                    "Select your Shopify product export CSV file"
+                  )}
+                </p>
+              </div>
+
+              {/* Import Result */}
+              {shopifyImportResult && (
                 <div
                   className={`p-4 rounded-lg border ${
-                    shopifyTestResult.success
+                    shopifyImportResult.success
                       ? "bg-green-900/20 border-green-500/50"
                       : "bg-red-900/20 border-red-500/50"
                   }`}
                 >
-                  {shopifyTestResult.success ? (
+                  {shopifyImportResult.success ? (
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">✅</span>
                       <div>
                         <p className="font-semibold text-green-400">
-                          Connection Successful!
+                          Import Successful!
                         </p>
                         <p className="text-sm text-green-300">
-                          Found {shopifyTestResult.productCount} active products
-                          ready to import
+                          Successfully imported {shopifyImportResult.count}{" "}
+                          products
                         </p>
                       </div>
                     </div>
@@ -1982,59 +1942,16 @@ export default function Settings({
                       <span className="text-2xl">❌</span>
                       <div>
                         <p className="font-semibold text-red-400">
-                          Connection Failed
+                          Import Failed
                         </p>
                         <p className="text-sm text-red-300">
-                          {shopifyTestResult.error}
+                          {shopifyImportResult.error}
                         </p>
                       </div>
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleTestShopify}
-                  disabled={
-                    isTestingShopify || !shopifyStoreUrl || !shopifyAccessToken
-                  }
-                  className="flex-1 px-6 py-3 bg-theme-secondary hover:bg-theme-tertiary border border-theme text-theme font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isTestingShopify ? (
-                    <>
-                      <ArrowPathIcon className="w-5 h-5 animate-spin inline mr-2" />
-                      Testing...
-                    </>
-                  ) : (
-                    "Test Connection"
-                  )}
-                </button>
-
-                <button
-                  onClick={handleShopifyImport}
-                  disabled={
-                    isImportingShopify ||
-                    !shopifyStoreUrl ||
-                    !shopifyAccessToken ||
-                    !shopifyTestResult?.success
-                  }
-                  className="flex-1 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isImportingShopify ? (
-                    <>
-                      <ArrowPathIcon className="w-5 h-5 animate-spin inline mr-2" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDownTrayIcon className="w-5 h-5 inline mr-2" />
-                      Import Products
-                    </>
-                  )}
-                </button>
-              </div>
 
               {/* Info Box */}
               <div className="bg-blue-900/20 border border-blue-500/50 rounded-lg p-4">
@@ -2046,11 +1963,15 @@ export default function Settings({
                   <li>• Product images (first image only)</li>
                   <li>• Variants as sizes (S, M, L, etc.)</li>
                   <li>• Current inventory levels</li>
-                  <li>• Product categories (Shopify product type)</li>
+                  <li>• Product categories (from product type)</li>
+                  <li>
+                    • Only &quot;Active&quot; products (drafts are skipped)
+                  </li>
                 </ul>
                 <p className="text-xs text-blue-300 mt-3">
-                  Products will be added to your POS and synced to Supabase.
-                  Your Shopify store remains unchanged.
+                  ⚠️ <strong>Note:</strong> This is a one-time import.
+                  Re-importing the same CSV will create duplicate products. Your
+                  Shopify store remains unchanged.
                 </p>
               </div>
             </div>

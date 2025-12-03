@@ -1,39 +1,18 @@
 /**
- * Shopify Integration
+ * Shopify CSV Import
  *
- * One-way product import from Shopify stores to your POS.
- * Maps Shopify products/variants to your Product schema.
+ * One-way product import from Shopify CSV exports to your POS.
+ * Supports standard Shopify product export format.
+ *
+ * How to export from Shopify:
+ * 1. Go to Products in Shopify admin
+ * 2. Click "Export" button
+ * 3. Select "All products" or specific products
+ * 4. Choose "CSV for Excel, Numbers, or other spreadsheet programs"
+ * 5. Import the downloaded CSV file here
  */
 
 import type { Product } from "@/types";
-
-// Shopify API types (simplified)
-interface ShopifyVariant {
-  id: number;
-  title: string;
-  price: string;
-  inventory_quantity: number;
-  sku?: string;
-}
-
-interface ShopifyImage {
-  src: string;
-  alt?: string;
-}
-
-interface ShopifyProduct {
-  id: number;
-  title: string;
-  body_html?: string;
-  product_type?: string;
-  variants: ShopifyVariant[];
-  images: ShopifyImage[];
-  status: string;
-}
-
-interface ShopifyProductsResponse {
-  products: ShopifyProduct[];
-}
 
 export interface ShopifyImportResult {
   success: boolean;
@@ -43,98 +22,178 @@ export interface ShopifyImportResult {
 }
 
 /**
- * Validate Shopify store URL format
+ * Parse CSV text into rows
  */
-export function validateShopifyUrl(url: string): boolean {
-  // Accept formats:
-  // - mystore.myshopify.com
-  // - https://mystore.myshopify.com
-  // - admin.shopify.com/store/mystore
-  const patterns = [
-    /^[a-z0-9-]+\.myshopify\.com$/i,
-    /^https?:\/\/[a-z0-9-]+\.myshopify\.com\/?$/i,
-    /^https?:\/\/admin\.shopify\.com\/store\/([a-z0-9-]+)\/?$/i,
-  ];
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
 
-  return patterns.some((pattern) => pattern.test(url));
-}
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
 
-/**
- * Extract store name from various Shopify URL formats
- */
-export function extractStoreName(url: string): string {
-  // Remove protocol
-  let cleanUrl = url.replace(/^https?:\/\//, "");
-
-  // Handle admin URL format
-  const adminMatch = cleanUrl.match(
-    /admin\.shopify\.com\/store\/([a-z0-9-]+)/i
-  );
-  if (adminMatch) {
-    return adminMatch[1];
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        currentCell += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quotes
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      // End of cell
+      currentRow.push(currentCell);
+      currentCell = "";
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      // End of row
+      if (char === "\r" && nextChar === "\n") {
+        i++; // Skip \n in \r\n
+      }
+      if (currentCell || currentRow.length > 0) {
+        currentRow.push(currentCell);
+        rows.push(currentRow);
+        currentRow = [];
+        currentCell = "";
+      }
+    } else {
+      currentCell += char;
+    }
   }
 
-  // Handle myshopify.com format
-  const storeMatch = cleanUrl.match(/^([a-z0-9-]+)\.myshopify\.com/i);
-  if (storeMatch) {
-    return storeMatch[1];
+  // Add last cell/row if any
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell);
+    rows.push(currentRow);
   }
 
-  // Return as-is if no match (will fail validation)
-  return cleanUrl.split(".")[0];
+  return rows;
 }
 
 /**
- * Get full Shopify admin API URL
+ * Convert CSV rows to objects using header row
  */
-export function getShopifyApiUrl(storeUrl: string): string {
-  const storeName = extractStoreName(storeUrl);
-  return `https://${storeName}.myshopify.com/admin/api/2024-01`;
+function csvToObjects(rows: string[][]): Record<string, string>[] {
+  if (rows.length < 2) return [];
+
+  const headers = rows[0];
+  const objects: Record<string, string>[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const obj: Record<string, string> = {};
+
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = row[j] || "";
+    }
+
+    objects.push(obj);
+  }
+
+  return objects;
 }
 
 /**
- * Map Shopify product to your Product schema
+ * Group CSV rows by product handle (Shopify exports one row per variant)
  */
-function mapShopifyProductToLocal(shopifyProduct: ShopifyProduct): Product {
-  const variants = shopifyProduct.variants;
-  const hasMultipleSizes = variants.length > 1;
+function groupByProduct(
+  rows: Record<string, string>[]
+): Map<string, Record<string, string>[]> {
+  const grouped = new Map<string, Record<string, string>[]>();
 
-  // Extract sizes from variant titles
-  // Shopify variants are often like "Small", "Medium", "Large" or "Default Title"
-  const sizes = hasMultipleSizes
-    ? variants.map((v) => v.title).filter((title) => title !== "Default Title")
+  for (const row of rows) {
+    const handle = row["Handle"];
+    if (!handle) continue;
+
+    if (!grouped.has(handle)) {
+      grouped.set(handle, []);
+    }
+    grouped.get(handle)!.push(row);
+  }
+
+  return grouped;
+}
+
+/**
+ * Map grouped Shopify CSV rows to a Product
+ */
+function mapShopifyCSVToProduct(
+  handle: string,
+  rows: Record<string, string>[]
+): Product | null {
+  if (rows.length === 0) return null;
+
+  // Use first row for product-level data
+  const firstRow = rows[0];
+
+  // Check if product is published/active
+  const status = firstRow["Status"] || "";
+  if (status.toLowerCase() !== "active") {
+    return null; // Skip draft/archived products
+  }
+
+  const title = firstRow["Title"];
+  if (!title) return null;
+
+  // Get product type/category
+  const category =
+    firstRow["Type"] || firstRow["Product Category"] || "Uncategorized";
+
+  // Get description (strip HTML)
+  const bodyHTML = firstRow["Body (HTML)"] || "";
+  const description = bodyHTML
+    ? bodyHTML
+        .replace(/<[^>]*>/g, "")
+        .trim()
+        .substring(0, 200)
     : undefined;
 
-  // Build inventory map from variants
+  // Get first image
+  const imageUrl = firstRow["Image Src"] || "";
+
+  // Process variants
+  const variants = rows.filter((row) => row["Variant Price"]); // Only rows with price
+
+  if (variants.length === 0) return null;
+
+  // Get base price from first variant
+  const basePrice = parseFloat(variants[0]["Variant Price"] || "0");
+
+  // Determine if product has variants (sizes)
+  const option1Name = firstRow["Option1 Name"];
+  const hasVariants = option1Name && option1Name !== "Title";
+
+  let sizes: string[] | undefined;
   const inventory: { [key: string]: number } = {};
-  if (hasMultipleSizes && sizes) {
+
+  if (hasVariants) {
+    // Extract sizes from Option1 Value
+    sizes = variants
+      .map((v) => v["Option1 Value"])
+      .filter((val) => val && val !== "Default Title");
+
+    // Map inventory
     variants.forEach((variant) => {
-      if (variant.title !== "Default Title") {
-        inventory[variant.title] = variant.inventory_quantity;
+      const sizeName = variant["Option1 Value"];
+      const qty = parseInt(variant["Variant Inventory Qty"] || "0", 10);
+      if (sizeName && sizeName !== "Default Title") {
+        inventory[sizeName] = qty;
       }
     });
   } else {
     // Single variant product
-    inventory["default"] = variants[0]?.inventory_quantity || 0;
+    const qty = parseInt(variants[0]["Variant Inventory Qty"] || "0", 10);
+    inventory["default"] = qty;
   }
 
-  // Use first variant's price as base price (USD assumed)
-  const basePrice = parseFloat(variants[0]?.price || "0");
-
-  // Get first image
-  const imageUrl = shopifyProduct.images[0]?.src || "";
-
-  // Clean up HTML description
-  const description = shopifyProduct.body_html
-    ? shopifyProduct.body_html.replace(/<[^>]*>/g, "").trim()
-    : undefined;
-
   return {
-    id: `shopify-${shopifyProduct.id}`,
-    name: shopifyProduct.title,
+    id: `shopify-${handle}`,
+    name: title,
     price: basePrice,
-    category: shopifyProduct.product_type || "Uncategorized",
-    description: description ? description.substring(0, 200) : undefined, // Limit length
+    category: category,
+    description: description,
     imageUrl: imageUrl,
     sizes: sizes,
     inventory: inventory,
@@ -143,160 +202,84 @@ function mapShopifyProductToLocal(shopifyProduct: ShopifyProduct): Product {
 }
 
 /**
- * Fetch products from Shopify using Admin API
+ * Import products from Shopify CSV file
  *
- * @param storeUrl - Store URL (e.g., "mystore.myshopify.com")
- * @param accessToken - Admin API access token
- * @param limit - Max products to fetch (default 250, Shopify max)
+ * @param file - CSV file from Shopify export
  */
-export async function importProductsFromShopify(
-  storeUrl: string,
-  accessToken: string,
-  limit: number = 250
+export async function importProductsFromShopifyCSV(
+  file: File
 ): Promise<ShopifyImportResult> {
   try {
-    // Validate inputs
-    if (!storeUrl || !accessToken) {
+    // Read file
+    const text = await file.text();
+
+    if (!text || text.trim().length === 0) {
       return {
         success: false,
-        error: "Store URL and Access Token are required",
+        error: "File is empty",
       };
     }
 
-    if (!validateShopifyUrl(storeUrl)) {
+    // Parse CSV
+    const rows = parseCSV(text);
+
+    if (rows.length < 2) {
       return {
         success: false,
-        error: "Invalid Shopify store URL format",
+        error: "CSV file must have at least a header row and one data row",
       };
     }
 
-    // Build API URL
-    const apiUrl = getShopifyApiUrl(storeUrl);
-    const endpoint = `${apiUrl}/products.json?limit=${limit}&status=active`;
+    // Convert to objects
+    const objects = csvToObjects(rows);
 
-    console.log("🛍️ Fetching products from Shopify:", endpoint);
+    // Validate it's a Shopify CSV (check for required columns)
+    const firstObj = objects[0];
+    if (!firstObj["Handle"] || !firstObj["Title"]) {
+      return {
+        success: false,
+        error:
+          "This doesn't look like a Shopify product export. Missing required columns (Handle, Title).",
+      };
+    }
 
-    // Fetch products
-    const response = await fetch(endpoint, {
-      method: "GET",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-    });
+    // Group by product
+    const grouped = groupByProduct(objects);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Shopify API error:", response.status, errorText);
-
-      if (response.status === 401) {
-        return {
-          success: false,
-          error: "Invalid access token. Please check your credentials.",
-        };
+    // Map to products
+    const products: Product[] = [];
+    for (const [handle, productRows] of grouped) {
+      const product = mapShopifyCSVToProduct(handle, productRows);
+      if (product) {
+        products.push(product);
       }
-
-      if (response.status === 404) {
-        return {
-          success: false,
-          error: "Store not found. Please check your store URL.",
-        };
-      }
-
-      return {
-        success: false,
-        error: `Shopify API error: ${response.status} ${response.statusText}`,
-      };
     }
 
-    const data: ShopifyProductsResponse = await response.json();
-
-    if (!data.products || data.products.length === 0) {
+    if (products.length === 0) {
       return {
         success: false,
-        error: "No active products found in your Shopify store",
+        error:
+          "No active products found in CSV. Make sure products have 'Active' status.",
       };
     }
-
-    // Map products
-    const mappedProducts = data.products.map(mapShopifyProductToLocal);
 
     console.log(
-      `✅ Successfully imported ${mappedProducts.length} products from Shopify`
+      `✅ Successfully imported ${products.length} products from Shopify CSV`
     );
 
     return {
       success: true,
-      products: mappedProducts,
-      count: mappedProducts.length,
+      products: products,
+      count: products.length,
     };
   } catch (error) {
-    console.error("Error importing from Shopify:", error);
+    console.error("Error importing Shopify CSV:", error);
     return {
       success: false,
       error:
         error instanceof Error
           ? error.message
-          : "Failed to connect to Shopify. Please check your connection.",
-    };
-  }
-}
-
-/**
- * Test Shopify connection without importing products
- */
-export async function testShopifyConnection(
-  storeUrl: string,
-  accessToken: string
-): Promise<{ success: boolean; error?: string; productCount?: number }> {
-  try {
-    if (!storeUrl || !accessToken) {
-      return {
-        success: false,
-        error: "Store URL and Access Token are required",
-      };
-    }
-
-    if (!validateShopifyUrl(storeUrl)) {
-      return {
-        success: false,
-        error: "Invalid Shopify store URL format",
-      };
-    }
-
-    const apiUrl = getShopifyApiUrl(storeUrl);
-    const endpoint = `${apiUrl}/products/count.json?status=active`;
-
-    const response = await fetch(endpoint, {
-      method: "GET",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        return {
-          success: false,
-          error: "Invalid access token",
-        };
-      }
-      return {
-        success: false,
-        error: `Connection failed: ${response.status}`,
-      };
-    }
-
-    const data = await response.json();
-    return {
-      success: true,
-      productCount: data.count || 0,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: "Network error. Please check your connection.",
+          : "Failed to parse CSV file. Make sure it's a valid Shopify export.",
     };
   }
 }
