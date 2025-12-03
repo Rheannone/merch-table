@@ -19,6 +19,7 @@ import {
   TrashIcon,
   ArrowLeftOnRectangleIcon,
   UserGroupIcon,
+  ShoppingBagIcon,
 } from "@heroicons/react/24/outline";
 import {
   PaymentSetting,
@@ -31,7 +32,7 @@ import CloseOutSection from "./CloseOutSection";
 import CloseOutWizard from "./CloseOutWizard";
 import { useTheme } from "./ThemeProvider";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { getAllThemes } from "@/lib/themes";
+import { getAllThemes, getTheme, applyTheme } from "@/lib/themes";
 import {
   clearAllProducts,
   saveSettings as saveSettingsToIndexedDB,
@@ -44,6 +45,11 @@ import {
   formatPrice,
 } from "@/lib/currency";
 import { processImageForUpload } from "@/lib/imageCompression";
+import {
+  importProductsFromShopify,
+  testShopifyConnection,
+  validateShopifyUrl,
+} from "@/lib/shopify";
 import {
   loadSettingsFromSupabase,
   saveSettingsToSupabase,
@@ -76,11 +82,13 @@ interface ToastState {
 interface SettingsProps {
   products?: import("@/types").Product[];
   onCategoriesChange?: (categories: string[]) => void;
+  onAddProduct?: (product: import("@/types").Product) => Promise<void>;
 }
 
 export default function Settings({
   products = [],
   onCategoriesChange,
+  onAddProduct,
 }: SettingsProps) {
   const {
     currentOrganization,
@@ -100,19 +108,14 @@ export default function Settings({
   // Theme state
   const { setTheme, themeId } = useTheme();
   const [selectedThemeId, setSelectedThemeId] = useState(themeId);
+  const [originalThemeId, setOriginalThemeId] = useState(themeId);
   const availableThemes = getAllThemes();
 
-  // Only sync selectedThemeId with themeId on initial load
-  // After that, user interactions control selectedThemeId
+  // Sync selectedThemeId with themeId from context (loaded from Supabase)
+  // This ensures Settings picks up the saved theme
   useEffect(() => {
-    // Only update if we haven't made a selection yet
-    if (selectedThemeId === themeId) {
-      return;
-    }
-    // This ensures we pick up the initial theme from context
     setSelectedThemeId(themeId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only on mount
+  }, [themeId]);
 
   // Collapsible section states (collapsed by default)
   const [isPaymentOptionsExpanded, setIsPaymentOptionsExpanded] =
@@ -124,6 +127,7 @@ export default function Settings({
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
   const [isCurrencyExpanded, setIsCurrencyExpanded] = useState(false);
   const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(false);
+  const [isShopifyExpanded, setIsShopifyExpanded] = useState(false);
 
   // Organization management state
   const [isCreatingOrg, setIsCreatingOrg] = useState(false);
@@ -152,6 +156,17 @@ export default function Settings({
   const [currentSheetId, setCurrentSheetId] = useState<string | null>(null);
   const [currentSheetName, setCurrentSheetName] = useState<string>("");
   const [isPickerLoaded, setIsPickerLoaded] = useState(false);
+
+  // Shopify import state
+  const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
+  const [shopifyAccessToken, setShopifyAccessToken] = useState("");
+  const [isImportingShopify, setIsImportingShopify] = useState(false);
+  const [isTestingShopify, setIsTestingShopify] = useState(false);
+  const [shopifyTestResult, setShopifyTestResult] = useState<{
+    success: boolean;
+    productCount?: number;
+    error?: string;
+  } | null>(null);
 
   // QR Code upload state
   const [uploadingQRCode, setUploadingQRCode] = useState<string | null>(null); // payment type being uploaded
@@ -253,7 +268,7 @@ export default function Settings({
     const categoriesChanged =
       JSON.stringify(categories) !== JSON.stringify(originalCategories);
     const tipJarChanged = showTipJar !== originalShowTipJar;
-    const themeChanged = selectedThemeId !== themeId;
+    const themeChanged = selectedThemeId !== originalThemeId;
     const currencyChanged = selectedCurrency !== originalCurrency;
     const rateChanged = exchangeRate !== originalExchangeRate;
     const emailSignupChanged =
@@ -281,7 +296,7 @@ export default function Settings({
     showTipJar,
     originalShowTipJar,
     selectedThemeId,
-    themeId,
+    originalThemeId,
     selectedCurrency,
     originalCurrency,
     exchangeRate,
@@ -311,7 +326,7 @@ export default function Settings({
           JSON.stringify(categories) !== JSON.stringify(originalCategories)
         );
       case "theme":
-        return selectedThemeId !== themeId;
+        return selectedThemeId !== originalThemeId;
       case "emailSignup":
         return (
           JSON.stringify(emailSignupSettings) !==
@@ -464,6 +479,7 @@ export default function Settings({
         // Apply user settings (personal theme)
         if (userSettings?.theme) {
           setSelectedThemeId(userSettings.theme);
+          setOriginalThemeId(userSettings.theme);
           console.log("✅ User settings loaded");
         }
       } else {
@@ -494,6 +510,7 @@ export default function Settings({
 
             if (cachedSettings.theme) {
               setSelectedThemeId(cachedSettings.theme);
+              setOriginalThemeId(cachedSettings.theme);
             }
 
             if (cachedSettings.showTipJar !== undefined) {
@@ -667,6 +684,10 @@ export default function Settings({
         JSON.parse(JSON.stringify(emailSignupSettings))
       );
       setOriginalRequireCashReconciliation(requireCashReconciliation);
+      setOriginalThemeId(selectedThemeId);
+
+      // Apply theme to context and localStorage (only on save)
+      setTheme(selectedThemeId);
 
       // IMPORTANT: Also cache currency to localStorage so helper functions
       // (formatPrice, convertToDisplayCurrency, etc.) can access it
@@ -1107,6 +1128,114 @@ export default function Settings({
       type: "success",
       duration: 5000,
     });
+  };
+
+  // Test Shopify connection
+  const handleTestShopify = async () => {
+    if (!shopifyStoreUrl || !shopifyAccessToken) {
+      setToast({
+        message: "Please enter both Store URL and Access Token",
+        type: "error",
+      });
+      return;
+    }
+
+    if (!validateShopifyUrl(shopifyStoreUrl)) {
+      setToast({
+        message: "Invalid Shopify URL format. Use: mystore.myshopify.com",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsTestingShopify(true);
+    setShopifyTestResult(null);
+
+    const result = await testShopifyConnection(
+      shopifyStoreUrl,
+      shopifyAccessToken
+    );
+
+    setShopifyTestResult(result);
+    setIsTestingShopify(false);
+
+    if (result.success) {
+      setToast({
+        message: `✅ Connected! Found ${result.productCount} active products`,
+        type: "success",
+      });
+    } else {
+      setToast({
+        message: result.error || "Connection failed",
+        type: "error",
+      });
+    }
+  };
+
+  // Import products from Shopify
+  const handleShopifyImport = async () => {
+    if (!shopifyStoreUrl || !shopifyAccessToken) {
+      setToast({
+        message: "Please enter both Store URL and Access Token",
+        type: "error",
+      });
+      return;
+    }
+
+    if (!onAddProduct) {
+      setToast({
+        message: "Product import not available",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsImportingShopify(true);
+
+    try {
+      const result = await importProductsFromShopify(
+        shopifyStoreUrl,
+        shopifyAccessToken
+      );
+
+      if (result.success && result.products) {
+        // Add each product
+        let successCount = 0;
+        for (const product of result.products) {
+          try {
+            await onAddProduct(product);
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to add product ${product.name}:`, error);
+          }
+        }
+
+        setToast({
+          message: `🎉 Successfully imported ${successCount} products from Shopify!`,
+          type: "success",
+          duration: 5000,
+        });
+
+        // Clear form
+        setShopifyStoreUrl("");
+        setShopifyAccessToken("");
+        setShopifyTestResult(null);
+      } else {
+        setToast({
+          message: result.error || "Import failed",
+          type: "error",
+          duration: 5000,
+        });
+      }
+    } catch (error) {
+      console.error("Shopify import error:", error);
+      setToast({
+        message: "Failed to import products. Please try again.",
+        type: "error",
+      });
+    } finally {
+      setIsImportingShopify(false);
+    }
   };
 
   if (isLoading) {
@@ -1722,6 +1851,207 @@ export default function Settings({
                     No categories yet. Add your first category above!
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Shopify Import Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          {/* Collapsible Header */}
+          <button
+            onClick={() => setIsShopifyExpanded(!isShopifyExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <ShoppingBagIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">
+                Import from Shopify
+              </h2>
+            </div>
+            {isShopifyExpanded ? (
+              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
+            ) : (
+              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
+            )}
+          </button>
+
+          {/* Content */}
+          {isShopifyExpanded && (
+            <div className="px-6 pb-6 space-y-6">
+              <p className="text-sm text-theme-secondary">
+                Already have products in a Shopify store? Import them instantly
+                to your POS. This is a one-way import that copies products,
+                prices, sizes, and inventory levels.
+              </p>
+
+              {/* Store URL Input */}
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-2">
+                  Shopify Store URL
+                </label>
+                <input
+                  type="text"
+                  value={shopifyStoreUrl}
+                  onChange={(e) => setShopifyStoreUrl(e.target.value)}
+                  placeholder="mystore.myshopify.com"
+                  className="w-full p-3 bg-theme border border-theme rounded-lg text-theme"
+                />
+                <p className="text-xs text-theme-muted mt-1">
+                  Enter your store URL (e.g., yourstore.myshopify.com)
+                </p>
+              </div>
+
+              {/* Access Token Input */}
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-2">
+                  Admin API Access Token
+                </label>
+                <input
+                  type="password"
+                  value={shopifyAccessToken}
+                  onChange={(e) => setShopifyAccessToken(e.target.value)}
+                  placeholder="shpat_xxxxxxxxxxxxx"
+                  className="w-full p-3 bg-theme border border-theme rounded-lg text-theme font-mono text-sm"
+                />
+                <p className="text-xs text-theme-muted mt-1">
+                  Create a custom app in your Shopify admin to get an access
+                  token
+                </p>
+              </div>
+
+              {/* How to Get Access Token */}
+              <details className="bg-theme-tertiary border border-theme rounded-lg p-4">
+                <summary className="cursor-pointer text-sm font-medium text-theme mb-2">
+                  📖 How to get your Shopify access token
+                </summary>
+                <ol className="text-xs text-theme-secondary space-y-2 mt-3 list-decimal list-inside">
+                  <li>
+                    Go to your Shopify admin → Settings → Apps and sales
+                    channels
+                  </li>
+                  <li>Click "Develop apps" → "Allow custom app development"</li>
+                  <li>
+                    Click "Create an app" and give it a name (e.g., "POS
+                    Import")
+                  </li>
+                  <li>
+                    Go to "Configuration" → "Admin API integration" →
+                    "Configure"
+                  </li>
+                  <li>
+                    Under "Admin API access scopes", enable:
+                    <ul className="ml-6 mt-1 space-y-1">
+                      <li>• read_products</li>
+                      <li>• read_product_listings</li>
+                      <li>• read_inventory</li>
+                    </ul>
+                  </li>
+                  <li>Save, then go to "API credentials"</li>
+                  <li>Click "Install app" to generate your access token</li>
+                  <li>
+                    Copy the "Admin API access token" (starts with shpat_)
+                  </li>
+                </ol>
+              </details>
+
+              {/* Test Connection Result */}
+              {shopifyTestResult && (
+                <div
+                  className={`p-4 rounded-lg border ${
+                    shopifyTestResult.success
+                      ? "bg-green-900/20 border-green-500/50"
+                      : "bg-red-900/20 border-red-500/50"
+                  }`}
+                >
+                  {shopifyTestResult.success ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">✅</span>
+                      <div>
+                        <p className="font-semibold text-green-400">
+                          Connection Successful!
+                        </p>
+                        <p className="text-sm text-green-300">
+                          Found {shopifyTestResult.productCount} active products
+                          ready to import
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">❌</span>
+                      <div>
+                        <p className="font-semibold text-red-400">
+                          Connection Failed
+                        </p>
+                        <p className="text-sm text-red-300">
+                          {shopifyTestResult.error}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleTestShopify}
+                  disabled={
+                    isTestingShopify || !shopifyStoreUrl || !shopifyAccessToken
+                  }
+                  className="flex-1 px-6 py-3 bg-theme-secondary hover:bg-theme-tertiary border border-theme text-theme font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isTestingShopify ? (
+                    <>
+                      <ArrowPathIcon className="w-5 h-5 animate-spin inline mr-2" />
+                      Testing...
+                    </>
+                  ) : (
+                    "Test Connection"
+                  )}
+                </button>
+
+                <button
+                  onClick={handleShopifyImport}
+                  disabled={
+                    isImportingShopify ||
+                    !shopifyStoreUrl ||
+                    !shopifyAccessToken ||
+                    !shopifyTestResult?.success
+                  }
+                  className="flex-1 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isImportingShopify ? (
+                    <>
+                      <ArrowPathIcon className="w-5 h-5 animate-spin inline mr-2" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownTrayIcon className="w-5 h-5 inline mr-2" />
+                      Import Products
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-blue-900/20 border border-blue-500/50 rounded-lg p-4">
+                <p className="text-sm text-blue-300">
+                  <strong>💡 What gets imported:</strong>
+                </p>
+                <ul className="text-xs text-blue-200 mt-2 space-y-1 ml-4">
+                  <li>• Product names, descriptions, and prices</li>
+                  <li>• Product images (first image only)</li>
+                  <li>• Variants as sizes (S, M, L, etc.)</li>
+                  <li>• Current inventory levels</li>
+                  <li>• Product categories (Shopify product type)</li>
+                </ul>
+                <p className="text-xs text-blue-300 mt-3">
+                  Products will be added to your POS and synced to Supabase.
+                  Your Shopify store remains unchanged.
+                </p>
               </div>
             </div>
           )}
@@ -2401,10 +2731,14 @@ export default function Settings({
                       key={theme.id}
                       onClick={() => {
                         setSelectedThemeId(theme.id);
-                        setTheme(theme.id);
 
-                        // Only show toast if actually changing themes
-                        if (theme.id !== themeId) {
+                        // Preview theme WITHOUT saving to localStorage
+                        // Only apply to DOM for visual preview
+                        const previewTheme = getTheme(theme.id);
+                        applyTheme(previewTheme);
+
+                        // Show toast if changing from original saved theme
+                        if (theme.id !== originalThemeId) {
                           setToast({
                             message: `Previewing ${theme.name}. Click "Save Settings" below to keep it!`,
                             type: "success",

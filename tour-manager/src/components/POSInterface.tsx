@@ -15,7 +15,14 @@ import {
   PlusIcon,
   MinusIcon,
   XMarkIcon,
+  MagnifyingGlassIcon,
+  StarIcon,
 } from "@heroicons/react/24/outline";
+import {
+  StarIcon as StarIconSolid,
+  Squares2X2Icon as Squares2X2IconSolid,
+  Square3Stack3DIcon,
+} from "@heroicons/react/24/solid";
 import Toast, { ToastType } from "./Toast";
 import QRCodePaymentModal from "./QRCodePaymentModal";
 import EmailSignupModal from "./EmailSignupModal";
@@ -42,6 +49,7 @@ interface POSInterfaceProps {
     tipAmount?: number
   ) => Promise<void>;
   onUpdateProduct: (product: Product) => Promise<void>;
+  onProductUpdate?: () => void; // Callback when product favorites change
 }
 
 interface ToastState {
@@ -56,6 +64,7 @@ export default function POSInterface({
   organizationId,
   onCompleteSale,
   onUpdateProduct,
+  onProductUpdate,
 }: POSInterfaceProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
@@ -77,6 +86,15 @@ export default function POSInterface({
     useState<Product | null>(null);
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+
+  // NEW: Search & Filter States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [compactView, setCompactView] = useState(false);
+  const [favoriteProductIds, setFavoriteProductIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [recentProductIds, setRecentProductIds] = useState<string[]>([]);
 
   // Review Order Modal States (for cash payments)
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -222,6 +240,16 @@ export default function POSInterface({
           } else {
             console.log("📧 No email signup settings found in Supabase");
           }
+
+          // Load POS preferences (compact view, favorites)
+          if (settings.posPreferences) {
+            setCompactView(settings.posPreferences.compactView || false);
+            setFavoriteProductIds(
+              new Set(settings.posPreferences.favoriteProductIds || [])
+            );
+            setRecentProductIds(settings.posPreferences.recentProductIds || []);
+            console.log("🎯 Loaded POS preferences:", settings.posPreferences);
+          }
         }
       } else {
         // Offline: Load from IndexedDB cache
@@ -273,11 +301,49 @@ export default function POSInterface({
                   cachedSettings.emailSignup.autoDismissSeconds || 15,
               });
             }
+
+            // Load POS preferences
+            if (cachedSettings.posPreferences) {
+              setCompactView(
+                cachedSettings.posPreferences.compactView || false
+              );
+              setFavoriteProductIds(
+                new Set(cachedSettings.posPreferences.favoriteProductIds || [])
+              );
+              setRecentProductIds(
+                cachedSettings.posPreferences.recentProductIds || []
+              );
+            }
           }
         }
       }
     } catch (error) {
       console.error("Error loading payment settings:", error);
+    }
+  };
+
+  // Save POS preferences to organization settings
+  const savePOSPreferences = async () => {
+    try {
+      if (!organizationId) return;
+
+      const { loadOrganizationSettings, saveOrganizationSettings } =
+        await import("@/lib/supabase/data");
+      const currentSettings = await loadOrganizationSettings(organizationId);
+
+      const updatedSettings = {
+        ...currentSettings,
+        posPreferences: {
+          compactView,
+          favoriteProductIds: Array.from(favoriteProductIds),
+          recentProductIds,
+        },
+      };
+
+      await saveOrganizationSettings(organizationId, updatedSettings);
+      console.log("💾 POS preferences saved");
+    } catch (error) {
+      console.error("Error saving POS preferences:", error);
     }
   };
 
@@ -291,8 +357,88 @@ export default function POSInterface({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Save POS preferences when they change (debounced)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (organizationId) {
+        savePOSPreferences();
+      }
+    }, 1000); // Debounce 1 second
+
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactView, favoriteProductIds, recentProductIds, organizationId]);
+
+  // Toggle favorite status
+  const toggleFavorite = async (productId: string) => {
+    setFavoriteProductIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+  };
+
+  // Filter products based on search and category
+  const getFilteredProducts = () => {
+    let filtered = products;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query) ||
+          p.category.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply category filter (if not "all")
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter((p) => p.category === selectedCategory);
+    }
+
+    return filtered;
+  };
+
+  // Get products for a specific section (favorites, recent, or category)
+  const getProductsForSection = (
+    sectionType: "favorites" | "recent" | "category",
+    category?: string
+  ) => {
+    const filtered = getFilteredProducts();
+
+    if (sectionType === "favorites") {
+      return filtered.filter((p) => favoriteProductIds.has(p.id));
+    }
+
+    if (sectionType === "recent") {
+      // Sort by recent order
+      const recentProducts: Product[] = [];
+      for (const id of recentProductIds) {
+        const product = filtered.find((p) => p.id === id);
+        if (product) recentProducts.push(product);
+      }
+      return recentProducts;
+    }
+
+    if (sectionType === "category" && category) {
+      return filtered.filter((p) => p.category === category);
+    }
+
+    return [];
+  };
+
   const handleProductClick = (product: Product) => {
-    // If product has sizes, show size selection
+    // Show size selection if needed
     if (product.sizes && product.sizes.length > 0) {
       setSizeSelectionProduct(product);
     } else {
@@ -323,6 +469,15 @@ export default function POSInterface({
         );
       }
       return [...prev, { product, quantity: 1, size }];
+    });
+
+    // Track recent product (add to beginning, keep last 10)
+    setRecentProductIds((prev) => {
+      const updated = [
+        product.id,
+        ...prev.filter((id) => id !== product.id),
+      ].slice(0, 10);
+      return updated;
     });
 
     // Haptic feedback - light tap when adding to cart
@@ -989,61 +1144,459 @@ export default function POSInterface({
             : "pt-4"
         } lg:pt-6`}
       >
-        <h2 className="text-2xl font-bold mb-6 text-theme">Products</h2>
+        {/* Header with Search & Controls */}
+        <div className="mb-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-2xl font-bold text-theme">Products</h2>
 
-        {categories.map((category) => (
-          <div key={category} className="mb-8">
-            <h3 className="text-lg font-semibold mb-3 text-primary">
-              {category}
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {products
-                .filter((p) => p.category === category)
-                .map((product) => {
+            {/* View Toggle Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Compact View Toggle */}
+              <button
+                onClick={() => {
+                  setCompactView(!compactView);
+                  if (navigator.vibrate) navigator.vibrate(30);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all touch-manipulation ${
+                  compactView
+                    ? "bg-primary text-on-primary"
+                    : "bg-theme-tertiary text-theme-secondary"
+                }`}
+                title="Toggle compact view"
+              >
+                {compactView ? (
+                  <Squares2X2IconSolid className="w-5 h-5" />
+                ) : (
+                  <Square3Stack3DIcon className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-theme-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products..."
+              className="w-full pl-10 pr-10 py-3 bg-theme-secondary border border-theme rounded-lg text-theme placeholder-theme-muted focus:outline-none focus:border-primary transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  if (navigator.vibrate) navigator.vibrate(20);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-muted hover:text-theme transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Category Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <button
+              onClick={() => {
+                setSelectedCategory("all");
+                if (navigator.vibrate) navigator.vibrate(20);
+              }}
+              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all touch-manipulation flex-shrink-0 ${
+                selectedCategory === "all"
+                  ? "bg-primary text-on-primary"
+                  : "bg-theme-tertiary text-theme-secondary"
+              }`}
+            >
+              All
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => {
+                  setSelectedCategory(category);
+                  if (navigator.vibrate) navigator.vibrate(20);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all touch-manipulation flex-shrink-0 ${
+                  selectedCategory === category
+                    ? "bg-primary text-on-primary"
+                    : "bg-theme-tertiary text-theme-secondary"
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Results Counter */}
+          {searchQuery && (
+            <p className="text-sm text-theme-muted">
+              {getFilteredProducts().length} result
+              {getFilteredProducts().length !== 1 ? "s" : ""} found
+            </p>
+          )}
+        </div>
+
+        {/* Favorites Section */}
+        {favoriteProductIds.size > 0 &&
+          selectedCategory === "all" &&
+          !searchQuery && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 text-yellow-400 flex items-center gap-2">
+                <StarIconSolid className="w-5 h-5" />
+                Favorites ({favoriteProductIds.size})
+              </h3>
+              <div
+                className={`grid gap-3 ${
+                  compactView
+                    ? "grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+                    : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                }`}
+              >
+                {getProductsForSection("favorites").map((product) => {
                   const inStock = hasStock(product);
                   const hasImage =
                     product.imageUrl && product.imageUrl.trim().length > 0;
-                  const showText = product.showTextOnButton !== false; // default true
+                  const showText = product.showTextOnButton !== false;
 
                   return (
-                    <button
-                      key={product.id}
-                      onClick={() => inStock && handleProductClick(product)}
-                      disabled={!inStock}
-                      className={`relative border border-theme rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden aspect-square ${
-                        hasImage ? "p-0" : "p-4 bg-theme-secondary"
-                      } ${
-                        inStock
-                          ? "hover:shadow-lg hover:border-primary active:scale-95"
-                          : "opacity-50 cursor-not-allowed"
-                      }`}
-                    >
-                      {/* Full Image Display */}
-                      {hasImage ? (
-                        <div className="relative w-full h-full">
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className={`w-full h-full object-contain ${
-                              inStock ? "" : "opacity-40"
-                            }`}
-                          />
+                    <div key={product.id} className="relative">
+                      {/* Favorite Star Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(product.id);
+                        }}
+                        className="absolute top-2 left-2 z-20 p-1.5 bg-black/60 hover:bg-black/80 rounded-full transition-all touch-manipulation"
+                        title="Remove from favorites"
+                      >
+                        <StarIconSolid className="w-5 h-5 text-yellow-400" />
+                      </button>
 
-                          {/* Text overlay - only show gradient if text is on */}
-                          {showText ? (
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
-                              <h4 className="font-semibold text-theme mb-1 text-sm lg:text-base drop-shadow-lg">
-                                {product.name}
-                              </h4>
-                              {inStock ? (
-                                <>
-                                  <p className="text-xl font-bold text-primary drop-shadow-lg">
+                      <button
+                        onClick={() => inStock && handleProductClick(product)}
+                        disabled={!inStock}
+                        className={`relative w-full border border-theme rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden ${
+                          compactView
+                            ? hasImage
+                              ? "aspect-square p-0"
+                              : "aspect-[4/3] p-2"
+                            : hasImage
+                            ? "aspect-square p-0"
+                            : "aspect-square p-4"
+                        } ${hasImage ? "bg-theme" : "bg-theme-secondary"} ${
+                          inStock
+                            ? "hover:shadow-lg hover:border-primary active:scale-95"
+                            : "opacity-50 cursor-not-allowed"
+                        }`}
+                      >
+                        {hasImage ? (
+                          <div className="relative w-full h-full">
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className={`w-full h-full object-contain ${
+                                inStock ? "" : "opacity-40"
+                              }`}
+                            />
+                            {showText && !compactView && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
+                                <h4 className="font-semibold text-theme mb-1 text-sm lg:text-base drop-shadow-lg">
+                                  {product.name}
+                                </h4>
+                                <p className="text-xl font-bold text-primary drop-shadow-lg">
+                                  {formatPrice(
+                                    product.price,
+                                    product.currencyPrices
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                            {compactView && (
+                              <div className="absolute top-2 right-2">
+                                <div className="bg-black/80 backdrop-blur-sm rounded px-2 py-1">
+                                  <p className="text-sm font-bold text-primary">
                                     {formatPrice(
                                       product.price,
                                       product.currencyPrices
                                     )}
                                   </p>
-                                  {product.sizes &&
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-left relative z-10">
+                            <h4
+                              className={`font-semibold text-theme mb-1 ${
+                                compactView ? "text-xs" : "text-sm lg:text-base"
+                              }`}
+                            >
+                              {product.name}
+                            </h4>
+                            <p
+                              className={`font-bold text-primary ${
+                                compactView ? "text-base" : "text-2xl"
+                              }`}
+                            >
+                              {formatPrice(
+                                product.price,
+                                product.currencyPrices
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+        {/* Recent Items Section - 4 Compact Tiles */}
+        {recentProductIds.length > 0 &&
+          selectedCategory === "all" &&
+          !searchQuery && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold mb-2 text-theme-secondary">
+                Recently Sold
+              </h3>
+              <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                {getProductsForSection("recent")
+                  .slice(0, 4)
+                  .map((product) => {
+                    const inStock = hasStock(product);
+                    const hasImage =
+                      product.imageUrl && product.imageUrl.trim().length > 0;
+                    const isFavorite = favoriteProductIds.has(product.id);
+
+                    return (
+                      <div key={product.id} className="relative">
+                        {/* Favorite Star Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(product.id);
+                          }}
+                          className="absolute top-1 left-1 z-20 p-1 bg-black/60 hover:bg-black/80 rounded-full transition-all touch-manipulation"
+                          title={
+                            isFavorite
+                              ? "Remove from favorites"
+                              : "Add to favorites"
+                          }
+                        >
+                          {isFavorite ? (
+                            <StarIconSolid className="w-3.5 h-3.5 text-yellow-400" />
+                          ) : (
+                            <StarIcon className="w-3.5 h-3.5 text-gray-300" />
+                          )}
+                        </button>
+
+                        <button
+                          onClick={() => inStock && handleProductClick(product)}
+                          disabled={!inStock}
+                          className={`relative w-full border border-theme rounded shadow transition-all touch-manipulation overflow-hidden aspect-square ${
+                            hasImage ? "bg-theme p-0" : "bg-theme-secondary p-2"
+                          } ${
+                            inStock
+                              ? "hover:shadow-md hover:border-primary active:scale-95"
+                              : "opacity-50 cursor-not-allowed"
+                          }`}
+                        >
+                          {hasImage ? (
+                            <div className="relative w-full h-full">
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className={`w-full h-full object-contain ${
+                                  inStock ? "" : "opacity-40"
+                                }`}
+                              />
+                              {/* Price Badge */}
+                              <div className="absolute top-1 right-1">
+                                <div className="bg-black/80 backdrop-blur-sm rounded px-1.5 py-0.5">
+                                  <p className="text-xs font-bold text-primary">
+                                    {formatPrice(
+                                      product.price,
+                                      product.currencyPrices
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-left relative z-10 flex flex-col justify-between h-full">
+                              <h4 className="font-semibold text-theme text-xs leading-tight line-clamp-2">
+                                {product.name}
+                              </h4>
+                              <p className="font-bold text-primary text-sm">
+                                {formatPrice(
+                                  product.price,
+                                  product.currencyPrices
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+        {/* Main Product Grid by Category */}
+        {(selectedCategory === "all" ? categories : [selectedCategory]).map(
+          (category) => {
+            const categoryProducts = getProductsForSection(
+              "category",
+              category
+            );
+
+            if (categoryProducts.length === 0) return null;
+
+            return (
+              <div key={category} className="mb-8">
+                <h3 className="text-lg font-semibold mb-3 text-primary">
+                  {category} ({categoryProducts.length})
+                </h3>
+                <div
+                  className={`grid gap-3 ${
+                    compactView
+                      ? "grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+                      : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                  }`}
+                >
+                  {categoryProducts.map((product) => {
+                    const inStock = hasStock(product);
+                    const hasImage =
+                      product.imageUrl && product.imageUrl.trim().length > 0;
+                    const showText = product.showTextOnButton !== false;
+                    const isFavorite = favoriteProductIds.has(product.id);
+
+                    return (
+                      <div key={product.id} className="relative">
+                        {/* Favorite Star Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(product.id);
+                          }}
+                          className="absolute top-2 left-2 z-20 p-1.5 bg-black/60 hover:bg-black/80 rounded-full transition-all touch-manipulation"
+                          title={
+                            isFavorite
+                              ? "Remove from favorites"
+                              : "Add to favorites"
+                          }
+                        >
+                          {isFavorite ? (
+                            <StarIconSolid className="w-5 h-5 text-yellow-400" />
+                          ) : (
+                            <StarIcon className="w-5 h-5 text-gray-300" />
+                          )}
+                        </button>
+
+                        <button
+                          onClick={() => inStock && handleProductClick(product)}
+                          disabled={!inStock}
+                          className={`relative w-full border border-theme rounded-lg shadow-lg transition-all touch-manipulation overflow-hidden ${
+                            compactView
+                              ? hasImage
+                                ? "aspect-square p-0"
+                                : "aspect-[4/3] p-2"
+                              : hasImage
+                              ? "aspect-square p-0"
+                              : "aspect-square p-4"
+                          } ${hasImage ? "bg-theme" : "bg-theme-secondary"} ${
+                            inStock
+                              ? "hover:shadow-lg hover:border-primary active:scale-95"
+                              : "opacity-50 cursor-not-allowed"
+                          }`}
+                        >
+                          {hasImage ? (
+                            <div className="relative w-full h-full">
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className={`w-full h-full object-contain ${
+                                  inStock ? "" : "opacity-40"
+                                }`}
+                              />
+                              {showText && !compactView && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3">
+                                  <h4 className="font-semibold text-theme mb-1 text-sm lg:text-base drop-shadow-lg">
+                                    {product.name}
+                                  </h4>
+                                  {inStock ? (
+                                    <>
+                                      <p className="text-xl font-bold text-primary drop-shadow-lg">
+                                        {formatPrice(
+                                          product.price,
+                                          product.currencyPrices
+                                        )}
+                                      </p>
+                                      {product.sizes &&
+                                        product.sizes.length > 0 && (
+                                          <p className="text-xs text-theme-secondary mt-1">
+                                            {product.sizes.join(", ")}
+                                          </p>
+                                        )}
+                                    </>
+                                  ) : (
+                                    <p className="text-lg font-bold text-theme-muted">
+                                      Out of Stock
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                              {compactView && (
+                                <div className="absolute top-2 right-2">
+                                  {inStock ? (
+                                    <div className="bg-black/80 backdrop-blur-sm rounded px-2 py-1">
+                                      <p className="text-sm font-bold text-primary">
+                                        {formatPrice(
+                                          product.price,
+                                          product.currencyPrices
+                                        )}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="bg-black/80 backdrop-blur-sm rounded px-2 py-1">
+                                      <p className="text-xs font-bold text-theme-muted">
+                                        Out of Stock
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-left relative z-10">
+                              <h4
+                                className={`font-semibold text-theme mb-1 ${
+                                  compactView
+                                    ? "text-xs"
+                                    : "text-sm lg:text-base"
+                                }`}
+                              >
+                                {product.name}
+                              </h4>
+                              {inStock ? (
+                                <>
+                                  <p
+                                    className={`font-bold text-primary ${
+                                      compactView ? "text-base" : "text-2xl"
+                                    }`}
+                                  >
+                                    {formatPrice(
+                                      product.price,
+                                      product.currencyPrices
+                                    )}
+                                  </p>
+                                  {!compactView &&
+                                    product.sizes &&
                                     product.sizes.length > 0 && (
                                       <p className="text-xs text-theme-secondary mt-1">
                                         {product.sizes.join(", ")}
@@ -1051,66 +1604,40 @@ export default function POSInterface({
                                     )}
                                 </>
                               ) : (
-                                <p className="text-lg font-bold text-theme-muted">
+                                <p
+                                  className={`font-bold text-theme-muted ${
+                                    compactView ? "text-sm" : "text-lg"
+                                  } mt-2`}
+                                >
                                   Out of Stock
                                 </p>
                               )}
                             </div>
-                          ) : (
-                            /* Minimal price badge when text is off - doesn't block image */
-                            <div className="absolute top-2 right-2">
-                              {inStock ? (
-                                <div className="bg-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                                  <p className="text-lg font-bold text-primary">
-                                    {formatPrice(
-                                      product.price,
-                                      product.currencyPrices
-                                    )}
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="bg-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                                  <p className="text-sm font-bold text-theme-muted">
-                                    Out of Stock
-                                  </p>
-                                </div>
-                              )}
-                            </div>
                           )}
-                        </div>
-                      ) : (
-                        // No image - text only display
-                        <div className="text-left relative z-10">
-                          <h4 className="font-semibold text-theme mb-1 text-sm lg:text-base">
-                            {product.name}
-                          </h4>
-                          {inStock ? (
-                            <>
-                              <p className="text-2xl font-bold text-primary">
-                                {formatPrice(
-                                  product.price,
-                                  product.currencyPrices
-                                )}
-                              </p>
-                              {product.sizes && product.sizes.length > 0 && (
-                                <p className="text-xs text-theme-secondary mt-1">
-                                  {product.sizes.join(", ")}
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-lg font-bold text-theme-muted mt-2">
-                              Out of Stock
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+        )}
+
+        {/* No Results Message */}
+        {getFilteredProducts().length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-theme-muted text-lg mb-2">No products found</p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="text-primary hover:text-primary/80 underline"
+              >
+                Clear search
+              </button>
+            )}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Cart */}

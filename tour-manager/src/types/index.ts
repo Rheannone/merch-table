@@ -270,6 +270,17 @@ export interface UserSettings {
   };
   emailSignup?: EmailSignupSettings;
   closeOutSettings?: CloseOutSettings;
+  posPreferences?: POSPreferences;
+}
+
+/**
+ * POS Interface Preferences
+ * Settings for optimizing the point-of-sale experience
+ */
+export interface POSPreferences {
+  compactView?: boolean; // Smaller product grid for high-volume catalogs
+  favoriteProductIds?: string[]; // IDs of products pinned to favorites section
+  recentProductIds?: string[]; // IDs of recently sold products (last 10)
 }
 
 /**
@@ -288,4 +299,5 @@ export interface OrganizationSettings {
   };
   emailSignup?: EmailSignupSettings;
   closeOutSettings?: CloseOutSettings;
+  posPreferences?: POSPreferences; // POS optimization settings
 }
