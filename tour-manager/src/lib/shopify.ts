@@ -21,6 +21,14 @@ export interface ShopifyImportResult {
   count?: number;
 }
 
+export interface ShopifyExportResult {
+  success: boolean;
+  csvBlob?: Blob;
+  exportedCount?: number;
+  skippedCount?: number;
+  error?: string;
+}
+
 /**
  * Parse CSV text into rows
  */
@@ -283,3 +291,146 @@ export async function importProductsFromShopifyCSV(
     };
   }
 }
+
+/**
+ * Export inventory to Shopify-compatible CSV format
+ * 
+ * Generates an inventory CSV that can be imported back to Shopify
+ * to update inventory quantities after an event.
+ * 
+ * @param products - Products to export (only those with shopify- prefix will be included)
+ */
+export function exportInventoryToShopifyCSV(
+  products: Product[]
+): ShopifyExportResult {
+  try {
+    // Filter to only Shopify products
+    const shopifyProducts = products.filter((p) =>
+      p.id.startsWith("shopify-")
+    );
+
+    if (shopifyProducts.length === 0) {
+      return {
+        success: false,
+        error:
+          "No Shopify products found to export. Import products from Shopify first.",
+      };
+    }
+
+    // Build CSV header (Shopify inventory format)
+    const headers = [
+      "Handle",
+      "Title",
+      "Option 1 Name",
+      "Option 1 Value",
+      "Option 2 Name",
+      "Option 2 Value",
+      "Option 3 Name",
+      "Option 3 Value",
+      "SKU",
+      "HS Code",
+      "COO",
+      "Location",
+      "Bin name",
+      "Incoming (not editable)",
+      "Unavailable (not editable)",
+      "Committed (not editable)",
+      "Available (not editable)",
+      "On hand (current)",
+      "On hand (new)",
+    ];
+
+    const rows: string[][] = [headers];
+
+    // Generate rows for each product/variant
+    for (const product of shopifyProducts) {
+      // Extract handle from ID (remove "shopify-" prefix)
+      const handle = product.id.replace("shopify-", "");
+
+      if (product.sizes && product.sizes.length > 0) {
+        // Product with variants
+        for (const size of product.sizes) {
+          const currentQty = product.inventory?.[size] || 0;
+
+          rows.push([
+            handle,
+            product.name,
+            "Size", // Could be stored in metadata, but "Size" is common
+            size,
+            "", // Option 2 Name
+            "", // Option 2 Value
+            "", // Option 3 Name
+            "", // Option 3 Value
+            "", // SKU
+            "", // HS Code
+            "", // COO
+            "", // Location (blank = default)
+            "", // Bin name
+            "0", // Incoming
+            "0", // Unavailable
+            "0", // Committed
+            currentQty.toString(), // Available
+            currentQty.toString(), // On hand (current)
+            currentQty.toString(), // On hand (new)
+          ]);
+        }
+      } else {
+        // Product without variants
+        const currentQty = product.inventory?.["default"] || 0;
+
+        rows.push([
+          handle,
+          product.name,
+          "Title",
+          "Default Title",
+          "", "", "", "",
+          "",
+          "", "",
+          "",
+          "",
+          "0", "0", "0",
+          currentQty.toString(),
+          currentQty.toString(),
+          currentQty.toString(),
+        ]);
+      }
+    }
+
+    // Convert to CSV string
+    const csvContent = rows
+      .map((row) =>
+        row.map((cell) => {
+          // Escape cells that contain commas, quotes, or newlines
+          if (cell.includes(",") || cell.includes('"') || cell.includes("\n")) {
+            return `"${cell.replace(/"/g, '""')}"`;
+          }
+          return cell;
+        }).join(",")
+      )
+      .join("\n");
+
+    // Create blob
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+
+    console.log(
+      `✅ Successfully exported ${shopifyProducts.length} products to Shopify inventory CSV`
+    );
+
+    return {
+      success: true,
+      csvBlob: blob,
+      exportedCount: shopifyProducts.length,
+      skippedCount: products.length - shopifyProducts.length,
+    };
+  } catch (error) {
+    console.error("Error exporting to Shopify CSV:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to generate CSV file.",
+    };
+  }
+}
+
