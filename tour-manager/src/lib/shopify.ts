@@ -125,6 +125,74 @@ function groupByProduct(
 }
 
 /**
+ * Map grouped Shopify Inventory CSV rows to a Product
+ * Handles Shopify's "All states" inventory export format
+ */
+function mapShopifyInventoryCSVToProduct(
+  handle: string,
+  rows: Record<string, string>[]
+): Product | null {
+  if (rows.length === 0) return null;
+
+  const firstRow = rows[0];
+  const title = firstRow["Title"];
+  if (!title) return null;
+
+  // Determine if product has variants
+  const option1Name = firstRow["Option1 Name"] || firstRow["Option 1 Name"];
+  const hasVariants = option1Name && option1Name !== "Title";
+
+  let sizes: string[] | undefined;
+  const inventory: { [key: string]: number } = {};
+
+  if (hasVariants) {
+    // Extract sizes from Option1 Value
+    sizes = rows
+      .map((v) => v["Option1 Value"] || v["Option 1 Value"])
+      .filter((val) => val && val !== "Default Title");
+
+    // Map inventory from "On hand (current)" or "On hand (new)" columns
+    rows.forEach((variant) => {
+      const sizeName = variant["Option1 Value"] || variant["Option 1 Value"];
+      // Try multiple column name variations
+      const qtyStr =
+        variant["On hand (current)"] ||
+        variant["On hand (new)"] ||
+        variant["Available (not editable)"] ||
+        variant["Available"] ||
+        "0";
+      const qty = parseInt(qtyStr, 10) || 0;
+      if (sizeName && sizeName !== "Default Title") {
+        inventory[sizeName] = qty;
+      }
+    });
+  } else {
+    // Single variant product
+    const qtyStr =
+      firstRow["On hand (current)"] ||
+      firstRow["On hand (new)"] ||
+      firstRow["Available (not editable)"] ||
+      firstRow["Available"] ||
+      "0";
+    const qty = parseInt(qtyStr, 10) || 0;
+    inventory["default"] = qty;
+  }
+
+  return {
+    id: `shopify-${handle}`,
+    name: title,
+    price: 0, // Price not included in inventory CSV - will need to set manually
+    category: "Uncategorized",
+    sizes: sizes,
+    inventory: inventory,
+    showTextOnButton: true,
+    shopifyMetadata: {
+      optionName: option1Name || undefined, // Store the original option name
+    },
+  };
+}
+
+/**
  * Map grouped Shopify CSV rows to a Product
  */
 function mapShopifyCSVToProduct(
@@ -206,6 +274,9 @@ function mapShopifyCSVToProduct(
     sizes: sizes,
     inventory: inventory,
     showTextOnButton: true,
+    shopifyMetadata: {
+      optionName: option1Name || undefined, // Store the original option name
+    },
   };
 }
 
@@ -247,32 +318,54 @@ export async function importProductsFromShopifyCSV(
       return {
         success: false,
         error:
-          "This doesn't look like a Shopify product export. Missing required columns (Handle, Title).",
+          "This doesn't look like a Shopify CSV. Missing required columns (Handle, Title).",
       };
     }
+
+    // Detect CSV type: Inventory CSV vs Product CSV
+    const isInventoryCSV =
+      "On hand (current)" in firstObj ||
+      "On hand (new)" in firstObj ||
+      "Available (not editable)" in firstObj;
+    const isProductCSV = "Variant Price" in firstObj || "Price" in firstObj;
 
     // Group by product
     const grouped = groupByProduct(objects);
 
-    // Map to products
+    // Map to products using appropriate mapper
     const products: Product[] = [];
     for (const [handle, productRows] of grouped) {
-      const product = mapShopifyCSVToProduct(handle, productRows);
+      let product: Product | null = null;
+
+      if (isInventoryCSV) {
+        // Use inventory CSV mapper
+        product = mapShopifyInventoryCSVToProduct(handle, productRows);
+      } else if (isProductCSV) {
+        // Use product CSV mapper
+        product = mapShopifyCSVToProduct(handle, productRows);
+      } else {
+        // Try product mapper as fallback
+        product = mapShopifyCSVToProduct(handle, productRows);
+      }
+
       if (product) {
         products.push(product);
       }
     }
 
     if (products.length === 0) {
+      const errorHint = isInventoryCSV
+        ? "No products found in inventory CSV."
+        : "No active products found in CSV. Make sure products have 'Active' status.";
       return {
         success: false,
-        error:
-          "No active products found in CSV. Make sure products have 'Active' status.",
+        error: errorHint,
       };
     }
 
+    const csvType = isInventoryCSV ? "inventory" : "product";
     console.log(
-      `✅ Successfully imported ${products.length} products from Shopify CSV`
+      `✅ Successfully imported ${products.length} products from Shopify ${csvType} CSV`
     );
 
     return {
@@ -293,21 +386,23 @@ export async function importProductsFromShopifyCSV(
 }
 
 /**
- * Export inventory to Shopify-compatible CSV format
- * 
+ * Export inventory to Shopify-compatible Inventory CSV format
+ *
  * Generates an inventory CSV that can be imported back to Shopify
  * to update inventory quantities after an event.
- * 
+ *
+ * Uses Shopify's "All states" inventory import format with safety validation.
+ *
  * @param products - Products to export (only those with shopify- prefix will be included)
+ * @param locationName - Shopify location name (defaults to blank for default location)
  */
 export function exportInventoryToShopifyCSV(
-  products: Product[]
+  products: Product[],
+  locationName: string = ""
 ): ShopifyExportResult {
   try {
     // Filter to only Shopify products
-    const shopifyProducts = products.filter((p) =>
-      p.id.startsWith("shopify-")
-    );
+    const shopifyProducts = products.filter((p) => p.id.startsWith("shopify-"));
 
     if (shopifyProducts.length === 0) {
       return {
@@ -317,16 +412,17 @@ export function exportInventoryToShopifyCSV(
       };
     }
 
-    // Build CSV header (Shopify inventory format)
+    // Build CSV header (Shopify inventory "All states" format)
+    // Note: Shopify uses "Option 1 Name" but "Option1 Value" (inconsistent spacing!)
     const headers = [
       "Handle",
       "Title",
       "Option 1 Name",
-      "Option 1 Value",
+      "Option1 Value",
       "Option 2 Name",
-      "Option 2 Value",
+      "Option2 Value",
       "Option 3 Name",
-      "Option 3 Value",
+      "Option3 Value",
       "SKU",
       "HS Code",
       "COO",
@@ -352,26 +448,29 @@ export function exportInventoryToShopifyCSV(
         for (const size of product.sizes) {
           const currentQty = product.inventory?.[size] || 0;
 
+          // Use the stored option name from metadata, or default to "Size"
+          const optionName = product.shopifyMetadata?.optionName || "Size";
+
           rows.push([
             handle,
             product.name,
-            "Size", // Could be stored in metadata, but "Size" is common
+            optionName, // Use stored option name (Color, Size, Material, etc.)
             size,
-            "", // Option 2 Name
-            "", // Option 2 Value
-            "", // Option 3 Name
-            "", // Option 3 Value
-            "", // SKU
+            "", // Option2 Name
+            "", // Option2 Value
+            "", // Option3 Name
+            "", // Option3 Value
+            "", // SKU (could be populated if stored)
             "", // HS Code
-            "", // COO
-            "", // Location (blank = default)
+            "", // COO (Country of Origin)
+            locationName, // Location (blank = default location)
             "", // Bin name
-            "0", // Incoming
-            "0", // Unavailable
-            "0", // Committed
-            currentQty.toString(), // Available
-            currentQty.toString(), // On hand (current)
-            currentQty.toString(), // On hand (new)
+            "", // Incoming (not editable - leave blank)
+            "", // Unavailable (not editable - leave blank)
+            "", // Committed (not editable - leave blank)
+            "", // Available (not editable - leave blank)
+            "", // On hand (current) - LEFT BLANK to skip safety validation
+            currentQty.toString(), // On hand (new) - the new quantity to set
           ]);
         }
       } else {
@@ -383,15 +482,21 @@ export function exportInventoryToShopifyCSV(
           product.name,
           "Title",
           "Default Title",
-          "", "", "", "",
-          "",
-          "", "",
           "",
           "",
-          "0", "0", "0",
-          currentQty.toString(),
-          currentQty.toString(),
-          currentQty.toString(),
+          "",
+          "", // Options 2 & 3
+          "",
+          "",
+          "", // SKU, HS Code, COO
+          locationName,
+          "", // Bin name
+          "",
+          "",
+          "",
+          "", // Incoming, Unavailable, Committed, Available
+          "", // On hand (current) - LEFT BLANK to skip safety validation
+          currentQty.toString(), // On hand (new)
         ]);
       }
     }
@@ -399,13 +504,19 @@ export function exportInventoryToShopifyCSV(
     // Convert to CSV string
     const csvContent = rows
       .map((row) =>
-        row.map((cell) => {
-          // Escape cells that contain commas, quotes, or newlines
-          if (cell.includes(",") || cell.includes('"') || cell.includes("\n")) {
-            return `"${cell.replace(/"/g, '""')}"`;
-          }
-          return cell;
-        }).join(",")
+        row
+          .map((cell) => {
+            // Escape cells that contain commas, quotes, or newlines
+            if (
+              cell.includes(",") ||
+              cell.includes('"') ||
+              cell.includes("\n")
+            ) {
+              return `"${cell.replace(/"/g, '""')}"`;
+            }
+            return cell;
+          })
+          .join(",")
       )
       .join("\n");
 
@@ -427,10 +538,7 @@ export function exportInventoryToShopifyCSV(
     return {
       success: false,
       error:
-        error instanceof Error
-          ? error.message
-          : "Failed to generate CSV file.",
+        error instanceof Error ? error.message : "Failed to generate CSV file.",
     };
   }
 }
-

@@ -1916,9 +1916,7 @@ export default function Settings({
           >
             <div className="flex items-center gap-3">
               <ShoppingBagIcon className="w-7 h-7 text-primary" />
-              <h2 className="text-2xl font-bold text-theme">
-                Shopify Sync
-              </h2>
+              <h2 className="text-2xl font-bold text-theme">Shopify Sync</h2>
             </div>
             {isShopifyExpanded ? (
               <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
@@ -1931,8 +1929,8 @@ export default function Settings({
           {isShopifyExpanded && (
             <div className="px-6 pb-6 space-y-6">
               <p className="text-sm text-theme-secondary">
-                Sync your products with Shopify: import products before an event,
-                then export updated inventory levels after making sales.
+                Sync your products with Shopify: import products before an
+                event, then export updated inventory levels after making sales.
               </p>
 
               {/* Import Section */}
@@ -1944,43 +1942,59 @@ export default function Settings({
                   Start by importing your existing products from Shopify.
                 </p>
 
-              {/* How to Export from Shopify */}
-              <div className="bg-theme-tertiary border border-theme rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-theme mb-3">
-                  📦 How to export from Shopify:
-                </h3>
-                <ol className="text-xs text-theme-secondary space-y-2 list-decimal list-inside">
-                  <li>
-                    Go to <strong>Products</strong> in your Shopify admin
-                  </li>
-                  <li>
-                    Click the <strong>&quot;Export&quot;</strong> button (top
-                    right)
-                  </li>
-                  <li>
-                    Select &quot;All products&quot; or choose specific products
-                  </li>
-                  <li>
-                    Choose <strong>&quot;Plain CSV file&quot;</strong> as the
-                    format
-                  </li>
-                  <li>Click &quot;Export products&quot;</li>
-                  <li>Download the CSV file and upload it below</li>
-                </ol>
-              </div>
+                {/* How to Export from Shopify */}
+                <div className="bg-theme-tertiary border border-theme rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-theme mb-3">
+                    📦 How to export inventory from Shopify:
+                  </h3>
+                  <ol className="text-xs text-theme-secondary space-y-2 list-decimal list-inside">
+                    <li>
+                      Go to <strong>Products → Inventory</strong> in your
+                      Shopify admin
+                    </li>
+                    <li>
+                      Click the <strong>&quot;Export&quot;</strong> button (top
+                      right)
+                    </li>
+                    <li>
+                      Select &quot;All locations&quot; (or your specific
+                      location)
+                    </li>
+                    <li>
+                      Choose <strong>&quot;All states&quot;</strong> for
+                      inventory states
+                    </li>
+                    <li>
+                      Select &quot;All variants&quot; or specific products
+                    </li>
+                    <li>
+                      Choose{" "}
+                      <strong>
+                        &quot;CSV for Excel, Numbers, or other spreadsheet
+                        programs&quot;
+                      </strong>
+                    </li>
+                    <li>Click &quot;Export inventory&quot;</li>
+                    <li>Download the CSV file and upload it below</li>
+                  </ol>
+                  <p className="text-xs text-blue-300 mt-3">
+                    💡 <strong>Tip:</strong> Use the Inventory export (not
+                    Product export) to get accurate stock quantities!
+                  </p>
+                </div>
 
-              {/* File Upload */}
-              <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-2">
-                  Upload Shopify Products CSV
-                </label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleShopifyCSVImport}
-                    disabled={isImportingShopify}
-                    className="block w-full text-sm text-theme-secondary
+                {/* File Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-theme-secondary mb-2">
+                    Upload Shopify Inventory CSV
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleShopifyCSVImport}
+                      disabled={isImportingShopify}
+                      className="block w-full text-sm text-theme-secondary
                       file:mr-4 file:py-3 file:px-6
                       file:rounded-lg file:border-0
                       file:text-sm file:font-semibold
@@ -1991,57 +2005,57 @@ export default function Settings({
                       border border-theme rounded-lg
                       bg-theme
                       disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
+                    />
+                  </div>
+                  <p className="text-xs text-theme-muted mt-2">
+                    {isImportingShopify ? (
+                      <span className="flex items-center gap-2">
+                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                        Importing products...
+                      </span>
+                    ) : (
+                      "Select your Shopify inventory export CSV file"
+                    )}
+                  </p>
                 </div>
-                <p className="text-xs text-theme-muted mt-2">
-                  {isImportingShopify ? (
-                    <span className="flex items-center gap-2">
-                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                      Importing products...
-                    </span>
-                  ) : (
-                    "Select your Shopify product export CSV file"
-                  )}
-                </p>
-              </div>
 
-              {/* Import Result */}
-              {shopifyImportResult && (
-                <div
-                  className={`p-4 rounded-lg border ${
-                    shopifyImportResult.success
-                      ? "bg-green-900/20 border-green-500/50"
-                      : "bg-red-900/20 border-red-500/50"
-                  }`}
-                >
-                  {shopifyImportResult.success ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">✅</span>
-                      <div>
-                        <p className="font-semibold text-green-400">
-                          Import Successful!
-                        </p>
-                        <p className="text-sm text-green-300">
-                          Successfully imported {shopifyImportResult.count}{" "}
-                          products
-                        </p>
+                {/* Import Result */}
+                {shopifyImportResult && (
+                  <div
+                    className={`p-4 rounded-lg border ${
+                      shopifyImportResult.success
+                        ? "bg-green-900/20 border-green-500/50"
+                        : "bg-red-900/20 border-red-500/50"
+                    }`}
+                  >
+                    {shopifyImportResult.success ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">✅</span>
+                        <div>
+                          <p className="font-semibold text-green-400">
+                            Import Successful!
+                          </p>
+                          <p className="text-sm text-green-300">
+                            Successfully imported {shopifyImportResult.count}{" "}
+                            products
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">❌</span>
-                      <div>
-                        <p className="font-semibold text-red-400">
-                          Import Failed
-                        </p>
-                        <p className="text-sm text-red-300">
-                          {shopifyImportResult.error}
-                        </p>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">❌</span>
+                        <div>
+                          <p className="font-semibold text-red-400">
+                            Import Failed
+                          </p>
+                          <p className="text-sm text-red-300">
+                            {shopifyImportResult.error}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Divider */}
@@ -2060,27 +2074,39 @@ export default function Settings({
                 {/* How to Import to Shopify */}
                 <div className="bg-theme-tertiary border border-theme rounded-lg p-4 mb-4">
                   <h3 className="text-sm font-semibold text-theme mb-3">
-                    📥 How to import to Shopify:
+                    📥 How to import inventory back to Shopify:
                   </h3>
                   <ol className="text-xs text-theme-secondary space-y-2 list-decimal list-inside">
-                    <li>Click the button below to download your inventory CSV</li>
                     <li>
-                      Go to <strong>Products</strong> in your Shopify admin
+                      Click the button below to download your inventory CSV
+                    </li>
+                    <li>
+                      Go to <strong>Products → Inventory</strong> in your
+                      Shopify admin
                     </li>
                     <li>
                       Click the <strong>&quot;Import&quot;</strong> button (top
                       right)
                     </li>
                     <li>
-                      Select &quot;Import by CSV file&quot;
+                      Click &quot;Add file&quot; and select the downloaded CSV
                     </li>
-                    <li>Upload the downloaded CSV file</li>
+                    <li>Click &quot;Upload file&quot;</li>
                     <li>
-                      Shopify will show you a preview - verify the changes look
-                      correct
+                      Review the import summary (Shopify will show you what will
+                      change)
                     </li>
-                    <li>Click &quot;Import products&quot; to update your inventory</li>
+                    <li>
+                      Click &quot;Start import&quot; to update your inventory
+                    </li>
                   </ol>
+                  <p className="text-xs text-yellow-300 mt-3">
+                    ⚠️ <strong>Important:</strong> The export skips safety
+                    validation to ensure updates apply. This means inventory
+                    will be overwritten with ROAD DOG&apos;s quantities, even if
+                    Shopify changed since your last sync. Make sure you
+                    haven&apos;t made sales in Shopify after exporting!
+                  </p>
                 </div>
 
                 {/* Export Button */}
@@ -2128,8 +2154,8 @@ export default function Settings({
                           Export Successful!
                         </p>
                         <p className="text-sm text-green-300">
-                          Downloaded CSV with {shopifyExportResult.exportedCount}{" "}
-                          products
+                          Downloaded CSV with{" "}
+                          {shopifyExportResult.exportedCount} products
                           {shopifyExportResult.skippedCount &&
                           shopifyExportResult.skippedCount > 0
                             ? ` (${shopifyExportResult.skippedCount} non-Shopify products skipped)`

@@ -76,6 +76,10 @@ export interface Product {
     [currencyCode: string]: number;
   };
   synced?: boolean; // Whether this product has been synced to Supabase
+  // Shopify metadata - stores original Shopify data for proper export
+  shopifyMetadata?: {
+    optionName?: string; // Original option name from Shopify (e.g., "Color", "Size")
+  };
 }
 
 export interface CartItem {
