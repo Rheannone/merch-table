@@ -139,7 +139,7 @@ export default function Settings({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [addMemberEmail, setAddMemberEmail] = useState("");
   const [addMemberRole, setAddMemberRole] = useState<"member" | "admin">(
-    "member"
+    "member",
   );
   const [isAddingMember, setIsAddingMember] = useState(false);
 
@@ -360,7 +360,7 @@ export default function Settings({
         } assigned to "${category}".\n\n` +
           `If you remove this category, those products will keep "${category}" as their category, ` +
           `but you won't be able to assign it to new products.\n\n` +
-          `Are you sure you want to remove "${category}"?`
+          `Are you sure you want to remove "${category}"?`,
       );
 
       if (!confirmed) {
@@ -413,7 +413,7 @@ export default function Settings({
 
         // Load ORG-WIDE settings
         const orgSettings = await loadOrganizationSettings(
-          currentOrganization.id
+          currentOrganization.id,
         );
 
         // Load PERSONAL settings
@@ -421,10 +421,45 @@ export default function Settings({
 
         // Apply org settings
         if (orgSettings) {
-          if (orgSettings.paymentSettings) {
+          if (
+            orgSettings.paymentSettings &&
+            orgSettings.paymentSettings.length > 0
+          ) {
             setPaymentSettings(orgSettings.paymentSettings);
             setOriginalPaymentSettings(
-              JSON.parse(JSON.stringify(orgSettings.paymentSettings))
+              JSON.parse(JSON.stringify(orgSettings.paymentSettings)),
+            );
+          } else {
+            // Initialize with default payment settings if none exist
+            const defaultPaymentSettings: PaymentSetting[] = [
+              { paymentType: "cash", enabled: true, displayName: "Cash" },
+              { paymentType: "venmo", enabled: true, displayName: "Venmo" },
+              {
+                paymentType: "credit",
+                enabled: false,
+                displayName: "Credit",
+                transactionFee: 0.03,
+              },
+              { paymentType: "other", enabled: true, displayName: "Other" },
+              {
+                paymentType: "custom1",
+                enabled: false,
+                displayName: "Custom 1",
+              },
+              {
+                paymentType: "custom2",
+                enabled: false,
+                displayName: "Custom 2",
+              },
+              {
+                paymentType: "custom3",
+                enabled: false,
+                displayName: "Custom 3",
+              },
+            ];
+            setPaymentSettings(defaultPaymentSettings);
+            setOriginalPaymentSettings(
+              JSON.parse(JSON.stringify(defaultPaymentSettings)),
             );
           }
 
@@ -461,16 +496,16 @@ export default function Settings({
           if (orgSettings.emailSignup) {
             setEmailSignupSettings(orgSettings.emailSignup);
             setOriginalEmailSignupSettings(
-              JSON.parse(JSON.stringify(orgSettings.emailSignup))
+              JSON.parse(JSON.stringify(orgSettings.emailSignup)),
             );
           }
 
           if (orgSettings.closeOutSettings) {
             setRequireCashReconciliation(
-              orgSettings.closeOutSettings.requireCashReconciliation ?? false
+              orgSettings.closeOutSettings.requireCashReconciliation ?? false,
             );
             setOriginalRequireCashReconciliation(
-              orgSettings.closeOutSettings.requireCashReconciliation ?? false
+              orgSettings.closeOutSettings.requireCashReconciliation ?? false,
             );
           }
 
@@ -497,10 +532,45 @@ export default function Settings({
 
           if (cachedSettings) {
             // Apply cached settings
-            if (cachedSettings.paymentSettings) {
+            if (
+              cachedSettings.paymentSettings &&
+              cachedSettings.paymentSettings.length > 0
+            ) {
               setPaymentSettings(cachedSettings.paymentSettings);
               setOriginalPaymentSettings(
-                JSON.parse(JSON.stringify(cachedSettings.paymentSettings))
+                JSON.parse(JSON.stringify(cachedSettings.paymentSettings)),
+              );
+            } else {
+              // Initialize with default payment settings if none exist
+              const defaultPaymentSettings: PaymentSetting[] = [
+                { paymentType: "cash", enabled: true, displayName: "Cash" },
+                { paymentType: "venmo", enabled: true, displayName: "Venmo" },
+                {
+                  paymentType: "credit",
+                  enabled: false,
+                  displayName: "Credit",
+                  transactionFee: 0.03,
+                },
+                { paymentType: "other", enabled: true, displayName: "Other" },
+                {
+                  paymentType: "custom1",
+                  enabled: false,
+                  displayName: "Custom 1",
+                },
+                {
+                  paymentType: "custom2",
+                  enabled: false,
+                  displayName: "Custom 2",
+                },
+                {
+                  paymentType: "custom3",
+                  enabled: false,
+                  displayName: "Custom 3",
+                },
+              ];
+              setPaymentSettings(defaultPaymentSettings);
+              setOriginalPaymentSettings(
+                JSON.parse(JSON.stringify(defaultPaymentSettings)),
               );
             }
 
@@ -542,18 +612,18 @@ export default function Settings({
             if (cachedSettings.emailSignup) {
               setEmailSignupSettings(cachedSettings.emailSignup);
               setOriginalEmailSignupSettings(
-                JSON.parse(JSON.stringify(cachedSettings.emailSignup))
+                JSON.parse(JSON.stringify(cachedSettings.emailSignup)),
               );
             }
 
             if (cachedSettings.closeOutSettings) {
               setRequireCashReconciliation(
                 cachedSettings.closeOutSettings.requireCashReconciliation ??
-                  false
+                  false,
               );
               setOriginalRequireCashReconciliation(
                 cachedSettings.closeOutSettings.requireCashReconciliation ??
-                  false
+                  false,
               );
             }
 
@@ -592,7 +662,7 @@ export default function Settings({
             `Saving ${setting.displayName} QR code:`,
             setting.qrCodeUrl.startsWith("data:")
               ? `Base64 (${setting.qrCodeUrl.length} chars)`
-              : `URL: ${setting.qrCodeUrl}`
+              : `URL: ${setting.qrCodeUrl}`,
           );
         }
       });
@@ -633,7 +703,7 @@ export default function Settings({
       if (hasRole("admin")) {
         const orgSuccess = await saveOrganizationSettings(
           currentOrganization.id,
-          orgSettings
+          orgSettings,
         );
         if (!orgSuccess && navigator.onLine) {
           throw new Error("Failed to save organization settings to Supabase");
@@ -682,7 +752,7 @@ export default function Settings({
       setOriginalCurrency(selectedCurrency);
       setOriginalExchangeRate(exchangeRate);
       setOriginalEmailSignupSettings(
-        JSON.parse(JSON.stringify(emailSignupSettings))
+        JSON.parse(JSON.stringify(emailSignupSettings)),
       );
       setOriginalRequireCashReconciliation(requireCashReconciliation);
       setOriginalThemeId(selectedThemeId);
@@ -870,7 +940,7 @@ export default function Settings({
   const updatePaymentSetting = (
     index: number,
     field: keyof PaymentSetting,
-    value: string | number | boolean | undefined
+    value: string | number | boolean | undefined,
   ) => {
     const updated = [...paymentSettings];
     if (field === "transactionFee" || field === "qrCodeUrl") {
@@ -884,7 +954,7 @@ export default function Settings({
   // Handle QR code image upload (convert to base64 with compression)
   const handleQRCodeUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    index: number
+    index: number,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -916,7 +986,7 @@ export default function Settings({
         await processImageForUpload(file);
 
       console.log(
-        `✅ QR code compressed for ${paymentType}: ${originalSize} → ${compressedSize} (${base64.length} chars)`
+        `✅ QR code compressed for ${paymentType}: ${originalSize} → ${compressedSize} (${base64.length} chars)`,
       );
 
       updatePaymentSetting(index, "qrCodeUrl", base64);
@@ -1018,7 +1088,7 @@ export default function Settings({
   // Revoke Google OAuth access
   const handleRevokeAccess = async () => {
     const confirmed = window.confirm(
-      "Are you sure you want to revoke Google access? You will need to sign in again to use Google Sheets features."
+      "Are you sure you want to revoke Google access? You will need to sign in again to use Google Sheets features.",
     );
 
     if (!confirmed) return;
@@ -1072,7 +1142,7 @@ export default function Settings({
 
     if (
       !confirm(
-        `This will import all your data from Google Sheets to "${currentOrganization.name}". Continue?`
+        `This will import all your data from Google Sheets to "${currentOrganization.name}". Continue?`,
       )
     ) {
       return;
@@ -1133,7 +1203,7 @@ export default function Settings({
 
   // Import products from Shopify CSV
   const handleShopifyCSVImport = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1369,7 +1439,7 @@ export default function Settings({
                     // Scroll to migration section
                     setTimeout(() => {
                       const migrationSection = document.querySelector(
-                        "[data-migration-section]"
+                        "[data-migration-section]",
                       );
                       if (migrationSection) {
                         migrationSection.scrollIntoView({
@@ -1455,7 +1525,7 @@ export default function Settings({
                             updatePaymentSetting(
                               index,
                               "enabled",
-                              e.target.checked
+                              e.target.checked,
                             )
                           }
                           className="w-5 h-5"
@@ -1485,7 +1555,7 @@ export default function Settings({
                               updatePaymentSetting(
                                 index,
                                 "displayName",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             className="w-full px-3 py-2 bg-theme border border-theme rounded text-theme"
@@ -1522,7 +1592,7 @@ export default function Settings({
                                   "transactionFee",
                                   e.target.value
                                     ? Number.parseFloat(e.target.value) / 100
-                                    : undefined
+                                    : undefined,
                                 )
                               }
                               className="w-32 px-3 py-2 input-theme rounded"
@@ -1558,7 +1628,7 @@ export default function Settings({
                                     updatePaymentSetting(
                                       index,
                                       "qrCodeUrl",
-                                      undefined
+                                      undefined,
                                     )
                                   }
                                   className="ml-3 px-3 py-1 text-sm bg-red-900/40 hover:bg-red-900/60 text-primary rounded"
@@ -1574,8 +1644,8 @@ export default function Settings({
                                 {uploadingQRCode === setting.paymentType
                                   ? "Uploading..."
                                   : setting.qrCodeUrl
-                                  ? "Change QR Code"
-                                  : "Upload QR Code"}
+                                    ? "Change QR Code"
+                                    : "Upload QR Code"}
                                 <input
                                   type="file"
                                   accept="image/*"
@@ -1603,7 +1673,7 @@ export default function Settings({
                                 updatePaymentSetting(
                                   index,
                                   "qrCodeUrl",
-                                  e.target.value || undefined
+                                  e.target.value || undefined,
                                 )
                               }
                               className="w-full px-3 py-2 input-theme rounded"
@@ -3067,7 +3137,7 @@ export default function Settings({
                             setIsSaving(true);
                             const org = await createOrganization(
                               newOrgName.trim(),
-                              newOrgDescription.trim() || undefined
+                              newOrgDescription.trim() || undefined,
                             );
                             if (org) {
                               setToast({
@@ -3157,7 +3227,7 @@ export default function Settings({
                                     name: editOrgName.trim(),
                                     description:
                                       editOrgDescription.trim() || undefined,
-                                  }
+                                  },
                                 );
                                 if (success) {
                                   setToast({
@@ -3236,7 +3306,7 @@ export default function Settings({
                                   try {
                                     setIsSaving(true);
                                     const success = await leaveOrganization(
-                                      org.id
+                                      org.id,
                                     );
                                     if (success) {
                                       setToast({
@@ -3272,14 +3342,14 @@ export default function Settings({
                                   onClick={async () => {
                                     if (
                                       !confirm(
-                                        `Delete "${org.name}"? This cannot be undone.`
+                                        `Delete "${org.name}"? This cannot be undone.`,
                                       )
                                     )
                                       return;
                                     try {
                                       setIsSaving(true);
                                       const success = await deleteOrganization(
-                                        org.id
+                                        org.id,
                                       );
                                       if (success) {
                                         setToast({
@@ -3346,7 +3416,7 @@ export default function Settings({
                             value={addMemberRole}
                             onChange={(e) =>
                               setAddMemberRole(
-                                e.target.value as "member" | "admin"
+                                e.target.value as "member" | "admin",
                               )
                             }
                             className="flex-1 px-3 py-2 bg-theme border border-theme rounded text-theme focus:outline-none focus:ring-2 focus:ring-primary"
@@ -3371,7 +3441,7 @@ export default function Settings({
                                 const result = await addMemberByEmail(
                                   currentOrganization.id,
                                   addMemberEmail.trim(),
-                                  addMemberRole
+                                  addMemberRole,
                                 );
                                 if (result.success) {
                                   setToast({
@@ -3435,8 +3505,8 @@ export default function Settings({
                                     member.role === "owner"
                                       ? "bg-purple-500 text-white"
                                       : member.role === "admin"
-                                      ? "bg-blue-500 text-white"
-                                      : "bg-theme-tertiary text-theme"
+                                        ? "bg-blue-500 text-white"
+                                        : "bg-theme-tertiary text-theme"
                                   }`}
                                 >
                                   {member.role}
@@ -3460,7 +3530,7 @@ export default function Settings({
                                     try {
                                       const success = await updateMemberRole(
                                         member.id,
-                                        newRole
+                                        newRole,
                                       );
                                       if (success) {
                                         setToast({
@@ -3497,13 +3567,13 @@ export default function Settings({
                                       !confirm(
                                         `Remove ${
                                           member.email || "this member"
-                                        }?`
+                                        }?`,
                                       )
                                     )
                                       return;
                                     try {
                                       const success = await removeMember(
-                                        member.id
+                                        member.id,
                                       );
                                       if (success) {
                                         setToast({
