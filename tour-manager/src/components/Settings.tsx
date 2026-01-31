@@ -420,25 +420,17 @@ export default function Settings({
         const userSettings = await loadSettingsFromSupabase();
 
         // Apply org settings
-        console.log("🔍 DEBUG: orgSettings =", orgSettings);
-        console.log(
-          "🔍 DEBUG: orgSettings.paymentSettings =",
-          orgSettings?.paymentSettings,
-        );
-
         if (orgSettings) {
           if (
             orgSettings.paymentSettings &&
             orgSettings.paymentSettings.length > 0
           ) {
-            console.log("✅ Using existing payment settings from DB");
             setPaymentSettings(orgSettings.paymentSettings);
             setOriginalPaymentSettings(
               JSON.parse(JSON.stringify(orgSettings.paymentSettings)),
             );
           } else {
             // Initialize with default payment settings if none exist
-            console.log("⚠️ No payment settings found, initializing defaults");
             const defaultPaymentSettings: PaymentSetting[] = [
               { paymentType: "cash", enabled: true, displayName: "Cash" },
               { paymentType: "venmo", enabled: true, displayName: "Venmo" },
@@ -465,15 +457,10 @@ export default function Settings({
                 displayName: "Custom 3",
               },
             ];
-            console.log(
-              "📝 Setting default payment settings:",
-              defaultPaymentSettings,
-            );
             setPaymentSettings(defaultPaymentSettings);
             setOriginalPaymentSettings(
               JSON.parse(JSON.stringify(defaultPaymentSettings)),
             );
-            console.log("✅ Defaults set");
           }
 
           if (orgSettings.categories) {

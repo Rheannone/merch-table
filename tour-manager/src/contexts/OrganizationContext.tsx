@@ -30,12 +30,12 @@ interface OrganizationContextType {
   // Helper: Check if user has at least a certain role
   hasRole: (
     requiredRole: OrganizationRole,
-    roles?: OrganizationRole[]
+    roles?: OrganizationRole[],
   ) => boolean;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(
-  undefined
+  undefined,
 );
 
 const STORAGE_KEY = "road-dog-current-org-id";
@@ -55,7 +55,7 @@ export function OrganizationProvider({
 }) {
   const { user } = useAuth();
   const [organizations, setOrganizations] = useState<OrganizationWithRole[]>(
-    []
+    [],
   );
   const [currentOrganization, setCurrentOrganization] =
     useState<OrganizationWithRole | null>(null);
@@ -65,12 +65,18 @@ export function OrganizationProvider({
   // Load organizations on mount or when user changes
   useEffect(() => {
     if (!user) {
-      // User logged out - clear state
+      // User logged out - clear state AND IndexedDB cache
       setOrganizations([]);
       setCurrentOrganization(null);
       setUserRole(null);
       setLoading(false);
       localStorage.removeItem(STORAGE_KEY);
+
+      // Clear IndexedDB cache to prevent data leakage between users
+      import("@/lib/db").then(({ clearAllData }) => {
+        clearAllData().catch(console.error);
+      });
+
       return;
     }
 
@@ -101,6 +107,15 @@ export function OrganizationProvider({
 
       if (storedOrgId) {
         selectedOrg = orgs.find((org) => org.id === storedOrgId) || null;
+
+        // If stored org doesn't exist in user's orgs, clear stale cache
+        if (!selectedOrg) {
+          console.warn(
+            `Stored org ${storedOrgId} not found in user's orgs, clearing cache`,
+          );
+          const { clearAllData } = await import("@/lib/db");
+          await clearAllData();
+        }
       }
 
       // If no stored org or stored org not found, use first org (usually personal org)
@@ -112,7 +127,7 @@ export function OrganizationProvider({
       setCurrentOrganization(selectedOrg);
       setUserRole(selectedOrg.role);
       console.log(
-        `✅ Loaded ${orgs.length} organizations, current: ${selectedOrg.name} (${selectedOrg.role})`
+        `✅ Loaded ${orgs.length} organizations, current: ${selectedOrg.name} (${selectedOrg.role})`,
       );
     } catch (error) {
       console.error("Failed to load organizations:", error);
@@ -133,7 +148,7 @@ export function OrganizationProvider({
     }
 
     console.log(
-      `🔄 Switching to organization: ${targetOrg.name} (${targetOrg.role})`
+      `🔄 Switching to organization: ${targetOrg.name} (${targetOrg.role})`,
     );
 
     // Clear IndexedDB cache when switching organizations
@@ -173,7 +188,7 @@ export function OrganizationProvider({
    */
   const hasRole = (
     requiredRole: OrganizationRole,
-    roles: OrganizationRole[] = ROLE_HIERARCHY
+    roles: OrganizationRole[] = ROLE_HIERARCHY,
   ): boolean => {
     if (!userRole) return false;
 
@@ -207,7 +222,7 @@ export function useOrganization() {
   const context = useContext(OrganizationContext);
   if (context === undefined) {
     throw new Error(
-      "useOrganization must be used within an OrganizationProvider"
+      "useOrganization must be used within an OrganizationProvider",
     );
   }
   return context;
