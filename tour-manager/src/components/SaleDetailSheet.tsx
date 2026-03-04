@@ -332,6 +332,35 @@ export default function SaleDetailSheet({
                 </p>
               </div>
 
+              {/* Action buttons - at top for visibility */}
+              <div className="flex gap-3 sticky top-0 bg-theme py-2 -mx-4 px-4 border-b border-theme z-10">
+                <button
+                  onClick={() => {
+                    setViewState("details");
+                    setSelectedItemIndex(null);
+                    setSelectedSwapTarget(null);
+                  }}
+                  disabled={isProcessing}
+                  className="flex-1 py-3 px-4 bg-theme-secondary rounded-lg font-medium text-theme hover:bg-theme-tertiary transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSwap}
+                  disabled={isProcessing || !selectedSwapTarget}
+                  className="flex-1 py-3 px-4 bg-primary rounded-lg font-medium text-white hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:bg-theme-tertiary disabled:text-theme-muted flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <span className="animate-pulse">Swapping...</span>
+                  ) : (
+                    <>
+                      <CheckIcon className="w-4 h-4" />
+                      Confirm Swap
+                    </>
+                  )}
+                </button>
+              </div>
+
               {/* Product selection */}
               <div>
                 <h3 className="text-sm font-semibold text-theme-secondary mb-2">
@@ -361,35 +390,6 @@ export default function SaleDetailSheet({
                     )
                   )}
                 </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setViewState("details");
-                    setSelectedItemIndex(null);
-                    setSelectedSwapTarget(null);
-                  }}
-                  disabled={isProcessing}
-                  className="flex-1 py-3 px-4 bg-theme-secondary rounded-lg font-medium text-theme hover:bg-theme-tertiary transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmSwap}
-                  disabled={isProcessing || !selectedSwapTarget}
-                  className="flex-1 py-3 px-4 bg-primary rounded-lg font-medium text-white hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:bg-theme-tertiary disabled:text-theme-muted flex items-center justify-center gap-2"
-                >
-                  {isProcessing ? (
-                    <span className="animate-pulse">Swapping...</span>
-                  ) : (
-                    <>
-                      <CheckIcon className="w-4 h-4" />
-                      Confirm Swap
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           )}
