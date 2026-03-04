@@ -263,6 +263,14 @@ export default function SaleDetailSheet({
                 </div>
               </div>
 
+              {/* Done button */}
+              <button
+                onClick={onClose}
+                className="w-full py-3 px-4 bg-primary rounded-lg font-medium text-white hover:bg-primary/80 transition-colors"
+              >
+                Done
+              </button>
+
               {/* Delete section */}
               {!isInClosedSession && (
                 <div className="pt-4 border-t border-theme">
