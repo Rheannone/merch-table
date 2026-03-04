@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/client";
+import { Sale } from "@/types";
 
 export interface QuickStats {
   totalRevenue: number;
@@ -524,4 +525,72 @@ export async function getProductsByDate(
       };
     })
     .sort((a, b) => b.quantity - a.quantity);
+}
+
+/**
+ * Get individual sales for a specific date (not aggregated)
+ * Used for sale modification/deletion in Analytics
+ */
+export async function getSalesByDate(
+  organizationId: string,
+  date: string
+): Promise<Sale[]> {
+  const supabase = createClient();
+
+  // Get sales for this date with their items
+  const startOfDay = `${date}T00:00:00`;
+  const endOfDay = `${date}T23:59:59`;
+
+  const { data: salesData, error: salesError } = await supabase
+    .from("sales")
+    .select(
+      `
+      id,
+      timestamp,
+      total,
+      actual_amount,
+      discount,
+      tip_amount,
+      payment_method,
+      is_hookup,
+      sale_items (
+        product_id,
+        product_name,
+        quantity,
+        price,
+        size
+      )
+    `
+    )
+    .eq("organization_id", organizationId)
+    .gte("timestamp", startOfDay)
+    .lte("timestamp", endOfDay)
+    .order("timestamp", { ascending: false });
+
+  if (salesError) {
+    console.error("Error fetching sales by date:", salesError);
+    throw salesError;
+  }
+
+  // Transform to Sale type
+  const sales: Sale[] = (salesData || []).map((row: any) => ({
+    id: row.id,
+    timestamp: row.timestamp,
+    items: (row.sale_items || []).map((item: any) => ({
+      productId: item.product_id,
+      productName: item.product_name,
+      quantity: item.quantity,
+      price: Number(item.price),
+      size: item.size || undefined,
+    })),
+    total: Number(row.total),
+    actualAmount: Number(row.actual_amount),
+    discount: row.discount ? Number(row.discount) : undefined,
+    tipAmount: row.tip_amount ? Number(row.tip_amount) : undefined,
+    paymentMethod: row.payment_method,
+    synced: true,
+    isHookup: row.is_hookup || false,
+  }));
+
+  return sales;
 }

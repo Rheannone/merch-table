@@ -10,10 +10,15 @@ import {
   CalendarIcon,
   CreditCardIcon,
   Square3Stack3DIcon,
+  ReceiptRefundIcon,
 } from "@heroicons/react/24/outline";
 import { ShoppingBagIcon } from "@heroicons/react/24/solid";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import Toast, { ToastType } from "./Toast";
+import SaleCard from "./SaleCard";
+import SaleDetailSheet from "./SaleDetailSheet";
+import { Sale, Product } from "@/types";
+import { getClosedSessionSaleIds } from "@/lib/closeouts";
 import {
   getQuickStats,
   getDailyRevenue,
@@ -21,6 +26,7 @@ import {
   getPaymentBreakdown,
   getSizeDistribution,
   getProductsByDate,
+  getSalesByDate,
   type QuickStats,
   type DailyRevenue,
   type ProductPerformance,
@@ -36,7 +42,12 @@ interface ToastState {
 
 type DateRange = "today" | "week" | "month" | "all" | "custom";
 
-export default function Analytics() {
+interface AnalyticsProps {
+  products: Product[];
+  onUpdateProduct: (product: Product) => Promise<void>;
+}
+
+export default function Analytics({ products, onUpdateProduct }: AnalyticsProps) {
   const { currentOrganization } = useOrganization();
 
   // State
@@ -60,7 +71,7 @@ export default function Analytics() {
     []
   );
 
-  // UI state
+  // UI state for products
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [dateProducts, setDateProducts] = useState<{
     [date: string]: ProductSoldDetail[];
@@ -68,6 +79,16 @@ export default function Analytics() {
   const [loadingProducts, setLoadingProducts] = useState<Set<string>>(
     new Set()
   );
+
+  // UI state for sales
+  const [expandedSalesDates, setExpandedSalesDates] = useState<Set<string>>(new Set());
+  const [dateSales, setDateSales] = useState<{ [date: string]: Sale[] }>({});
+  const [loadingSales, setLoadingSales] = useState<Set<string>>(new Set());
+  const [closedSessionSaleIds, setClosedSessionSaleIds] = useState<Set<string>>(new Set());
+
+  // Sale detail sheet state
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [showSaleDetail, setShowSaleDetail] = useState(false);
 
   // Calculate date range
   const getDateRange = useCallback((): { start?: string; end?: string } => {
@@ -183,6 +204,92 @@ export default function Analytics() {
         setLoadingProducts(newLoadingProducts);
       }
     }
+  };
+
+  // Load closed session sale IDs on mount
+  useEffect(() => {
+    const loadClosedSessions = async () => {
+      try {
+        const closedIds = await getClosedSessionSaleIds();
+        setClosedSessionSaleIds(closedIds);
+      } catch (error) {
+        console.error("Error loading closed session IDs:", error);
+      }
+    };
+    loadClosedSessions();
+  }, []);
+
+  // Toggle sales breakdown for a date
+  const toggleSalesBreakdown = async (date: string) => {
+    if (expandedSalesDates.has(date)) {
+      const newExpanded = new Set(expandedSalesDates);
+      newExpanded.delete(date);
+      setExpandedSalesDates(newExpanded);
+      return;
+    }
+
+    setExpandedSalesDates(new Set(expandedSalesDates).add(date));
+
+    // Fetch sales if not already loaded
+    if (!dateSales[date] && currentOrganization?.id) {
+      setLoadingSales(new Set(loadingSales).add(date));
+      try {
+        const sales = await getSalesByDate(currentOrganization.id, date);
+        setDateSales({ ...dateSales, [date]: sales });
+      } catch (error) {
+        console.error("Error fetching sales for date:", error);
+      } finally {
+        const newLoadingSales = new Set(loadingSales);
+        newLoadingSales.delete(date);
+        setLoadingSales(newLoadingSales);
+      }
+    }
+  };
+
+  // Handle edit sale - open detail sheet
+  const handleEditSale = (sale: Sale) => {
+    setSelectedSale(sale);
+    setShowSaleDetail(true);
+  };
+
+  // Handle delete sale prompt - open detail sheet for confirmation
+  const handleDeleteSale = (sale: Sale) => {
+    setSelectedSale(sale);
+    setShowSaleDetail(true);
+  };
+
+  // Handle sale deleted - remove from state and refresh
+  const handleSaleDeleted = (saleId: string) => {
+    // Remove from dateSales
+    const newDateSales = { ...dateSales };
+    for (const date of Object.keys(newDateSales)) {
+      newDateSales[date] = newDateSales[date].filter((s) => s.id !== saleId);
+    }
+    setDateSales(newDateSales);
+
+    setToast({ message: "Sale deleted successfully", type: "success" });
+
+    // Refresh analytics data
+    fetchData();
+  };
+
+  // Handle sale updated - update in state and refresh
+  const handleSaleUpdated = (updatedSale: Sale) => {
+    // Update in dateSales
+    const newDateSales = { ...dateSales };
+    const saleDate = new Date(updatedSale.timestamp).toISOString().split("T")[0];
+    if (newDateSales[saleDate]) {
+      newDateSales[saleDate] = newDateSales[saleDate].map((s) =>
+        s.id === updatedSale.id ? updatedSale : s
+      );
+    }
+    setDateSales(newDateSales);
+    setSelectedSale(updatedSale);
+
+    setToast({ message: "Sale updated successfully", type: "success" });
+
+    // Refresh analytics data
+    fetchData();
   };
 
   // Export to CSV
@@ -421,6 +528,10 @@ export default function Analytics() {
                     const isExpanded = expandedDates.has(day.date);
                     const isLoadingProducts = loadingProducts.has(day.date);
                     const products = dateProducts[day.date];
+                    
+                    const isSalesExpanded = expandedSalesDates.has(day.date);
+                    const isLoadingSalesForDate = loadingSales.has(day.date);
+                    const sales = dateSales[day.date];
 
                     return (
                       <Fragment key={day.date}>
@@ -453,29 +564,49 @@ export default function Analytics() {
                             );
                           })}
                         </tr>
-                        {/* Product breakdown row */}
+                        {/* Expansion controls row */}
                         <tr>
                           <td
                             colSpan={100}
                             className="px-4 py-0 bg-theme-tertiary/20"
                           >
-                            <button
-                              onClick={() => toggleProductBreakdown(day.date)}
-                              className="w-full py-3 flex items-center justify-center gap-2 text-sm text-theme-secondary hover:text-theme transition-colors"
-                            >
-                              {isExpanded ? (
-                                <>
+                            {/* Toggle buttons */}
+                            <div className="flex items-center justify-center gap-4 py-3">
+                              <button
+                                onClick={() => toggleProductBreakdown(day.date)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                  isExpanded
+                                    ? "bg-primary/20 text-primary"
+                                    : "text-theme-secondary hover:text-theme hover:bg-theme-tertiary"
+                                }`}
+                              >
+                                {isExpanded ? (
                                   <ChevronUpIcon className="w-4 h-4" />
-                                  Hide Products
-                                </>
-                              ) : (
-                                <>
+                                ) : (
                                   <ChevronDownIcon className="w-4 h-4" />
-                                  Show Products
-                                </>
-                              )}
-                            </button>
+                                )}
+                                <ShoppingBagIcon className="w-4 h-4" />
+                                Products
+                              </button>
+                              <button
+                                onClick={() => toggleSalesBreakdown(day.date)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                  isSalesExpanded
+                                    ? "bg-primary/20 text-primary"
+                                    : "text-theme-secondary hover:text-theme hover:bg-theme-tertiary"
+                                }`}
+                              >
+                                {isSalesExpanded ? (
+                                  <ChevronUpIcon className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDownIcon className="w-4 h-4" />
+                                )}
+                                <ReceiptRefundIcon className="w-4 h-4" />
+                                Sales
+                              </button>
+                            </div>
 
+                            {/* Products expansion */}
                             {isExpanded && (
                               <div className="pb-4 px-4">
                                 {isLoadingProducts ? (
@@ -487,6 +618,9 @@ export default function Analytics() {
                                   </div>
                                 ) : products && products.length > 0 ? (
                                   <div className="bg-theme rounded-lg p-4 border border-theme">
+                                    <h4 className="text-xs font-semibold text-theme-muted uppercase tracking-wide mb-3">
+                                      Products Sold
+                                    </h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                       {products.map((product, idx) => (
                                         <div
@@ -514,6 +648,41 @@ export default function Analytics() {
                                 ) : (
                                   <div className="text-center py-4 text-sm text-theme-muted">
                                     No product data available
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Sales expansion */}
+                            {isSalesExpanded && (
+                              <div className="pb-4 px-4">
+                                {isLoadingSalesForDate ? (
+                                  <div className="text-center py-4">
+                                    <ArrowPathIcon className="w-6 h-6 text-theme-muted mx-auto mb-2 animate-spin" />
+                                    <p className="text-sm text-theme-muted">
+                                      Loading sales...
+                                    </p>
+                                  </div>
+                                ) : sales && sales.length > 0 ? (
+                                  <div className="bg-theme rounded-lg p-4 border border-theme">
+                                    <h4 className="text-xs font-semibold text-theme-muted uppercase tracking-wide mb-3">
+                                      Individual Sales
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {sales.map((sale) => (
+                                        <SaleCard
+                                          key={sale.id}
+                                          sale={sale}
+                                          isInClosedSession={closedSessionSaleIds.has(sale.id)}
+                                          onEdit={handleEditSale}
+                                          onDelete={handleDeleteSale}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4 text-sm text-theme-muted">
+                                    No sales data available
                                   </div>
                                 )}
                               </div>
@@ -691,6 +860,21 @@ export default function Analytics() {
           onClose={() => setToast(null)}
         />
       )}
+
+      {/* Sale Detail Sheet */}
+      <SaleDetailSheet
+        sale={selectedSale}
+        isOpen={showSaleDetail}
+        isInClosedSession={selectedSale ? closedSessionSaleIds.has(selectedSale.id) : false}
+        products={products}
+        onClose={() => {
+          setShowSaleDetail(false);
+          setSelectedSale(null);
+        }}
+        onUpdateProduct={onUpdateProduct}
+        onSaleDeleted={handleSaleDeleted}
+        onSaleUpdated={handleSaleUpdated}
+      />
     </div>
   );
 }

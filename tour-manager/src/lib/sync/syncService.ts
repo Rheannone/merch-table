@@ -57,6 +57,36 @@ class SyncService {
   }
 
   /**
+   * Update an existing sale
+   */
+  async updateSale(sale: Sale): Promise<string> {
+    this.ensureInitialized();
+    return await this.syncManager.enqueue(
+      "sale",
+      "update",
+      sale as unknown as Record<string, unknown>,
+      {
+        priority: 8, // High priority for sales
+      }
+    );
+  }
+
+  /**
+   * Delete a sale from all destinations
+   */
+  async deleteSale(saleId: string): Promise<string> {
+    this.ensureInitialized();
+    return await this.syncManager.enqueue(
+      "sale",
+      "delete",
+      { id: saleId },
+      {
+        priority: 7, // Slightly lower priority for deletions
+      }
+    );
+  }
+
+  /**
    * Sync a product to all configured destinations
    */
   async syncProduct(product: Product): Promise<string> {

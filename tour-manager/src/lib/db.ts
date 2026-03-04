@@ -163,6 +163,23 @@ export async function markSaleAsSynced(saleId: string) {
   }
 }
 
+export async function deleteSale(id: string) {
+  const db = await getDB();
+  await db.delete("sales", id);
+  console.log(`🗑️ Deleted sale from IndexedDB: ${id}`);
+}
+
+export async function updateSale(sale: Sale) {
+  const db = await getDB();
+  await db.put("sales", sale);
+  console.log(`📝 Updated sale in IndexedDB: ${sale.id}`);
+}
+
+export async function getSaleById(id: string): Promise<Sale | undefined> {
+  const db = await getDB();
+  return db.get("sales", id);
+}
+
 export async function deleteSyncedSales() {
   const db = await getDB();
   const allSales = await db.getAll("sales");

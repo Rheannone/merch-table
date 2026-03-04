@@ -1012,7 +1012,12 @@ export default function Home() {
             onCategoryCreated={handleCategoryCreated}
           />
         )}
-        {activeTab === "analytics" && <Analytics />}
+        {activeTab === "analytics" && (
+          <Analytics
+            products={products}
+            onUpdateProduct={handleUpdateProduct}
+          />
+        )}
         {activeTab === "settings" && (
           <Settings
             products={products}

@@ -242,6 +242,42 @@ export async function syncUnsyncedCloseOuts(): Promise<number> {
 }
 
 /**
+ * Check if a sale belongs to a closed-out session
+ * Sales in closed sessions cannot be modified or deleted
+ */
+export async function isSaleInClosedSession(saleId: string): Promise<boolean> {
+  const { getCloseOuts } = await import("./db");
+  const allCloseOuts = await getCloseOuts();
+
+  for (const closeOut of allCloseOuts) {
+    if (closeOut.saleIds && closeOut.saleIds.includes(saleId)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Get all sale IDs that belong to closed-out sessions
+ */
+export async function getClosedSessionSaleIds(): Promise<Set<string>> {
+  const { getCloseOuts } = await import("./db");
+  const allCloseOuts = await getCloseOuts();
+  const closedSaleIds = new Set<string>();
+
+  for (const closeOut of allCloseOuts) {
+    if (closeOut.saleIds) {
+      for (const saleId of closeOut.saleIds) {
+        closedSaleIds.add(saleId);
+      }
+    }
+  }
+
+  return closedSaleIds;
+}
+
+/**
  * Format currency for display
  */
 export function formatCurrency(amount: number): string {
