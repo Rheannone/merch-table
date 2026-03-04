@@ -96,26 +96,7 @@ export default function SaleCard({
       {/* Footer */}
       <div className="p-3 bg-theme-tertiary/30 border-t border-theme/50">
         <div className="flex items-center justify-between">
-          {/* Totals */}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-success">
-                {formatCurrency(sale.actualAmount)}
-              </span>
-              {sale.discount && sale.discount > 0 && (
-                <span className="text-xs text-yellow-400 bg-yellow-900/30 px-2 py-0.5 rounded">
-                  -{formatCurrency(sale.discount)} hookup
-                </span>
-              )}
-            </div>
-            {sale.tipAmount && sale.tipAmount > 0 && (
-              <span className="text-xs text-green-400">
-                +{formatCurrency(sale.tipAmount)} tip
-              </span>
-            )}
-          </div>
-
-          {/* Action buttons */}
+          {/* Action buttons - on left for mobile accessibility */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => onEdit(sale)}
@@ -141,6 +122,25 @@ export default function SaleCard({
             >
               <TrashIcon className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* Totals - on right */}
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2">
+              {sale.discount && sale.discount > 0 && (
+                <span className="text-xs text-yellow-400 bg-yellow-900/30 px-2 py-0.5 rounded">
+                  -{formatCurrency(sale.discount)} hookup
+                </span>
+              )}
+              <span className="text-lg font-bold text-success">
+                {formatCurrency(sale.actualAmount)}
+              </span>
+            </div>
+            {sale.tipAmount && sale.tipAmount > 0 && (
+              <span className="text-xs text-green-400">
+                +{formatCurrency(sale.tipAmount)} tip
+              </span>
+            )}
           </div>
         </div>
       </div>

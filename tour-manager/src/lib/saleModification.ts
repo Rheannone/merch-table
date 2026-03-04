@@ -9,6 +9,7 @@ import { Sale, Product } from "@/types";
 import { deleteSale, updateSale, getSaleById } from "./db";
 import syncService from "./sync/syncService";
 import { isSaleInClosedSession } from "./closeouts";
+import { createClient } from "@/lib/supabase/client";
 
 export interface SaleModificationResult {
   success: boolean;
@@ -83,13 +84,36 @@ export async function deleteSaleWithInventoryRestore(
 
     // Delete from IndexedDB
     await deleteSale(saleId);
+    console.log(`🗑️ Deleted sale from IndexedDB: ${saleId}`);
 
-    // Queue deletion for sync
+    // Delete directly from Supabase (don't just queue - we need it gone immediately)
     try {
-      await syncService.deleteSale(saleId);
-      console.log(`✅ Sale ${saleId} queued for deletion sync`);
+      const supabase = createClient();
+      
+      // Delete sale_items first (foreign key constraint)
+      const { error: itemsError } = await supabase
+        .from("sale_items")
+        .delete()
+        .eq("sale_id", saleId);
+      
+      if (itemsError) {
+        console.error("Failed to delete sale_items from Supabase:", itemsError);
+      }
+      
+      // Delete the sale
+      const { error: saleError } = await supabase
+        .from("sales")
+        .delete()
+        .eq("id", saleId);
+      
+      if (saleError) {
+        console.error("Failed to delete sale from Supabase:", saleError);
+        // Still return success - the local delete worked
+      } else {
+        console.log(`✅ Sale ${saleId} deleted from Supabase`);
+      }
     } catch (syncError) {
-      console.error("Failed to queue sale deletion for sync:", syncError);
+      console.error("Failed to delete sale from Supabase:", syncError);
       // Don't fail the operation - the sale is already deleted locally
     }
 

@@ -39,6 +39,7 @@ export default function SaleDetailSheet({
 }: SaleDetailSheetProps) {
   const [viewState, setViewState] = useState<ViewState>("details");
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  const [selectedSwapTarget, setSelectedSwapTarget] = useState<{ productId: string; size?: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -48,6 +49,7 @@ export default function SaleDetailSheet({
     if (isOpen) {
       setViewState("details");
       setSelectedItemIndex(null);
+      setSelectedSwapTarget(null);
       setError(null);
       setShowDeleteConfirm(false);
     }
@@ -104,15 +106,20 @@ export default function SaleDetailSheet({
 
   const handleSwapItem = (itemIndex: number) => {
     setSelectedItemIndex(itemIndex);
+    setSelectedSwapTarget(null);
     setViewState("swap-select-product");
     setError(null);
   };
 
-  const handleSelectNewProduct = async (
-    newProductId: string,
-    newSize?: string
-  ) => {
-    if (!sale || selectedItemIndex === null) return;
+  // Just select the swap target (don't execute yet)
+  const handleSelectSwapTarget = (productId: string, size?: string) => {
+    setSelectedSwapTarget({ productId, size });
+    setError(null);
+  };
+
+  // Execute the swap after confirmation
+  const handleConfirmSwap = async () => {
+    if (!sale || selectedItemIndex === null || !selectedSwapTarget) return;
 
     setIsProcessing(true);
     setError(null);
@@ -120,8 +127,8 @@ export default function SaleDetailSheet({
     const result = await swapSaleItem(
       sale,
       selectedItemIndex,
-      newProductId,
-      newSize,
+      selectedSwapTarget.productId,
+      selectedSwapTarget.size,
       products,
       onUpdateProduct
     );
@@ -132,6 +139,7 @@ export default function SaleDetailSheet({
       onSaleUpdated(result.updatedSale);
       setViewState("details");
       setSelectedItemIndex(null);
+      setSelectedSwapTarget(null);
     } else {
       setError(result.error || "Failed to swap item");
     }
@@ -343,8 +351,9 @@ export default function SaleDetailSheet({
                               product={product}
                               currentProductId={selectedItem.productId}
                               currentSize={selectedItem.size}
+                              selectedTarget={selectedSwapTarget}
                               isProcessing={isProcessing}
-                              onSelect={handleSelectNewProduct}
+                              onSelect={handleSelectSwapTarget}
                             />
                           ))}
                         </div>
@@ -354,16 +363,34 @@ export default function SaleDetailSheet({
                 </div>
               </div>
 
-              {/* Back button */}
-              <button
-                onClick={() => {
-                  setViewState("details");
-                  setSelectedItemIndex(null);
-                }}
-                className="w-full py-3 px-4 bg-theme-secondary rounded-lg font-medium text-theme hover:bg-theme-tertiary transition-colors"
-              >
-                Cancel
-              </button>
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setViewState("details");
+                    setSelectedItemIndex(null);
+                    setSelectedSwapTarget(null);
+                  }}
+                  disabled={isProcessing}
+                  className="flex-1 py-3 px-4 bg-theme-secondary rounded-lg font-medium text-theme hover:bg-theme-tertiary transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSwap}
+                  disabled={isProcessing || !selectedSwapTarget}
+                  className="flex-1 py-3 px-4 bg-primary rounded-lg font-medium text-white hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:bg-theme-tertiary disabled:text-theme-muted flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <span className="animate-pulse">Swapping...</span>
+                  ) : (
+                    <>
+                      <CheckIcon className="w-4 h-4" />
+                      Confirm Swap
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -377,6 +404,7 @@ interface ProductSwapOptionProps {
   product: Product;
   currentProductId: string;
   currentSize?: string;
+  selectedTarget: { productId: string; size?: string } | null;
   isProcessing: boolean;
   onSelect: (productId: string, size?: string) => void;
 }
@@ -385,6 +413,7 @@ function ProductSwapOption({
   product,
   currentProductId,
   currentSize,
+  selectedTarget,
   isProcessing,
   onSelect,
 }: ProductSwapOptionProps) {
@@ -446,6 +475,7 @@ function ProductSwapOption({
               const isCurrentSelection =
                 isCurrentProduct && currentSize === size;
               const isOutOfStock = stock !== undefined && stock <= 0;
+              const isSelected = selectedTarget?.productId === product.id && selectedTarget?.size === size;
 
               return (
                 <button
@@ -454,6 +484,8 @@ function ProductSwapOption({
                   disabled={isProcessing || isCurrentSelection || isOutOfStock}
                   className={`p-2 rounded-lg text-center transition-colors ${
                     isCurrentSelection
+                      ? "bg-theme-tertiary/50 border-2 border-theme-muted text-theme-muted"
+                      : isSelected
                       ? "bg-primary/20 border-2 border-primary text-primary"
                       : isOutOfStock
                       ? "bg-theme-tertiary/50 text-theme-muted cursor-not-allowed"
@@ -466,8 +498,11 @@ function ProductSwapOption({
                       {stock} left
                     </span>
                   )}
-                  {isCurrentSelection && (
+                  {isSelected && (
                     <CheckIcon className="w-4 h-4 mx-auto mt-1" />
+                  )}
+                  {isCurrentSelection && (
+                    <span className="block text-xs text-theme-muted mt-1">current</span>
                   )}
                 </button>
               );
@@ -481,6 +516,7 @@ function ProductSwapOption({
   // Product without sizes
   const stock = getStockForSize("default");
   const isOutOfStock = stock !== undefined && stock <= 0;
+  const isSelected = selectedTarget?.productId === product.id && !selectedTarget?.size;
 
   return (
     <button
@@ -488,6 +524,8 @@ function ProductSwapOption({
       disabled={isProcessing || isCurrentProduct || isOutOfStock}
       className={`w-full p-3 rounded-lg text-left transition-colors ${
         isCurrentProduct
+          ? "bg-theme-tertiary/50 border-2 border-theme-muted"
+          : isSelected
           ? "bg-primary/20 border-2 border-primary"
           : isOutOfStock
           ? "bg-theme-tertiary/50 cursor-not-allowed"
@@ -498,10 +536,11 @@ function ProductSwapOption({
         <div>
           <p
             className={`font-medium ${
-              isCurrentProduct ? "text-primary" : "text-theme"
+              isCurrentProduct ? "text-theme-muted" : isSelected ? "text-primary" : "text-theme"
             }`}
           >
             {product.name}
+            {isCurrentProduct && <span className="text-xs ml-2">(current)</span>}
           </p>
           <p className="text-sm text-theme-muted">
             {formatCurrency(product.price)}
@@ -509,7 +548,7 @@ function ProductSwapOption({
             {isOutOfStock && " • Out of stock"}
           </p>
         </div>
-        {isCurrentProduct && <CheckIcon className="w-5 h-5 text-primary" />}
+        {isSelected && <CheckIcon className="w-5 h-5 text-primary" />}
       </div>
     </button>
   );
