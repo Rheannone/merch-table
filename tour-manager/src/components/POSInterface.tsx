@@ -8,7 +8,7 @@ import {
   EmailSignupSettings,
   EmailSignup,
 } from "@/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ShoppingCartIcon,
   TrashIcon,
@@ -24,7 +24,6 @@ import {
   Square3Stack3DIcon,
 } from "@heroicons/react/24/solid";
 import Toast, { ToastType } from "./Toast";
-import QRCodePaymentModal from "./QRCodePaymentModal";
 import EmailSignupModal from "./EmailSignupModal";
 import {
   formatPrice,
@@ -47,9 +46,9 @@ interface POSInterfaceProps {
     paymentMethod: PaymentMethod,
     discount?: number,
     tipAmount?: number
-  ) => Promise<void>;
+  ) => Promise<string | void>; // Resolves with the sale ID when available
   onUpdateProduct: (product: Product) => Promise<void>;
-  onProductUpdate?: () => void; // Callback when product favorites change
+  onGoToInventory?: () => void; // Navigate to the Inventory tab (empty state CTA)
 }
 
 interface ToastState {
@@ -64,7 +63,7 @@ export default function POSInterface({
   organizationId,
   onCompleteSale,
   onUpdateProduct,
-  onProductUpdate,
+  onGoToInventory,
 }: POSInterfaceProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
@@ -74,7 +73,6 @@ export default function POSInterface({
   const [paymentSettings, setPaymentSettings] = useState<PaymentSetting[]>([]);
   const [categoryOrder, setCategoryOrder] =
     useState<string[]>(initialCategoryOrder);
-  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cashReceived, setCashReceived] = useState(0);
   const [isHookup, setIsHookup] = useState(false);
@@ -121,25 +119,67 @@ export default function POSInterface({
     });
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
-  // Debug: Track modal state changes
+  // Cart persistence: only product IDs/quantities/sizes are stored so a
+  // restored cart always uses fresh product data (prices, inventory).
+  const CART_STORAGE_KEY = "roadDog:cart";
+  const cartRestored = useRef(false);
+
+  // Restore the cart once products are available (e.g. after a refresh mid-line)
   useEffect(() => {
-    console.log("🔔 showEmailSignupModal changed to:", showEmailSignupModal);
-  }, [showEmailSignupModal]);
+    if (cartRestored.current || products.length === 0) return;
+    cartRestored.current = true;
+    try {
+      const stored = localStorage.getItem(CART_STORAGE_KEY);
+      if (!stored) return;
+      const entries: { productId: string; quantity: number; size?: string }[] =
+        JSON.parse(stored);
+      const restored: CartItem[] = [];
+      for (const entry of entries) {
+        const product = products.find((p) => p.id === entry.productId);
+        if (product && entry.quantity > 0) {
+          restored.push({ product, quantity: entry.quantity, size: entry.size });
+        }
+      }
+      if (restored.length > 0) {
+        setCart(restored);
+        setToast({
+          message: "Restored your cart — saved on this device",
+          type: "success",
+          duration: 2500,
+        });
+      }
+    } catch {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    }
+  }, [products]);
+
+  // Persist cart changes (cleared automatically when a sale completes)
+  useEffect(() => {
+    if (!cartRestored.current) return;
+    try {
+      if (cart.length === 0) {
+        localStorage.removeItem(CART_STORAGE_KEY);
+      } else {
+        localStorage.setItem(
+          CART_STORAGE_KEY,
+          JSON.stringify(
+            cart.map((item) => ({
+              productId: item.product.id,
+              quantity: item.quantity,
+              size: item.size,
+            }))
+          )
+        );
+      }
+    } catch {
+      // Storage full/unavailable - cart just won't survive a refresh
+    }
+  }, [cart]);
 
   // Update categoryOrder when prop changes (e.g., after settings save)
   useEffect(() => {
-    console.log(
-      "🎯 POSInterface prop changed, initialCategoryOrder:",
-      initialCategoryOrder
-    );
     if (initialCategoryOrder && initialCategoryOrder.length > 0) {
-      console.log(
-        "🎯 POSInterface updating categoryOrder from prop:",
-        initialCategoryOrder
-      );
       setCategoryOrder(initialCategoryOrder);
-    } else {
-      console.log("🎯 POSInterface skipping update - prop is empty");
     }
   }, [initialCategoryOrder]);
 
@@ -482,15 +522,7 @@ export default function POSInterface({
 
     // Haptic feedback - light tap when adding to cart
     if (navigator.vibrate) {
-      try {
-        // Stronger vibration that's more noticeable
-        navigator.vibrate(50); // 50ms - noticeable but not jarring
-        console.log("✓ Haptic feedback triggered");
-      } catch (error) {
-        console.log("✗ Haptic feedback failed:", error);
-      }
-    } else {
-      console.log("✗ Vibration API not supported on this device");
+      navigator.vibrate(50);
     }
 
     // Show success toast
@@ -552,121 +584,7 @@ export default function POSInterface({
     return cashReceived - (calculateTotal() + tip);
   };
 
-  const initiatePayment = () => {
-    const total = calculateTotal();
-
-    // Check if current payment method has QR code
-    if (selectedPaymentSetting?.qrCodeUrl) {
-      // Calculate total with transaction fee if applicable
-      let totalWithFee = total;
-      if (selectedPaymentSetting.transactionFee) {
-        totalWithFee = total * (1 + selectedPaymentSetting.transactionFee);
-      }
-
-      // Show QR code modal
-      setShowQRCodeModal(true);
-    } else {
-      // No QR code, process payment directly
-      handleCompleteSale();
-    }
-  };
-
-  const handleQRCodeComplete = async (
-    actualAmount: number,
-    discount?: number
-  ) => {
-    setShowQRCodeModal(false);
-    await processCompleteSale(actualAmount, discount);
-  };
-
-  const processCompleteSale = async (
-    finalAmount: number,
-    discountAmount?: number
-  ) => {
-    if (cart.length === 0) return;
-
-    const total = calculateTotal();
-    const tip = isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0;
-
-    setIsProcessing(true);
-    try {
-      // Deduct inventory for each item sold
-      for (const cartItem of cart) {
-        const product = cartItem.product;
-        if (product && product.inventory) {
-          const sizeKey = cartItem.size || "default";
-          const currentQty = product.inventory[sizeKey] || 0;
-          const updatedInventory = {
-            ...product.inventory,
-            [sizeKey]: Math.max(0, currentQty - cartItem.quantity),
-          };
-          await onUpdateProduct({
-            ...product,
-            inventory: updatedInventory,
-            synced: false, // Inventory change needs to be synced
-          });
-        }
-      }
-
-      await onCompleteSale(
-        cart,
-        total,
-        finalAmount,
-        selectedPaymentMethod,
-        discountAmount,
-        tip > 0 ? tip : undefined
-      );
-
-      // Generate sale ID (same format as in page.tsx)
-      const saleId = `sale-${Date.now()}`;
-      setLastSaleId(saleId);
-
-      // Reset state
-      setCart([]);
-      if (paymentSettings.length > 0) {
-        setSelectedPaymentMethod(paymentSettings[0].displayName);
-        setSelectedPaymentSetting(paymentSettings[0]);
-      }
-      setCashReceived(0);
-      setIsHookup(false);
-      setHookupAmount("");
-      setIsTipEnabled(false);
-      setTipAmount("");
-
-      // Show success toast
-      setToast({
-        message:
-          discountAmount && discountAmount > 0
-            ? `✨ Hook up completed! Saved $${discountAmount.toFixed(2)}`
-            : "Sale completed successfully!",
-        type: "success",
-      });
-
-      // Show email signup modal if enabled
-      if (emailSignupSettings.enabled) {
-        console.log(
-          "📧 Email signup is enabled, showing modal (processCompleteSale)"
-        );
-        console.log("📧 Email signup settings:", emailSignupSettings);
-        console.log("📧 Setting showEmailSignupModal to true");
-        setShowEmailSignupModal(true);
-      } else {
-        console.log(
-          "📧 Email signup is disabled, skipping modal (processCompleteSale)"
-        );
-      }
-    } catch (error) {
-      console.error("Failed to complete sale:", error);
-      setToast({
-        message: "Failed to complete sale. Please try again.",
-        type: "error",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Modified version that accepts tip as parameter (for modal flow)
+  // Completes the sale: decrements inventory, records the sale, resets the cart
   const processCompleteSaleWithTip = async (
     finalAmount: number,
     tipFromModal: number,
@@ -697,7 +615,7 @@ export default function POSInterface({
         }
       }
 
-      await onCompleteSale(
+      const saleId = await onCompleteSale(
         cart,
         total,
         finalAmount,
@@ -706,9 +624,8 @@ export default function POSInterface({
         tip > 0 ? tip : undefined
       );
 
-      // Generate sale ID (same format as in page.tsx)
-      const saleId = `sale-${Date.now()}`;
-      setLastSaleId(saleId);
+      // Track the real sale ID so email signups link to the right sale
+      setLastSaleId(typeof saleId === "string" ? saleId : null);
 
       // Reset state including modal states
       setCart([]);
@@ -737,14 +654,7 @@ export default function POSInterface({
 
       // Show email signup modal if enabled
       if (emailSignupSettings.enabled) {
-        console.log(
-          "📧 Email signup is enabled, showing modal (processCompleteSaleWithTip)"
-        );
         setShowEmailSignupModal(true);
-      } else {
-        console.log(
-          "📧 Email signup is disabled, skipping modal (processCompleteSaleWithTip)"
-        );
       }
     } catch (error) {
       console.error("Failed to complete sale:", error);
@@ -755,104 +665,6 @@ export default function POSInterface({
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleCompleteSale = async () => {
-    if (cart.length === 0) return;
-
-    const total = calculateTotal(); // Effective total in display currency
-    const tip = isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0;
-
-    // Calculate USD base total (without currency conversion/overrides)
-    const usdBaseTotal = cart.reduce((sum, item) => {
-      return sum + item.product.price * item.quantity;
-    }, 0);
-
-    let actualAmount = usdBaseTotal; // Start with USD base total (for regular sales)
-    let discount = 0;
-
-    // Determine actual amount based on payment method and hookup status
-    if (
-      selectedPaymentMethod.toLowerCase() === "cash" ||
-      selectedPaymentSetting?.paymentType === "cash"
-    ) {
-      if (isHookup) {
-        // Cash + hookup - actualAmount is what they paid (hookup amount in display currency)
-        if (hookupAmount !== "" && hookupAmount !== undefined) {
-          const hookupValue = Number.parseFloat(hookupAmount);
-          actualAmount = hookupValue;
-          // Apply transaction fee after hookup if applicable
-          if (selectedPaymentSetting?.transactionFee) {
-            actualAmount =
-              hookupValue * (1 + selectedPaymentSetting.transactionFee);
-          }
-          discount = total - hookupValue;
-        } else if (cashReceived > 0) {
-          actualAmount = cashReceived;
-          discount = total - cashReceived;
-        } else {
-          setToast({
-            message: "Please enter the hookup amount or cash received!",
-            type: "error",
-          });
-          return;
-        }
-      } else if (isTipEnabled) {
-        // Cash payment with tip - validate they have enough
-        const requiredAmount = selectedPaymentSetting?.transactionFee
-          ? (total + tip) * (1 + selectedPaymentSetting.transactionFee)
-          : total + tip;
-
-        if (cashReceived < requiredAmount) {
-          setToast({
-            message: "Not enough cash received (including tip)!",
-            type: "error",
-          });
-          return;
-        }
-        // For regular cash with tip, actualAmount stays as usdBaseTotal
-      } else {
-        // Regular cash payment - validate they have enough
-        const requiredAmount = selectedPaymentSetting?.transactionFee
-          ? total * (1 + selectedPaymentSetting.transactionFee)
-          : total;
-
-        if (cashReceived < requiredAmount) {
-          setToast({
-            message: "Not enough cash received!",
-            type: "error",
-          });
-          return;
-        }
-        // For regular cash, actualAmount stays as usdBaseTotal
-      }
-    } else {
-      // Other payment methods
-      if (isHookup) {
-        // Non-cash + hookup - actualAmount is what they paid (hookup amount in display currency)
-        if (hookupAmount === "" || hookupAmount === undefined) {
-          setToast({
-            message: "Please enter the hookup amount!",
-            type: "error",
-          });
-          return;
-        }
-        const hookupValue = Number.parseFloat(hookupAmount);
-        actualAmount = hookupValue;
-        // Apply transaction fee after hookup if applicable
-        if (selectedPaymentSetting?.transactionFee) {
-          actualAmount =
-            hookupValue * (1 + selectedPaymentSetting.transactionFee);
-        }
-        discount = total - hookupValue;
-      }
-      // For regular non-cash, actualAmount stays as usdBaseTotal
-    }
-
-    await processCompleteSale(
-      actualAmount,
-      discount > 0 ? discount : undefined
-    );
   };
 
   // Modified version that accepts tip as parameter (for modal flow - all payment types)
@@ -929,13 +741,14 @@ export default function POSInterface({
   };
 
   const handleCompleteSaleClick = () => {
-    // Check if we should skip tip collection
-    // Skip tips for non-cash payments when currency is not USD
+    // Skip tip collection when the tip jar is disabled in settings,
+    // or for non-cash payments in non-USD currencies
     const isCashPayment =
       selectedPaymentMethod.toLowerCase() === "cash" ||
       selectedPaymentSetting?.paymentType === "cash";
     const currentCurrency = getCurrencyCode();
-    const shouldSkipTips = !isCashPayment && currentCurrency !== "USD";
+    const shouldSkipTips =
+      !showTipJar || (!isCashPayment && currentCurrency !== "USD");
 
     // Open review modal
     if (shouldSkipTips) {
@@ -1624,19 +1437,42 @@ export default function POSInterface({
           }
         )}
 
-        {/* No Results Message */}
-        {getFilteredProducts().length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-theme-muted text-lg mb-2">No products found</p>
-            {searchQuery && (
+        {/* Empty / No Results States */}
+        {products.length === 0 ? (
+          <div className="text-center py-16 px-6">
+            <div className="text-5xl mb-4" aria-hidden="true">
+              📦
+            </div>
+            <p className="text-theme text-lg font-semibold mb-2">
+              No merch on the table yet
+            </p>
+            <p className="text-theme-muted mb-6">
+              Add your products in Inventory and they&apos;ll show up here,
+              ready to sell.
+            </p>
+            {onGoToInventory && (
               <button
-                onClick={() => setSearchQuery("")}
-                className="text-primary hover:text-primary/80 underline"
+                onClick={onGoToInventory}
+                className="px-6 py-3 bg-primary text-on-primary font-bold rounded-lg hover:bg-primary-hover active:scale-95 transition-all touch-manipulation"
               >
-                Clear search
+                Set up inventory
               </button>
             )}
           </div>
+        ) : (
+          getFilteredProducts().length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-theme-muted text-lg mb-2">No products found</p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="text-primary hover:text-primary/80 underline"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          )
         )}
       </div>
 
@@ -1657,12 +1493,15 @@ export default function POSInterface({
 
         <div className="p-4 lg:p-6">
           {cart.length === 0 ? (
-            <p className="text-center text-theme-muted mt-8">Cart is empty</p>
+            <div className="text-center text-theme-muted mt-8">
+              <p className="font-medium">Cart is empty</p>
+              <p className="text-sm mt-1">Tap a product to start a sale</p>
+            </div>
           ) : (
             <div className="space-y-3">
-              {cart.map((item, index) => (
+              {cart.map((item) => (
                 <div
-                  key={`${item.product.id}-${item.size || "no-size"}-${index}`}
+                  key={`${item.product.id}-${item.size || "no-size"}`}
                   className="p-3 bg-theme border border-theme rounded-lg"
                 >
                   {/* Desktop layout: Product info on top, size and controls below */}
@@ -1721,7 +1560,9 @@ export default function POSInterface({
                           <PlusIcon className="w-4 h-4 text-theme" />
                         </button>
                         <button
-                          onClick={() => removeFromCart(item.product.id)}
+                          onClick={() =>
+                            removeFromCart(item.product.id, item.size)
+                          }
                           className="p-1 rounded bg-red-900/40 hover:bg-red-900/60 text-primary active:scale-95 touch-manipulation ml-1"
                         >
                           <TrashIcon className="w-4 h-4" />
@@ -1788,7 +1629,9 @@ export default function POSInterface({
                             <PlusIcon className="w-4 h-4 text-theme" />
                           </button>
                           <button
-                            onClick={() => removeFromCart(item.product.id)}
+                            onClick={() =>
+                            removeFromCart(item.product.id, item.size)
+                          }
                             className="p-1 rounded bg-red-900/40 hover:bg-red-900/60 text-primary active:scale-95 touch-manipulation ml-1"
                           >
                             <TrashIcon className="w-4 h-4" />
@@ -1841,14 +1684,21 @@ export default function POSInterface({
                           <PlusIcon className="w-4 h-4 text-theme" />
                         </button>
                         <button
-                          onClick={() => removeFromCart(item.product.id)}
+                          onClick={() =>
+                            removeFromCart(item.product.id, item.size)
+                          }
                           className="p-1 rounded bg-red-900/40 hover:bg-red-900/60 text-primary active:scale-95 touch-manipulation ml-1"
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
                       <div className="font-bold text-theme min-w-[60px] text-right flex-shrink-0">
-                        ${(item.product.price * item.quantity).toFixed(2)}
+                        {formatDisplayPrice(
+                          getEffectivePrice(
+                            item.product.price,
+                            item.product.currencyPrices
+                          ) * item.quantity
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2100,7 +1950,7 @@ export default function POSInterface({
                           Tips added:
                         </span>
                         <span className="text-primary font-semibold">
-                          {formatPrice(Number.parseFloat(tipAmount))}
+                          {formatDisplayPrice(Number.parseFloat(tipAmount))}
                         </span>
                       </div>
                     )}
@@ -2187,69 +2037,24 @@ export default function POSInterface({
                           </span>
                         ) : (
                           <>
-                            Discount: $
-                            {(total - Number.parseFloat(hookupAmount)).toFixed(
-                              2
+                            Discount:{" "}
+                            {formatDisplayPrice(
+                              total - Number.parseFloat(hookupAmount)
                             )}
                           </>
                         )}
                       </p>
                     )}
+                  {hookupAmount !== "" &&
+                    Number.parseFloat(hookupAmount) > total && (
+                      <p className="text-xs text-error mt-1 font-medium">
+                        That&apos;s more than the cart total (
+                        {formatDisplayPrice(total)}) — double-check the amount.
+                      </p>
+                    )}
                 </div>
               )}
 
-              {/* Tip Jar - REMOVED: All payment methods now use modal for tips */}
-              {false && showTipJar && !isHookup && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => {
-                      const newTipState = !isTipEnabled;
-                      setIsTipEnabled(newTipState);
-                      if (!newTipState) {
-                        setTipAmount("");
-                      }
-                    }}
-                    className={`w-full px-4 py-2 rounded-lg font-medium transition-all touch-manipulation ${
-                      isTipEnabled
-                        ? "bg-secondary text-on-secondary"
-                        : "bg-theme-tertiary text-theme-secondary hover:bg-theme-tertiary"
-                    }`}
-                  >
-                    {isTipEnabled ? "💰 Tip Added" : "💰 Add a Tip"}
-                  </button>
-
-                  {/* Tip Amount Input */}
-                  {isTipEnabled && (
-                    <div className="p-3 bg-theme-tertiary border border-[#b565f2]/40 rounded-lg">
-                      <label className="block text-sm font-medium text-accent-light mb-2">
-                        Tip Amount
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted font-bold">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min="0"
-                          value={tipAmount}
-                          onChange={(e) => setTipAmount(e.target.value)}
-                          placeholder="0.00"
-                          autoFocus
-                          className="w-full pl-8 pr-4 py-2 bg-theme-secondary border border-theme rounded-lg text-theme font-bold focus:outline-none focus:border-[#b565f2]"
-                        />
-                      </div>
-                      {tipAmount && Number.parseFloat(tipAmount) > 0 && (
-                        <p className="text-xs text-accent-light mt-1">
-                          Total with tip: $
-                          {(total + Number.parseFloat(tipAmount)).toFixed(2)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             <button
@@ -2738,30 +2543,6 @@ export default function POSInterface({
             )}
           </div>
         </div>
-      )}
-
-      {/* QR Code Payment Modal */}
-      {showQRCodeModal && selectedPaymentSetting?.qrCodeUrl && (
-        <QRCodePaymentModal
-          qrCodeUrl={selectedPaymentSetting.qrCodeUrl}
-          total={
-            (calculateTotal() +
-              (isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0)) *
-            (selectedPaymentSetting.transactionFee
-              ? 1 + selectedPaymentSetting.transactionFee
-              : 1)
-          }
-          paymentMethodName={selectedPaymentSetting.displayName}
-          onComplete={handleQRCodeComplete}
-          onCancel={() => setShowQRCodeModal(false)}
-          initialHookup={isHookup}
-          initialHookupAmount={hookupAmount}
-          cartTotal={calculateTotal()}
-          tipAmount={
-            isTipEnabled && tipAmount ? Number.parseFloat(tipAmount) : 0
-          }
-          cartItems={cart}
-        />
       )}
 
       {/* Size Selection Modal */}

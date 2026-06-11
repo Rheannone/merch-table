@@ -1,5 +1,5 @@
 /**
- * Sync Strategies for Tour Manager
+ * Sync Strategies for Road Dog
  *
  * Pre-configured strategies for syncing different data types to various destinations
  */

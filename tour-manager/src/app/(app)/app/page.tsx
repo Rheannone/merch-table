@@ -31,8 +31,14 @@ import ProductManager from "@/components/ProductManager";
 import Settings from "@/components/Settings";
 import Analytics from "@/components/Analytics";
 import SyncStatusBar from "@/components/SyncStatusBar";
+import OfflineIndicator from "@/components/OfflineIndicator";
+import Onboarding from "@/components/Onboarding";
 import FeedbackButton from "@/components/FeedbackButton";
 import Toast, { ToastType } from "@/components/Toast";
+import {
+  isOnboardingComplete,
+  REPLAY_ONBOARDING_EVENT,
+} from "@/lib/onboarding";
 import {
   Cog6ToothIcon,
   ShoppingBagIcon,
@@ -64,7 +70,7 @@ export default function Home() {
     isSyncing: false,
   });
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isInitializingSheets, setIsInitializingSheets] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [productsChanged, setProductsChanged] = useState(false); // Track if products actually changed
   const [toast, setToast] = useState<{
     message: string;
@@ -74,10 +80,19 @@ export default function Home() {
   // Get theme context to apply saved theme on load
   const { setTheme } = useTheme();
 
-  // Debug: Log when categoryOrder changes
+  // Show the welcome tour on first run, and whenever Settings requests a replay
   useEffect(() => {
-    console.log("🔄 categoryOrder state changed:", categoryOrder);
-  }, [categoryOrder]);
+    if (isInitialized && !isOnboardingComplete()) {
+      setShowOnboarding(true);
+    }
+  }, [isInitialized]);
+
+  useEffect(() => {
+    const handleReplay = () => setShowOnboarding(true);
+    window.addEventListener(REPLAY_ONBOARDING_EVENT, handleReplay);
+    return () =>
+      window.removeEventListener(REPLAY_ONBOARDING_EVENT, handleReplay);
+  }, []);
 
   // Handle authentication redirect
   useEffect(() => {
@@ -181,12 +196,41 @@ export default function Home() {
     }
   }, [isInitialized]);
 
+  // Recover unsynced local records after a reload.
+  // The sync queue lives in memory, so anything recorded offline must be
+  // re-enqueued from IndexedDB or it would never reach Supabase.
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const requeueUnsyncedData = async () => {
+      try {
+        const unsyncedSales = await getUnsyncedSales();
+        for (const sale of unsyncedSales) {
+          await syncService.syncSale(sale);
+        }
+        if (unsyncedSales.length > 0) {
+          console.log(
+            `🔁 Re-queued ${unsyncedSales.length} unsynced sale(s) from IndexedDB`
+          );
+        }
+
+        const { getUnsyncedEmailSignups } = await import("@/lib/db");
+        const unsyncedEmailSignups = await getUnsyncedEmailSignups();
+        for (const signup of unsyncedEmailSignups) {
+          await syncService.syncEmailSignup(signup);
+        }
+      } catch (error) {
+        console.error("Failed to re-queue unsynced data:", error);
+      }
+    };
+
+    requeueUnsyncedData();
+  }, [isInitialized]);
+
   // Auto-sync on page load/refresh after initialization
   useEffect(() => {
     if (isInitialized && navigator.onLine) {
       const autoSync = async () => {
-        console.log("🔄 Auto-syncing on page load...");
-
         const unsyncedSales = await getUnsyncedSales();
         const queueStats = syncService.getStats();
         const hasUnsyncedProducts = queueStats.queueSize > unsyncedSales.length;
@@ -703,6 +747,9 @@ export default function Home() {
     }
 
     await updateSyncStatus();
+
+    // Return the real sale ID so callers (e.g. email signup) can reference it
+    return sale.id;
   };
 
   const handleAddProduct = async (product: Product) => {
@@ -827,42 +874,12 @@ export default function Home() {
     console.log("📋 Called setCategoryOrder with:", updatedCategories);
   };
 
-  if (isInitializingSheets) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-theme">
-        <div className="text-center max-w-md">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-theme text-lg font-semibold mb-2">
-            Setting up your Google Sheets...
-          </p>
-          <p className="text-theme-muted text-sm">
-            Creating Products and Sales sheets in your Google Drive
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (!isInitialized) {
     return (
       <div className="flex items-center justify-center h-screen bg-theme">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-theme-muted">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading state while checking authentication
-  if (status === "loading" || status === "unauthenticated") {
-    return (
-      <div className="min-h-screen bg-theme flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-theme-muted">
-            {status === "loading" ? "Loading..." : "Redirecting to sign in..."}
-          </p>
+          <p className="text-theme-muted">Getting your table ready...</p>
         </div>
       </div>
     );
@@ -1000,6 +1017,7 @@ export default function Home() {
             organizationId={currentOrganization?.id}
             onCompleteSale={handleCompleteSale}
             onUpdateProduct={handleUpdateProduct}
+            onGoToInventory={() => setActiveTab("setup")}
           />
         )}
         {activeTab === "setup" && (
@@ -1028,6 +1046,18 @@ export default function Home() {
       </main>
 
       <FeedbackButton />
+
+      <OfflineIndicator />
+
+      {/* Welcome tour - first run, or replayed from Settings */}
+      {showOnboarding && (
+        <Onboarding
+          onFinish={(destination) => {
+            setShowOnboarding(false);
+            setActiveTab(destination === "settings" ? "settings" : "pos");
+          }}
+        />
+      )}
 
       {/* Toast Notification */}
       {toast && (

@@ -1,7 +1,7 @@
 /**
  * Universal Sync Service
  *
- * Main service that initializes and manages the sync system for Tour Manager
+ * Main service that initializes and manages the sync system for Road Dog
  */
 
 import { SyncManager } from "./SyncManager";

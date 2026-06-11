@@ -7,8 +7,6 @@ import {
   CreditCardIcon,
   CurrencyDollarIcon,
   Square3Stack3DIcon,
-  TableCellsIcon,
-  CircleStackIcon,
   PaintBrushIcon,
   ArrowDownTrayIcon,
   EnvelopeIcon,
@@ -20,6 +18,7 @@ import {
   ArrowLeftOnRectangleIcon,
   UserGroupIcon,
   ShoppingBagIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   PaymentSetting,
@@ -33,10 +32,8 @@ import CloseOutWizard from "./CloseOutWizard";
 import { useTheme } from "./ThemeProvider";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getAllThemes, getTheme, applyTheme } from "@/lib/themes";
-import {
-  clearAllProducts,
-  saveSettings as saveSettingsToIndexedDB,
-} from "@/lib/db";
+import { requestOnboardingReplay } from "@/lib/onboarding";
+import { saveSettings as saveSettingsToIndexedDB } from "@/lib/db";
 import syncService from "@/lib/sync/syncService";
 import {
   saveCurrencySettings,
@@ -59,14 +56,6 @@ import {
   updateMemberRole,
   removeMember,
 } from "@/lib/supabase/data";
-
-// TypeScript declarations for Google Picker API
-declare global {
-  interface Window {
-    gapi: any;
-    google: any;
-  }
-}
 
 interface ToastState {
   message: string;
@@ -117,8 +106,6 @@ export default function Settings({
     useState(false);
   const [isProductCategoriesExpanded, setIsProductCategoriesExpanded] =
     useState(false);
-  const [isGoogleSheetsExpanded, setIsGoogleSheetsExpanded] = useState(false);
-  const [isAccountExpanded, setIsAccountExpanded] = useState(false);
   const [isThemeExpanded, setIsThemeExpanded] = useState(false);
   const [isCurrencyExpanded, setIsCurrencyExpanded] = useState(false);
   const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(false);
@@ -147,10 +134,8 @@ export default function Settings({
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>("USD");
   const [exchangeRate, setExchangeRate] = useState<string>("1.0");
 
-  // Google Sheets state
+  // Legacy Google Sheets state - only used for the one-time migration banner
   const [currentSheetId, setCurrentSheetId] = useState<string | null>(null);
-  const [currentSheetName, setCurrentSheetName] = useState<string>("");
-  const [isPickerLoaded, setIsPickerLoaded] = useState(false);
 
   // Shopify CSV import state
   const [isImportingShopify, setIsImportingShopify] = useState(false);
@@ -172,14 +157,8 @@ export default function Settings({
   // QR Code upload state
   const [uploadingQRCode, setUploadingQRCode] = useState<string | null>(null); // payment type being uploaded
 
-  // Backup state
-  const [isBackupExpanded, setIsBackupExpanded] = useState(false);
-  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
-
-  // Migration state
-  const [isMigrationExpanded, setIsMigrationExpanded] = useState(false);
+  // Migration state (legacy Google Sheets -> Supabase)
   const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationResults, setMigrationResults] = useState<any>(null);
 
   // Email Signup state
   const [isEmailSignupExpanded, setIsEmailSignupExpanded] = useState(false);
@@ -197,8 +176,6 @@ export default function Settings({
   const [manualName, setManualName] = useState("");
   const [manualPhone, setManualPhone] = useState("");
   const [isManualEntrySubmitting, setIsManualEntrySubmitting] = useState(false);
-  const [needsEmailListSheet, setNeedsEmailListSheet] = useState(false);
-  const [isAddingEmailSheet, setIsAddingEmailSheet] = useState(false);
 
   // Close-out state
   const [showCloseOutWizard, setShowCloseOutWizard] = useState(false);
@@ -232,7 +209,6 @@ export default function Settings({
   useEffect(() => {
     loadSettings();
     loadCurrentSheetInfo();
-    loadGooglePickerScript();
   }, []);
 
   // Load members when Organizations section is expanded
@@ -371,32 +347,9 @@ export default function Settings({
     setCategories(categories.filter((c) => c !== category));
   };
 
-  // Load current sheet info from localStorage and fetch name if needed
+  // Detect legacy Google Sheets users so the migration banner can show
   const loadCurrentSheetInfo = async () => {
-    const sheetId = localStorage.getItem("salesSheetId");
-    const sheetName = localStorage.getItem("salesSheetName");
-
-    setCurrentSheetId(sheetId);
-
-    // Sheet name is stored in localStorage, no need to fetch from Sheets API
-    setCurrentSheetName(sheetName || "Your Current Sheet");
-  };
-
-  // Load Google Picker API script
-  const loadGooglePickerScript = () => {
-    if (window.google?.picker) {
-      setIsPickerLoaded(true);
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://apis.google.com/js/api.js";
-    script.onload = () => {
-      window.gapi.load("picker", () => {
-        setIsPickerLoaded(true);
-      });
-    };
-    document.body.appendChild(script);
+    setCurrentSheetId(localStorage.getItem("salesSheetId"));
   };
 
   const loadSettings = async () => {
@@ -798,16 +751,6 @@ export default function Settings({
     }
   };
 
-  const handleAddEmailListSheet = async () => {
-    // Email List sheet creation is no longer needed - all data goes to Supabase
-    setToast({
-      message: "Email signups are now saved directly to Supabase",
-      type: "success",
-    });
-    setNeedsEmailListSheet(false);
-    return true;
-  };
-
   const handleToggleEmailSignup = async () => {
     const newEnabledState = !emailSignupSettings.enabled;
 
@@ -897,7 +840,6 @@ export default function Settings({
       }
 
       setToast({ message: "Email added successfully! 📧", type: "success" });
-      setNeedsEmailListSheet(false);
       // Clear form
       setManualEmail("");
       setManualName("");
@@ -937,17 +879,13 @@ export default function Settings({
     setEditingCloseOut(null);
   };
 
-  const updatePaymentSetting = (
+  const updatePaymentSetting = <K extends keyof PaymentSetting>(
     index: number,
-    field: keyof PaymentSetting,
-    value: string | number | boolean | undefined,
+    field: K,
+    value: PaymentSetting[K],
   ) => {
     const updated = [...paymentSettings];
-    if (field === "transactionFee" || field === "qrCodeUrl") {
-      updated[index][field] = value as any;
-    } else {
-      (updated[index] as Record<string, any>)[field] = value;
-    }
+    updated[index] = { ...updated[index], [field]: value };
     setPaymentSettings(updated);
   };
 
@@ -1012,115 +950,6 @@ export default function Settings({
     }
   };
 
-  // Open Google Picker to select a spreadsheet
-  const openSheetPicker = async () => {
-    if (!isPickerLoaded) {
-      setToast({
-        message: "Google Picker is still loading. Please try again.",
-        type: "error",
-      });
-      return;
-    }
-
-    try {
-      // Get the access token from the session
-      const response = await fetch("/api/auth/session");
-      const session = await response.json();
-
-      if (!session?.accessToken) {
-        setToast({
-          message: "Please sign in to select a sheet.",
-          type: "error",
-        });
-        return;
-      }
-
-      const picker = new window.google.picker.PickerBuilder()
-        .setOAuthToken(session.accessToken)
-        .addView(window.google.picker.ViewId.SPREADSHEETS)
-        .setCallback(handlePickerCallback)
-        .setTitle("Select a Google Sheet")
-        .build();
-
-      picker.setVisible(true);
-    } catch (error) {
-      console.error("Error opening picker:", error);
-      setToast({
-        message: "Failed to open sheet picker.",
-        type: "error",
-      });
-    }
-  };
-
-  // Handle sheet selection from picker
-  const handlePickerCallback = async (data: any) => {
-    if (data.action === window.google.picker.Action.PICKED) {
-      const doc = data.docs[0];
-      const newSheetId = doc.id;
-      const newSheetName = doc.name;
-
-      // Update localStorage
-      localStorage.setItem("salesSheetId", newSheetId);
-      localStorage.setItem("salesSheetName", newSheetName);
-      localStorage.setItem("productsSheetId", newSheetId);
-
-      // Clear IndexedDB products so they're loaded fresh from new sheet
-      await clearAllProducts();
-
-      // Update state
-      setCurrentSheetId(newSheetId);
-      setCurrentSheetName(newSheetName);
-
-      // Show success message
-      setToast({
-        message: `Switched to "${newSheetName}"! Reloading data...`,
-        type: "success",
-      });
-
-      // Reload settings from new sheet
-      setTimeout(() => {
-        loadSettings();
-        window.location.reload(); // Refresh to reload all data
-      }, 1000);
-    }
-  };
-
-  // Revoke Google OAuth access
-  const handleRevokeAccess = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to revoke Google access? You will need to sign in again to use Google Sheets features.",
-    );
-
-    if (!confirmed) return;
-
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-
-      // Sign out from Supabase (this will clear the session and provider tokens)
-      await supabase.auth.signOut();
-
-      setToast({
-        message:
-          "✅ Google access revoked successfully. Redirecting to sign in...",
-        type: "success",
-        duration: 3000,
-      });
-
-      // Redirect to sign in page after a brief delay
-      setTimeout(() => {
-        window.location.href = "/auth/signin";
-      }, 2000);
-    } catch (error) {
-      console.error("Error revoking access:", error);
-      setToast({
-        message: "Failed to revoke access. Please try again.",
-        type: "error",
-        duration: 5000,
-      });
-    }
-  };
-
   // Migrate data from Google Sheets to Supabase
   const handleMigrateFromSheets = async () => {
     if (!currentSheetId) {
@@ -1149,7 +978,6 @@ export default function Settings({
     }
 
     setIsMigrating(true);
-    setMigrationResults(null);
 
     try {
       const response = await fetch("/api/sheets/migrate-to-supabase", {
@@ -1164,7 +992,6 @@ export default function Settings({
       const data = await response.json();
 
       if (response.ok) {
-        setMigrationResults(data.results);
         const totalMigrated =
           data.results.products.migrated + data.results.sales.migrated;
         setToast({
@@ -1189,16 +1016,6 @@ export default function Settings({
     } finally {
       setIsMigrating(false);
     }
-  };
-
-  // Create backup of current spreadsheet
-  const handleCreateBackup = async () => {
-    // Backup functionality removed - data is now in Supabase
-    setToast({
-      message: "All data is automatically backed up in Supabase",
-      type: "success",
-      duration: 5000,
-    });
   };
 
   // Import products from Shopify CSV
@@ -1434,24 +1251,11 @@ export default function Settings({
                   stable database hosted on our servers.
                 </p>
                 <button
-                  onClick={() => {
-                    setIsMigrationExpanded(true);
-                    // Scroll to migration section
-                    setTimeout(() => {
-                      const migrationSection = document.querySelector(
-                        "[data-migration-section]",
-                      );
-                      if (migrationSection) {
-                        migrationSection.scrollIntoView({
-                          behavior: "smooth",
-                          block: "start",
-                        });
-                      }
-                    }, 100);
-                  }}
-                  className="px-5 py-2.5 bg-white text-blue-600 font-bold rounded-lg hover:bg-blue-50 transition-all active:scale-95 shadow-lg"
+                  onClick={handleMigrateFromSheets}
+                  disabled={isMigrating}
+                  className="px-5 py-2.5 bg-white text-blue-600 font-bold rounded-lg hover:bg-blue-50 transition-all active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Click to Migrate Your Data →
+                  {isMigrating ? "Migrating..." : "Migrate Your Data →"}
                 </button>
               </div>
             </div>
@@ -2274,371 +2078,6 @@ export default function Settings({
           )}
         </div>
 
-        {/* Google Sheets Section - COMMENTED OUT (not currently hooked up) */}
-        {/* 
-        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
-          <button
-            onClick={() => setIsGoogleSheetsExpanded(!isGoogleSheetsExpanded)}
-            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <TableCellsIcon className="w-7 h-7 text-primary" />
-              <h2 className="text-2xl font-bold text-theme">Google Sheets</h2>
-            </div>
-            {isGoogleSheetsExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
-            ) : (
-              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
-            )}
-          </button>
-
-          {isGoogleSheetsExpanded && (
-            <div className="px-6 pb-6">
-              <p className="text-sm text-theme-muted mb-6">
-                Select which Google Sheet to use for your POS data. You can
-                switch between different sheets for different tours or events.
-              </p>
-
-              {currentSheetId ? (
-                <div className="space-y-4">
-                  <div className="bg-theme-tertiary rounded-lg p-4 border border-theme">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-xs font-medium text-theme-muted mb-1">
-                          Current Sheet
-                        </label>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-lg font-semibold text-theme truncate">
-                            {currentSheetName}
-                          </span>
-                        </div>
-                        <a
-                          href={`https://docs.google.com/spreadsheets/d/${currentSheetId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:text-primary underline break-all"
-                        >
-                          Open in Google Sheets →
-                        </a>
-                      </div>
-                      <button
-                        onClick={openSheetPicker}
-                        className="px-4 py-2 bg-secondary text-theme font-semibold rounded transition-all whitespace-nowrap"
-                      >
-                        🔄 Change Sheet
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
-                    <p className="text-sm text-theme">
-                      💡 <strong>Tip:</strong> Switching sheets will reload all
-                      your data (products, sales, settings) from the newly
-                      selected sheet.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-theme-muted mb-4">
-                    No sheet currently selected
-                  </p>
-                  <button
-                    onClick={openSheetPicker}
-                    className="px-6 py-3 bg-secondary text-theme font-semibold rounded transition-all"
-                  >
-                    📊 Select a Sheet
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        */}
-
-        {/* Account & Privacy Section - COMMENTED OUT (Google Sheets related) */}
-        {/*
-        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
-          <button
-            onClick={() => setIsAccountExpanded(!isAccountExpanded)}
-            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <svg
-                className="w-7 h-7 text-primary"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-              <h2 className="text-2xl font-bold text-theme">
-                Account & Privacy
-              </h2>
-            </div>
-            {isAccountExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
-            ) : (
-              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
-            )}
-          </button>
-
-          {isAccountExpanded && (
-            <div className="px-6 pb-6">
-              <p className="text-sm text-theme-muted mb-6">
-                Manage your Google account connection and data permissions.
-              </p>
-
-              <div className="space-y-4">
-                <div className="bg-theme-tertiary rounded-lg p-6 border border-theme">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 text-4xl">🔐</div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-theme mb-2">
-                        Revoke Google Access
-                      </h3>
-                      <p className="text-sm text-theme-muted mb-4">
-                        Remove this app&apos;s access to your Google account and
-                        Google Sheets. You&apos;ll need to sign in again to
-                        continue using the app.
-                      </p>
-                      <button
-                        onClick={handleRevokeAccess}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded transition-all active:scale-95"
-                      >
-                        Revoke Access
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-theme-secondary border border-theme rounded-lg p-4 opacity-70">
-                  <p className="text-sm text-theme">
-                    ℹ️ <strong>Note:</strong> Revoking access will sign you out
-                    and clear your session. Your data in Google Sheets will
-                    remain unchanged.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        */}
-
-        {/* Backup Section - COMMENTED OUT (Google Sheets related) */}
-        {/*
-        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
-          <button
-            onClick={() => setIsBackupExpanded(!isBackupExpanded)}
-            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <CircleStackIcon className="w-7 h-7 text-primary" />
-              <h2 className="text-2xl font-bold text-theme">Backup Data</h2>
-            </div>
-            {isBackupExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
-            ) : (
-              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
-            )}
-          </button>
-
-          {isBackupExpanded && (
-            <div className="px-6 pb-6">
-              <p className="text-sm text-theme-muted mb-6">
-                Create a complete backup of your current spreadsheet. The backup
-                will be saved as a new Google Sheet with all your data.
-              </p>
-
-              {currentSheetId ? (
-                <div className="space-y-4">
-                  <div className="bg-theme-tertiary rounded-lg p-6 border border-theme text-center">
-                    <div className="mb-4">
-                      <div className="text-4xl mb-3">💾</div>
-                      <h3 className="text-lg font-semibold text-theme mb-2">
-                        Create Backup
-                      </h3>
-                      <p className="text-sm text-theme-muted mb-4">
-                        Backup will be named:{" "}
-                        <span className="font-mono text-theme">
-                          {new Date().toISOString().split("T")[0]}
-                          -tour-manager-backup
-                        </span>
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleCreateBackup}
-                      disabled={isCreatingBackup}
-                      className="px-6 py-3 bg-success text-theme font-semibold rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-success/90 active:scale-95"
-                    >
-                      {isCreatingBackup
-                        ? "Creating Backup..."
-                        : "📦 Create Backup"}
-                    </button>
-                  </div>
-
-                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
-                    <p className="text-sm text-blue-300 mb-2">
-                      ℹ️ <strong>What gets backed up:</strong>
-                    </p>
-                    <ul className="text-sm text-blue-200 space-y-1 ml-4 list-disc">
-                      <li>All products and inventory</li>
-                      <li>All sales history</li>
-                      <li>Payment settings and categories</li>
-                      <li>Currency preferences</li>
-                    </ul>
-                    <p className="text-xs text-blue-300 mt-3">
-                      💡 The backup will appear in your Google Drive. You can
-                      switch to it anytime using the &quot;Change Sheet&quot;
-                      option above.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-theme-muted mb-2">
-                    No spreadsheet to backup
-                  </p>
-                  <p className="text-sm text-theme-muted">
-                    Please initialize or select a sheet first.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        */}
-
-        {/* Migration Section - COMMENTED OUT (Google Sheets related) */}
-        {/*
-        <div
-          data-migration-section
-          className="bg-theme-secondary rounded-lg mb-6 overflow-hidden border-2 border-yellow-600/50"
-        >
-          <button
-            onClick={() => setIsMigrationExpanded(!isMigrationExpanded)}
-            className="w-full p-6 flex items-center justify-between hover:bg-theme-tertiary transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <ArrowPathIcon className="w-7 h-7 text-yellow-500" />
-              <div className="text-left">
-                <h2 className="text-2xl font-bold text-theme">
-                  Migrate from Google Sheets
-                </h2>
-                <p className="text-xs text-yellow-500 mt-1">
-                  For existing users only
-                </p>
-              </div>
-            </div>
-            {isMigrationExpanded ? (
-              <ChevronUpIcon className="w-6 h-6 text-theme-muted" />
-            ) : (
-              <ChevronDownIcon className="w-6 h-6 text-theme-muted" />
-            )}
-          </button>
-
-          {isMigrationExpanded && (
-            <div className="px-6 pb-6">
-              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4 mb-6">
-                <p className="text-sm text-yellow-200 mb-2">
-                  ⚠️ <strong>Important:</strong> This is a one-time migration
-                  tool for users who have existing data in Google Sheets.
-                </p>
-                <p className="text-xs text-yellow-300 mt-2">
-                  This will import all your products, sales, and settings from
-                  your Google Sheet into Supabase. After migration, the app will
-                  use Supabase as the primary data source.
-                </p>
-              </div>
-
-              {currentSheetId ? (
-                <div className="space-y-4">
-                  <div className="bg-theme-tertiary rounded-lg p-6 border border-theme text-center">
-                    <div className="mb-4">
-                      <div className="text-4xl mb-3">📦➡️☁️</div>
-                      <h3 className="text-lg font-semibold text-theme mb-2">
-                        Import from Google Sheets
-                      </h3>
-                      <p className="text-sm text-theme-muted mb-2">
-                        Current sheet:{" "}
-                        <span className="font-mono text-theme">
-                          {currentSheetName}
-                        </span>
-                      </p>
-                      <p className="text-xs text-theme-muted mb-4">
-                        This will import all data from your Google Sheet
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleMigrateFromSheets}
-                      disabled={isMigrating}
-                      className="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                    >
-                      {isMigrating ? "Migrating..." : "🚀 Start Migration"}
-                    </button>
-                  </div>
-
-                  {migrationResults && (
-                    <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-4">
-                      <p className="text-sm text-green-300 mb-2">
-                        ✅ <strong>Migration Complete!</strong>
-                      </p>
-                      <ul className="text-sm text-green-200 space-y-1 ml-4 list-disc">
-                        <li>
-                          Products: {migrationResults.products.migrated}{" "}
-                          imported, {migrationResults.products.errors} errors
-                        </li>
-                        <li>
-                          Sales: {migrationResults.sales.migrated} imported,{" "}
-                          {migrationResults.sales.errors} errors
-                        </li>
-                        <li>
-                          Settings:{" "}
-                          {migrationResults.settings.migrated
-                            ? "✅ Imported"
-                            : "❌ Failed"}
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-
-                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
-                    <p className="text-sm text-blue-300 mb-2">
-                      ℹ️ <strong>What gets migrated:</strong>
-                    </p>
-                    <ul className="text-sm text-blue-200 space-y-1 ml-4 list-disc">
-                      <li>All products and inventory</li>
-                      <li>All sales history</li>
-                      <li>Payment settings and categories</li>
-                      <li>Currency preferences and theme</li>
-                    </ul>
-                    <p className="text-xs text-blue-300 mt-3">
-                      💡 After migration, your data will be stored in Supabase.
-                      Your Google Sheet will remain unchanged as a backup.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-theme-muted mb-2">
-                    No spreadsheet selected
-                  </p>
-                  <p className="text-sm text-theme-muted">
-                    Please select your Google Sheet first using the &quot;Change
-                    Sheet&quot; option above.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        */}
-
         {/* Close-Out Section */}
         <CloseOutSection
           onCreateCloseOut={handleCreateCloseOut}
@@ -2687,26 +2126,22 @@ export default function Settings({
                   </div>
                   <button
                     onClick={handleToggleEmailSignup}
-                    disabled={isAddingEmailSheet}
+                    aria-label={`${
+                      emailSignupSettings.enabled ? "Disable" : "Enable"
+                    } email signup`}
                     className={`relative inline-flex h-10 w-[70px] flex-shrink-0 items-center rounded-full transition-all duration-300 shadow-lg ${
                       emailSignupSettings.enabled
                         ? "bg-gradient-to-r from-green-600 to-green-500"
                         : "bg-gradient-to-r from-gray-600 to-gray-500"
-                    } hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100`}
+                    } hover:scale-105 active:scale-95`}
                   >
-                    {isAddingEmailSheet ? (
-                      <div className="w-full flex items-center justify-center">
-                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    ) : (
-                      <span
-                        className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-                          emailSignupSettings.enabled
-                            ? "translate-x-[34px]"
-                            : "translate-x-[2px]"
-                        }`}
-                      />
-                    )}
+                    <span
+                      className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                        emailSignupSettings.enabled
+                          ? "translate-x-[34px]"
+                          : "translate-x-[2px]"
+                      }`}
+                    />
                   </button>
                 </div>
 
@@ -3043,6 +2478,28 @@ export default function Settings({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Help & Tutorial Section */}
+        <div className="bg-theme-secondary rounded-lg mb-6 overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <QuestionMarkCircleIcon className="w-7 h-7 text-primary" />
+              <h2 className="text-2xl font-bold text-theme">
+                Help &amp; Tutorial
+              </h2>
+            </div>
+            <p className="text-sm text-theme-muted mb-4">
+              New crew member at the table? Replay the welcome tour to see how
+              selling, inventory, offline mode, and close-outs work.
+            </p>
+            <button
+              onClick={requestOnboardingReplay}
+              className="px-5 py-2.5 bg-theme-tertiary text-theme font-semibold rounded-lg border border-theme hover:border-primary transition-all active:scale-95 touch-manipulation"
+            >
+              Replay welcome tour
+            </button>
+          </div>
         </div>
 
         {/* Organizations Section */}

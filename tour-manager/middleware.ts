@@ -48,8 +48,12 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Protect app routes
-  if (request.nextUrl.pathname.startsWith("/app")) {
+  // Protect app routes (including the /debug tools, which can wipe local data)
+  if (
+    request.nextUrl.pathname.startsWith("/app") ||
+    request.nextUrl.pathname.startsWith("/organizations") ||
+    request.nextUrl.pathname.startsWith("/debug")
+  ) {
     if (!session) {
       return NextResponse.redirect(new URL("/auth/signin", request.url));
     }

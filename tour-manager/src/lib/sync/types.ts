@@ -1,5 +1,5 @@
 /**
- * Universal Sync System for Tour Manager
+ * Universal Sync System for Road Dog
  *
  * This system provides:
  * - Offline-first operations with queueing
